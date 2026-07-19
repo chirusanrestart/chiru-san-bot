@@ -8,13 +8,25 @@ import {
 } from "./memory.js";
 
 
+let groq = null;
 
-const groq = new Groq({
 
-    apiKey: process.env.GROQ_API_KEY
+const apiKey = process.env.GROQ_API_KEY;
 
-});
 
+if (apiKey && apiKey.trim().length > 0) {
+
+    groq = new Groq({
+        apiKey
+    });
+
+    console.log("🟢 IA Groq ativada!");
+
+} else {
+
+    console.log("⚠️ IA desativada: GROQ_API_KEY não configurada.");
+
+}
 
 
 
@@ -22,6 +34,14 @@ export async function askAI(
     userId,
     message
 ) {
+
+
+    if (!groq) {
+
+        return "🌸 A IA está desativada no momento.";
+
+    }
+
 
 
     const memory = getUserMemory(userId);
@@ -75,50 +95,59 @@ export async function askAI(
 
 
 
+    try {
 
 
-    const response =
-        await groq.chat.completions.create({
+        const response =
+            await groq.chat.completions.create({
 
-            model:
-            "openai/gpt-oss-120b",
+                model:
+                "openai/gpt-oss-120b",
 
+                messages,
 
-            messages,
+                temperature: 0.8,
 
+                max_tokens: 2048
 
-            temperature: 0.8,
-
-
-            max_tokens: 2048
-
-        });
-
+            });
 
 
 
-
-    const answer =
-        response.choices[0]
-        .message.content;
-
+        const answer =
+            response.choices[0]
+            .message.content;
 
 
 
-    saveUserMessage(
+        saveUserMessage(
 
-        userId,
+            userId,
 
-        message,
+            message,
 
-        answer
+            answer
 
-    );
-
-
+        );
 
 
-    return answer;
+
+        return answer;
+
+
+
+    } catch (error) {
+
+
+        console.error(
+            "❌ Erro na IA:",
+            error.message
+        );
+
+
+        return "🌸 Tive um probleminha para responder agora.";
+
+    }
 
 
 }

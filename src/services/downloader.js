@@ -27,6 +27,17 @@ export default class Downloader {
                 "--newline",
                 "--no-playlist",
 
+                // Cliente Android + Web do YouTube
+                "--extractor-args",
+                "youtube:player_client=android,web",
+
+                // Simula Chrome Android
+                "--user-agent",
+                "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+
+                "--referer",
+                "https://www.youtube.com/",
+
                 "--restrict-filenames",
 
                 "--print",
@@ -82,7 +93,6 @@ export default class Downloader {
                 args.push(
 
                     "--postprocessor-args",
-
                     "ffmpeg:-c:v libx264 -c:a aac"
 
                 );
