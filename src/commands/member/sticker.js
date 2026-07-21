@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 
 export default {
 
-    name: "sticker",
+    name: "s",
 
     description: "Cria uma figurinha",
 
@@ -42,7 +42,7 @@ export default {
                 jid,
                 {
                     text:
-                    "❌ Envie uma imagem ou vídeo com .sticker"
+                    "❌ Envie uma imagem ou vídeo com .s"
                 }
             );
 

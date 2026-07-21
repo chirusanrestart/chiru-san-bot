@@ -29,7 +29,9 @@ export default class CommandHandler {
 
 
             const dir =
-                path.resolve(`src/commands/${folder}`);
+                path.resolve(
+                    `src/commands/${folder}`
+                );
 
 
             if (!fs.existsSync(dir))
@@ -39,7 +41,10 @@ export default class CommandHandler {
 
             const files =
                 fs.readdirSync(dir)
-                .filter(file => file.endsWith(".js"));
+                .filter(
+                    file =>
+                        file.endsWith(".js")
+                );
 
 
 
@@ -55,7 +60,8 @@ export default class CommandHandler {
 
 
 
-                const cmd = command.default;
+                const cmd =
+                    command.default;
 
 
 
@@ -63,6 +69,7 @@ export default class CommandHandler {
                     cmd.name,
                     cmd
                 );
+
 
 
                 console.log(
@@ -86,22 +93,27 @@ export default class CommandHandler {
 
         const text =
             msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text;
+            msg.message?.extendedTextMessage?.text ||
+            msg.message?.imageMessage?.caption ||
+            msg.message?.videoMessage?.caption;
 
 
 
-        if (!text) return;
+        if (!text)
+            return;
 
 
 
-        if (!text.startsWith(".")) return;
+        if (!text.startsWith("."))
+            return;
 
 
 
         const args =
-            text.slice(1)
-            .trim()
-            .split(/\s+/);
+            text
+                .slice(1)
+                .trim()
+                .split(/\s+/);
 
 
 
@@ -111,11 +123,14 @@ export default class CommandHandler {
 
 
         const command =
-            this.commands.get(commandName);
+            this.commands.get(
+                commandName
+            );
 
 
 
-        if (!command) return;
+        if (!command)
+            return;
 
 
 
