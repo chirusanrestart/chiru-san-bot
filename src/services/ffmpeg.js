@@ -3,7 +3,6 @@ import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
 
-
 /**
  * Converte um vídeo ou imagem em sticker testando os métodos em cascata
  * (Vulkan -> OpenCL -> MediaCodec -> CPU)
@@ -13,7 +12,6 @@ export async function runFFmpegSticker(
     output,
     type = "image"
 ) {
-
     const methodsQueue = [
         "vulkan",
         "opencl",
@@ -21,62 +19,33 @@ export async function runFFmpegSticker(
         "libwebp"
     ];
 
-
     for (const method of methodsQueue) {
-
         try {
-
-            if (
-                type === "image" &&
-                method === "mediacodec"
-            ) {
-                continue;
+            if (type === "image" && method === "mediacodec") {
+                continue; // MediaCodec é focado em vídeo
             }
 
+            console.log(`🧪 Testando método: ${method}...`);
 
-            console.log(
-                `🧪 Testando método: ${method}...`
+            const command = buildFFmpegCommand(
+                input,
+                output,
+                type,
+                method
             );
-
-
-            const command =
-                buildFFmpegCommand(
-                    input,
-                    output,
-                    type,
-                    method
-                );
-
 
             await execAsync(command);
 
-
-            console.log(
-                `✅ Sticker (${type}) gerado usando: ${method}`
-            );
-
-
+            console.log(`✅ Sticker (${type}) gerado usando: ${method}`);
             return output;
 
-
         } catch (error) {
-
-            console.warn(
-                `⚠️ Método ${method} falhou.`
-            );
-
+            console.warn(`⚠️ Método ${method} falhou.`);
         }
-
     }
 
-
-    throw new Error(
-        "❌ Todos os métodos de conversão falharam."
-    );
-
+    throw new Error("❌ Todos os métodos de conversão falharam.");
 }
-
-
 
 /**
  * Converte figurinha WEBP em imagem PNG
@@ -85,19 +54,10 @@ export async function webpToImage(
     input,
     output
 ) {
-
-    const command =
-        `ffmpeg -y -i "${input}" "${output}"`;
-
-
+    const command = `ffmpeg -y -i "${input}" "${output}"`;
     await execAsync(command);
-
-
     return output;
-
 }
-
-
 
 /**
  * Monta comandos do FFmpeg
@@ -108,124 +68,46 @@ function buildFFmpegCommand(
     type,
     method
 ) {
-
-
+    // 1. MODO SEGURO: CPU (libwebp)
     if (method === "libwebp") {
-
-
         if (type === "video") {
-
-            return `
-            ffmpeg -y -i "${input}"
-            -t 20
-            -vf "fps=10,scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2"
-            -c:v libwebp
-            -loop 0
-            -quality 75
-            -compression_level 6
-            -preset picture
-            -an "${output}"
-            `.replace(/\n/g, " ");
-
-
+            return `ffmpeg -y -i "${input}" -t 20 -vf "fps=10,scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2" -c:v libwebp -loop 0 -quality 75 -compression_level 6 -preset picture -an "${output}"`;
         } else {
-
-
-            return `
-            ffmpeg -y -i "${input}"
-            -vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2"
-            -c:v libwebp
-            -quality 80
-            -preset picture
-            -an "${output}"
-            `.replace(/\n/g, " ");
-
+            return `ffmpeg -y -i "${input}" -vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2" -c:v libwebp -quality 80 -preset picture -an "${output}"`;
         }
-
     }
 
-
-
+    // 2. MODOS ACELERADOS POR GPU (Vulkan, OpenCL, MediaCodec)
     let hwInit = "";
     let filterChain = "";
 
-
-
     if (type === "video") {
-
-
         if (method === "vulkan") {
-
-            hwInit =
-                "-init_hw_device vulkan=vk -filter_hw_device vk";
-
-            filterChain =
-                "hwupload,fps_vulkan=fps=10,scale_vulkan=360:360,hwdownload,format=yuv420p";
-
-
+            hwInit = "-init_hw_device vulkan=vk -filter_hw_device vk";
+            // Processamento do vídeo (FPS e Scale) 100% na GPU via Vulkan
+            filterChain = "format=nv12,hwupload,fps_vulkan=fps=10,scale_vulkan=360:360,hwdownload,format=yuv420p";
         } else if (method === "opencl") {
-
-            hwInit =
-                "-init_hw_device opencl=ocl -filter_hw_device ocl";
-
-            filterChain =
-                "hwupload,fps_opencl=fps=10,scale_opencl=360:360,hwdownload,format=yuv420p";
-
-
+            hwInit = "-init_hw_device opencl=ocl -filter_hw_device ocl";
+            // Processamento do vídeo (FPS e Scale) 100% na GPU via OpenCL
+            filterChain = "format=nv12,hwupload,fps_opencl=fps=10,scale_opencl=360:360,hwdownload,format=yuv420p";
         } else if (method === "mediacodec") {
-
-            filterChain =
-                "fps=10,scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2";
-
+            filterChain = "fps=10,scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2";
         }
-
-
     } else {
-
-
         if (method === "vulkan") {
-
-            hwInit =
-                "-init_hw_device vulkan=vk -filter_hw_device vk";
-
-            filterChain =
-                "hwupload,scale_vulkan=512:512,hwdownload,format=yuv420p";
-
-
+            hwInit = "-init_hw_device vulkan=vk -filter_hw_device vk";
+            filterChain = "format=nv12,hwupload,scale_vulkan=512:512,hwdownload,format=yuv420p";
         } else if (method === "opencl") {
-
-            hwInit =
-                "-init_hw_device opencl=ocl -filter_hw_device ocl";
-
-            filterChain =
-                "hwupload,scale_opencl=512:512,hwdownload,format=yuv420p";
-
+            hwInit = "-init_hw_device opencl=ocl -filter_hw_device ocl";
+            filterChain = "format=nv12,hwupload,scale_opencl=512:512,hwdownload,format=yuv420p";
         }
-
     }
 
+    const encoder = (type === "video" && method === "mediacodec") ? "h264_mediacodec" : "libwebp";
 
-
-    const encoder =
-        (
-            type === "video" &&
-            method === "mediacodec"
-        )
-        ? "h264_mediacodec"
-        : "libwebp";
-
-
-
-    return `
-    ffmpeg -y
-    ${hwInit}
-    -i "${input}"
-    -vf "${filterChain}"
-    -c:v ${encoder}
-    -quality 80
-    -preset picture
-    -an "${output}"
-    `.replace(/\n/g, " ");
-
-
+    if (type === "video") {
+        return `ffmpeg -y ${hwInit} -i "${input}" -t 20 -vf "${filterChain}" -c:v ${encoder} -loop 0 -quality 75 -compression_level 6 -preset picture -an "${output}"`.replace(/\s+/g, " ");
+    } else {
+        return `ffmpeg -y ${hwInit} -i "${input}" -vf "${filterChain}" -c:v ${encoder} -quality 80 -preset picture -an "${output}"`.replace(/\s+/g, " ");
+    }
 }

@@ -92,9 +92,9 @@ export function saveUserMessage(
     });
 
 
-    // guarda somente as últimas 15  mensagens
+    // guarda somente as últimas 10  mensagens
     memory[id].history =
-        memory[id].history.slice(-15
+        memory[id].history.slice(-10
 );
 
 
