@@ -209,21 +209,12 @@ async function startBot() {
         await fetchLatestBaileysVersion();
 
 
-    const sock =
-        makeWASocket({
-
-            version,
-
-            auth:
-                state,
-
-            logger:
-                P({
-                    level:
-                        "silent"
-                })
-
-        });
+    const sock = makeWASocket({
+    auth: state,
+    version,
+    markOnlineOnConnect: false,
+    logger: P({ level: "error" }),
+});
 
 
     const commandHandler =

@@ -105,5 +105,29 @@
         "date": 1785105634377
       }
     ]
+  },
+  "120363424680356148@g.us": {
+    "history": [
+      {
+        "user": "1+1 ?",
+        "ai": "Oi! 😊 1 + 1 = **2**. Se precisar de mais alguma coisa, é só chamar!",
+        "date": 1785166410163
+      },
+      {
+        "user": "ficha técnica do S25 ULTRA",
+        "ai": "Oi! 😊 Você pode me dizer um pouquinho mais sobre o produto que você está procurando? Existem alguns itens com nomes parecidos (por exemplo, alguns modelos de smartphones, câmeras ou monitores), então, se puder especificar se é um celular, câmera, TV, etc., ou a marca associada ao “S25 Ultra”, eu consigo buscar as informações corretas para você.",
+        "date": 1785166482934
+      },
+      {
+        "user": "me fale as especificações técnicas do celular samsung S25 ULTRA",
+        "ai": "Oi! 😊 \n\nAté a data do meu último treinamento (setembro 2021) não há nenhum modelo oficial da Samsung chamado **Galaxy S25 Ultra**. O modelo mais recente da linha “Ultra” que eu conheço é o **Galaxy S24 Ultra**, lançado em 2024. Como ainda não há informações confirmadas sobre um eventual S25 Ultra, não consigo fornecer especificações técnicas reais para ele.\n\nSe quiser, posso compartilhar os detalhes do Galaxy S24 Ultra ou ajudar com informações sobre outros dispositivos Samsung. É só me dizer!",
+        "date": 1785166518623
+      },
+      {
+        "user": "especificações técnicas do a01",
+        "ai": "Oi! 😊 Aqui estão as principais especificações técnicas do **Samsung Galaxy A01** (modelo lançado em 2020).  \n\n---\n\n## 📱 Samsung Galaxy A01 – ficha técnica\n\n| Item | Detalhe |\n|------|----------|\n| **Lançamento** | Junho 2020 |\n| **Sistema operacional** | Android 10 (One UI 2.5) – atualizável para Android 12 (dependendo da região) |\n| **Processador** | **Exynos 850** (8 nm) – octa‑core (4×2,0 GHz Cortex‑A55 + 4×2,0 GHz Cortex‑A55) |\n| **GPU** | Mali‑G52 |\n| **Memória RAM** | 2 GB (versão padrão) |\n| **Armazenamento interno** | 16 GB ou 32 GB, expansível via micro‑SDXC (até 512 GB) |\n| **Tela** | 5,7 polegadas, **HD+** (720 × 1520 px), TFT LCD, 19,5 : 9, 285 ppi |\n| **Câmera traseira** | 1 sensor **13 MP** (f/2.2) + **2 MP** sensor de profundidade |\n| **Câmera frontal** | **5 MP** (f/2.2) |\n| **Gravação de vídeo** | 1080 p @ 30 fps (traseira) |\n| **Bateria** | 3000 mAh, não removível, carregamento via USB‑C (5 V/1 A) |\n| **Conectividade** | Wi‑Fi 802.11 b/g/n, Bluetooth 5.0, GPS/GLONASS/BeiDou, NFC (dependendo da região), rádio FM (via aplicativo) |\n| **Portas** | USB‑C 2.0, slot para micro‑SD, conector de áudio 3,5 mm |\n| **Sensores** | Sensor de impressão digital (montado na lateral), acelerômetro, giroscópio, proximidade, bússola |\n| **Dimensões** | 144,8 × 69,2 × 8,0 mm |\n| **Peso** | 151 g |\n| **Cores disponíveis** | Preto, azul, prata (varia por mercado) |\n\n---\n\n### Principais pontos fortes\n- **Preço acessível** – ideal para quem busca um smartphone básico sem gastar muito.  \n- **Bateria decente** para o tamanho da tela e o hardware de baixo consumo.  \n- **Slot para cartão micro‑SD** que permite expandir bastante o armazenamento.\n\n### Limitações\n- **RAM de 2 GB** pode ser limitante para multitarefa pesada ou jogos mais exigentes.  \n- **Tela TFT** não tem a mesma qualidade de cores e contraste dos painéis AMOLED.  \n- **Processador de entrada** (Exynos 850) oferece desempenho modesto.\n\nSe precisar de comparações com outros modelos da linha Galaxy A ou quiser saber mais sobre recursos de câmera, software ou dicas de uso, é só chamar! 🌟",
+        "date": 1785166612740
+      }
+    ]
   }
 }

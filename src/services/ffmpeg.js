@@ -3,111 +3,339 @@ import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
 
-/**
- * Converte um vídeo ou imagem em sticker testando os métodos em cascata
- * (Vulkan -> OpenCL -> MediaCodec -> CPU)
- */
+let vulkanAvailable = null;
+let openclDevice = null;
+let mediacodecAvailable = null;
+
+
+async function testVulkan() {
+
+    if (vulkanAvailable !== null)
+        return vulkanAvailable;
+
+
+    try {
+
+        await execAsync(
+            `ffmpeg -hide_banner -loglevel error \
+            -init_hw_device vulkan=test \
+            -f lavfi -i color=s=16x16 \
+            -frames:v 1 \
+            -f null -`
+        );
+
+
+        console.log("🟣 Vulkan funcionando");
+
+        vulkanAvailable = true;
+
+
+    } catch {
+
+        console.log("⚠️ Vulkan indisponível");
+
+        vulkanAvailable = false;
+
+    }
+
+
+    return vulkanAvailable;
+}
+
+
+
+async function testOpenCL() {
+
+    if (openclDevice !== null)
+        return openclDevice;
+
+
+    const names = [
+        "ocl",
+        "gpu",
+        "opencl",
+        "cl",
+        "0",
+        "0.0",
+        "default"
+    ];
+
+
+    for (const name of names) {
+
+        try {
+
+            await execAsync(
+                `ffmpeg -hide_banner -loglevel error \
+                -init_hw_device opencl=${name} \
+                -f lavfi -i color=s=16x16 \
+                -frames:v 1 \
+                -f null -`
+            );
+
+
+            console.log(
+                `🟢 OpenCL funcionando: ${name}`
+            );
+
+
+            openclDevice = name;
+
+            return name;
+
+
+        } catch {}
+
+    }
+
+
+    console.log(
+        "⚠️ OpenCL indisponível"
+    );
+
+
+    return null;
+}
+
+
+
+async function testMediaCodec() {
+
+    if (mediacodecAvailable !== null)
+        return mediacodecAvailable;
+
+
+    try {
+
+        await execAsync(
+            `ffmpeg -hide_banner -encoders | grep mediacodec`
+        );
+
+
+        console.log(
+            "📱 MediaCodec disponível"
+        );
+
+
+        mediacodecAvailable = true;
+
+
+    } catch {
+
+        mediacodecAvailable = false;
+
+    }
+
+
+    return mediacodecAvailable;
+}
 export async function runFFmpegSticker(
     input,
     output,
     type = "image"
 ) {
-    const methodsQueue = [
-        "vulkan",
-        "opencl",
-        "mediacodec",
-        "libwebp"
-    ];
 
-    for (const method of methodsQueue) {
+    const methods = [];
+
+
+    if (await testVulkan()) {
+        methods.push("vulkan");
+    }
+
+
+    if (await testOpenCL()) {
+        methods.push("opencl");
+    }
+
+
+    if (type === "video" && await testMediaCodec()) {
+        methods.push("mediacodec");
+    }
+
+
+    methods.push("cpu");
+
+
+
+    for (const method of methods) {
+
         try {
-            if (type === "image" && method === "mediacodec") {
-                continue; // MediaCodec é focado em vídeo
-            }
 
-            console.log(`🧪 Testando método: ${method}...`);
-
-            const command = buildFFmpegCommand(
-                input,
-                output,
-                type,
-                method
+            console.log(
+                `🧪 Testando método: ${method}`
             );
+
+
+            const command =
+                buildFFmpegCommand(
+                    input,
+                    output,
+                    type,
+                    method
+                );
+
 
             await execAsync(command);
 
-            console.log(`✅ Sticker (${type}) gerado usando: ${method}`);
+
+            console.log(
+                `✅ Sticker criado usando: ${method}`
+            );
+
+
             return output;
 
+
         } catch (error) {
-            console.warn(`⚠️ Método ${method} falhou.`);
+
+
+            console.warn(
+                `⚠️ ${method} falhou`
+            );
+
+
+            console.log(
+                error.stderr || ""
+            );
+
         }
+
     }
 
-    throw new Error("❌ Todos os métodos de conversão falharam.");
+
+    throw new Error(
+        "❌ Todos os métodos FFmpeg falharam"
+    );
+
 }
 
-/**
- * Converte figurinha WEBP em imagem PNG
- */
+
+
 export async function webpToImage(
     input,
     output
 ) {
-    const command = `ffmpeg -y -i "${input}" "${output}"`;
-    await execAsync(command);
+
+    await execAsync(
+        `ffmpeg -y -i "${input}" "${output}"`
+    );
+
+
     return output;
 }
-
-/**
- * Monta comandos do FFmpeg
- */
 function buildFFmpegCommand(
     input,
     output,
     type,
     method
 ) {
-    // 1. MODO SEGURO: CPU (libwebp)
-    if (method === "libwebp") {
-        if (type === "video") {
-            return `ffmpeg -y -i "${input}" -t 20 -vf "fps=10,scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2" -c:v libwebp -loop 0 -quality 75 -compression_level 6 -preset picture -an "${output}"`;
-        } else {
-            return `ffmpeg -y -i "${input}" -vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2" -c:v libwebp -quality 80 -preset picture -an "${output}"`;
-        }
-    }
 
-    // 2. MODOS ACELERADOS POR GPU (Vulkan, OpenCL, MediaCodec)
     let hwInit = "";
-    let filterChain = "";
+    let filter = "";
 
-    if (type === "video") {
-        if (method === "vulkan") {
-            hwInit = "-init_hw_device vulkan=vk -filter_hw_device vk";
-            // Processamento do vídeo (FPS e Scale) 100% na GPU via Vulkan
-            filterChain = "format=nv12,hwupload,fps_vulkan=fps=10,scale_vulkan=360:360,hwdownload,format=yuv420p";
-        } else if (method === "opencl") {
-            hwInit = "-init_hw_device opencl=ocl -filter_hw_device ocl";
-            // Processamento do vídeo (FPS e Scale) 100% na GPU via OpenCL
-            filterChain = "format=nv12,hwupload,fps_opencl=fps=10,scale_opencl=360:360,hwdownload,format=yuv420p";
-        } else if (method === "mediacodec") {
-            filterChain = "fps=10,scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2";
+
+    if (method === "vulkan") {
+
+
+        hwInit =
+        "-init_hw_device vulkan=vk -filter_hw_device vk";
+
+
+        if (type === "video") {
+
+            filter =
+            "format=rgba,hwupload,fps=10,hwdownload,format=rgba";
+
+        } else {
+
+            filter =
+            "format=rgba,hwupload,hwdownload,format=rgba";
+
         }
-    } else {
-        if (method === "vulkan") {
-            hwInit = "-init_hw_device vulkan=vk -filter_hw_device vk";
-            filterChain = "format=nv12,hwupload,scale_vulkan=512:512,hwdownload,format=yuv420p";
-        } else if (method === "opencl") {
-            hwInit = "-init_hw_device opencl=ocl -filter_hw_device ocl";
-            filterChain = "format=nv12,hwupload,scale_opencl=512:512,hwdownload,format=yuv420p";
-        }
+
     }
 
-    const encoder = (type === "video" && method === "mediacodec") ? "h264_mediacodec" : "libwebp";
+
+
+    else if (method === "opencl") {
+
+
+        if (!openclDevice) {
+
+            throw new Error(
+                "OpenCL não disponível"
+            );
+
+        }
+
+
+        hwInit =
+        `-init_hw_device opencl=${openclDevice} -filter_hw_device ${openclDevice}`;
+
+
+        if (type === "video") {
+
+            filter =
+            "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba";
+
+        } else {
+
+            filter =
+            "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba";
+
+        }
+
+    }
+
+
+
+    else if (method === "mediacodec") {
+
+
+        filter =
+        "fps=10";
+
+    }
+
+
+
+    else if (method === "cpu") {
+
+
+        filter =
+        "";
+
+    }
+
+
 
     if (type === "video") {
-        return `ffmpeg -y ${hwInit} -i "${input}" -t 20 -vf "${filterChain}" -c:v ${encoder} -loop 0 -quality 75 -compression_level 6 -preset picture -an "${output}"`.replace(/\s+/g, " ");
+
+
+        filter +=
+        ",scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2";
+
+
     } else {
-        return `ffmpeg -y ${hwInit} -i "${input}" -vf "${filterChain}" -c:v ${encoder} -quality 80 -preset picture -an "${output}"`.replace(/\s+/g, " ");
+
+
+        filter +=
+        ",scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2";
+
     }
+
+
+
+    return (
+        `ffmpeg -y ${hwInit} -i "${input}" ` +
+        `${type === "video" ? "-t 20 " : ""}` +
+        `-vf "${filter}" ` +
+        `-c:v libwebp ` +
+        `-loop 0 ` +
+        `-quality 80 ` +
+        `-compression_level 6 ` +
+        `-preset picture ` +
+        `-an "${output}"`
+    ).replace(/\s+/g, " ");
+
 }
