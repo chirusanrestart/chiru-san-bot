@@ -313,14 +313,14 @@ function buildFFmpegCommand(
 
 
         filter +=
-        ",scale=360:360:force_original_aspect_ratio=decrease,pad=360:360:(ow-iw)/2:(oh-ih)/2";
+        ",scale=512:512";
 
 
     } else {
 
 
         filter +=
-        ",scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2";
+        ",scale=512:512";
 
     }
 
