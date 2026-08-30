@@ -129,6 +129,9 @@ async function testMediaCodec() {
 
     return mediacodecAvailable;
 }
+
+
+
 export async function runFFmpegSticker(
     input,
     output,
@@ -139,17 +142,23 @@ export async function runFFmpegSticker(
 
 
     if (await testVulkan()) {
+
         methods.push("vulkan");
+
     }
 
 
     if (await testOpenCL()) {
+
         methods.push("opencl");
+
     }
 
 
     if (type === "video" && await testMediaCodec()) {
+
         methods.push("mediacodec");
+
     }
 
 
@@ -188,7 +197,6 @@ export async function runFFmpegSticker(
 
         } catch (error) {
 
-
             console.warn(
                 `⚠️ ${method} falhou`
             );
@@ -211,6 +219,84 @@ export async function runFFmpegSticker(
 
 
 
+export async function runFFmpegHD(
+    input,
+    output
+) {
+
+    const methods = [];
+
+
+    if (await testVulkan()) {
+
+        methods.push("vulkan");
+
+    }
+
+
+    if (await testOpenCL()) {
+
+        methods.push("opencl");
+
+    }
+
+
+    methods.push("cpu");
+
+
+
+    for (const method of methods) {
+
+        try {
+
+            console.log(
+                `🧪 HD testando método: ${method}`
+            );
+
+
+            const command =
+                buildHDCommand(
+                    input,
+                    output,
+                    method
+                );
+
+
+            await execAsync(command);
+
+
+            console.log(
+                `✅ HD processado usando: ${method}`
+            );
+
+
+            return output;
+
+
+        } catch (error) {
+
+            console.warn(
+                `⚠️ HD ${method} falhou`
+            );
+
+
+            console.log(
+                error.stderr || ""
+            );
+
+        }
+
+    }
+
+
+    throw new Error(
+        "❌ Todos os métodos HD falharam"
+    );
+
+}
+
+
+
 export async function webpToImage(
     input,
     output
@@ -223,6 +309,99 @@ export async function webpToImage(
 
     return output;
 }
+
+
+
+function buildHDCommand(
+    input,
+    output,
+    method
+) {
+
+    const enhancement =
+        "eq=" +
+        "contrast=1.45:" +
+        "brightness=0.03:" +
+        "saturation=1.55";
+
+
+    let hwInit = "";
+
+    let filter = "";
+
+
+
+    if (method === "vulkan") {
+
+        hwInit =
+            "-init_hw_device vulkan=vk " +
+            "-filter_hw_device vk";
+
+
+        filter =
+            "format=rgba," +
+            "hwupload," +
+            "hwdownload," +
+            "format=rgba," +
+            enhancement +
+            ",unsharp=5:5:1.0:5:5:0.0";
+
+    }
+
+
+
+    else if (method === "opencl") {
+
+        if (!openclDevice) {
+
+            throw new Error(
+                "OpenCL não disponível"
+            );
+
+        }
+
+
+        hwInit =
+            `-init_hw_device opencl=${openclDevice} ` +
+            `-filter_hw_device ${openclDevice}`;
+
+
+        filter =
+            "format=rgba," +
+            "hwupload," +
+            "unsharp_opencl," +
+            "hwdownload," +
+            "format=rgba," +
+            enhancement;
+
+    }
+
+
+
+    else {
+
+        filter =
+            enhancement +
+            ",unsharp=5:5:1.0:5:5:0.0";
+
+    }
+
+
+
+    return (
+        `ffmpeg -y ${hwInit} ` +
+        `-i "${input}" ` +
+        `-vf "${filter}" ` +
+        `-q:v 2 ` +
+        `-frames:v 1 ` +
+        `-an ` +
+        `"${output}"`
+    ).replace(/\s+/g, " ");
+
+}
+
+
+
 function buildFFmpegCommand(
     input,
     output,
@@ -231,25 +410,27 @@ function buildFFmpegCommand(
 ) {
 
     let hwInit = "";
+
     let filter = "";
+
 
 
     if (method === "vulkan") {
 
 
         hwInit =
-        "-init_hw_device vulkan=vk -filter_hw_device vk";
+            "-init_hw_device vulkan=vk -filter_hw_device vk";
 
 
         if (type === "video") {
 
             filter =
-            "format=rgba,hwupload,fps=10,hwdownload,format=rgba";
+                "format=rgba,hwupload,fps=10,hwdownload,format=rgba";
 
         } else {
 
             filter =
-            "format=rgba,hwupload,hwdownload,format=rgba";
+                "format=rgba,hwupload,hwdownload,format=rgba";
 
         }
 
@@ -270,18 +451,19 @@ function buildFFmpegCommand(
 
 
         hwInit =
-        `-init_hw_device opencl=${openclDevice} -filter_hw_device ${openclDevice}`;
+            `-init_hw_device opencl=${openclDevice} ` +
+            `-filter_hw_device ${openclDevice}`;
 
 
         if (type === "video") {
 
             filter =
-            "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba";
+                "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba";
 
         } else {
 
             filter =
-            "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba";
+                "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba";
 
         }
 
@@ -291,9 +473,8 @@ function buildFFmpegCommand(
 
     else if (method === "mediacodec") {
 
-
         filter =
-        "fps=10";
+            "fps=10";
 
     }
 
@@ -301,9 +482,8 @@ function buildFFmpegCommand(
 
     else if (method === "cpu") {
 
-
         filter =
-        "";
+            "";
 
     }
 
@@ -311,16 +491,13 @@ function buildFFmpegCommand(
 
     if (type === "video") {
 
-
         filter +=
-        ",scale=512:512";
-
+            ",scale=512:512";
 
     } else {
 
-
         filter +=
-        ",scale=512:512";
+            ",scale=512:512";
 
     }
 
