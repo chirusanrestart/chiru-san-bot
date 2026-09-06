@@ -8,24 +8,71 @@ import makeWASocket, {
 
 import P from "pino";
 import { Boom } from "@hapi/boom";
+
 import readline from "node:readline";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
 import CommandHandler from "./handlers/CommandHandler.js";
-import { isEnabled } from "./services/autoSticker.js";
-import { downloadMedia } from "./utils/download.js";
-import { createSticker } from "./services/sticker.js";
+
+import {
+    isEnabled
+} from "./services/autoSticker.js";
+
+import {
+    downloadMedia
+} from "./utils/download.js";
+
+import {
+    createSticker
+} from "./services/sticker.js";
+
+import {
+    sendStickerPack
+} from "./services/stickerPack.js";
 
 
 const rl =
     readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
+        input:
+            process.stdin,
+
+        output:
+            process.stdout
     });
 
 
-// Aguarda um determinado tempo
+/*
+ * ============================================================
+ * CONFIGURAÇÕES
+ * ============================================================
+ */
+
+const AUTO_STICKER_WAIT =
+    2000;
+
+
+/*
+ * ============================================================
+ * FILAS DO AUTO-STICKER
+ * ============================================================
+ *
+ * Cada grupo possui sua própria fila.
+ */
+
+const autoStickerBuffers =
+    new Map();
+
+
+const autoStickerTimers =
+    new Map();
+
+
+/*
+ * ============================================================
+ * FUNÇÕES AUXILIARES
+ * ============================================================
+ */
 
 const sleep =
     ms =>
@@ -38,16 +85,173 @@ const sleep =
         );
 
 
-// Retorna um atraso aleatório entre 500 e 700 ms
-
 const randomDelay =
     () =>
         Math.floor(
-            Math.random() * 201
+            Math.random() *
+            201
         ) + 500;
 
 
-// Cria uma figurinha automaticamente
+/*
+ * ============================================================
+ * ENVIA A FILA DO GRUPO
+ * ============================================================
+ */
+
+async function flushAutoSticker(
+    sock,
+    jid
+) {
+
+    const stickers =
+        autoStickerBuffers.get(
+            jid
+        );
+
+
+    autoStickerBuffers.delete(
+        jid
+    );
+
+
+    autoStickerTimers.delete(
+        jid
+    );
+
+
+    if (
+        !stickers ||
+        stickers.length === 0
+    ) {
+        return;
+    }
+
+
+    console.log(
+        `📦 Auto-sticker: ${stickers.length} sticker(s) aguardando envio em ${jid}`
+    );
+
+
+    try {
+
+        /*
+         * ====================================================
+         * APENAS 1 STICKER
+         * ====================================================
+         *
+         * Mantém o comportamento antigo.
+         */
+
+        if (
+            stickers.length === 1
+        ) {
+
+            await sock.sendMessage(
+                jid,
+                {
+                    sticker:
+                        stickers[0]
+                }
+            );
+
+
+            console.log(
+                "✅ Sticker individual enviado"
+            );
+
+
+            return;
+        }
+
+
+        /*
+         * ====================================================
+         * 2+ STICKERS
+         * ====================================================
+         *
+         * Cria pack nativo.
+         *
+         * sendStickerPack() automaticamente
+         * divide em 60 + 60 + ...
+         */
+
+        await sendStickerPack(
+            sock,
+            jid,
+            stickers,
+            {
+                name:
+                    "chiru san bot",
+
+                publisher:
+                    "Chiru-san Bot",
+
+                description:
+                    "🌸 Chiru-san Bot"
+            }
+        );
+
+
+        console.log(
+            `✅ Sticker pack enviado com ${stickers.length} sticker(s)`
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "❌ Erro enviando sticker pack:",
+            error
+        );
+
+
+        /*
+         * ====================================================
+         * FALLBACK
+         * ====================================================
+         *
+         * Se o pack falhar, não perdemos as figurinhas.
+         * Envia individualmente.
+         */
+
+        console.log(
+            "↩️ Enviando stickers individualmente..."
+        );
+
+
+        for (
+            const sticker of stickers
+        ) {
+
+            try {
+
+                await sock.sendMessage(
+                    jid,
+                    {
+                        sticker
+                    }
+                );
+
+            } catch (
+                stickerError
+            ) {
+
+                console.error(
+                    "Erro enviando sticker individual:",
+                    stickerError
+                );
+            }
+        }
+    }
+}
+
+
+/*
+ * ============================================================
+ * CRIA STICKER AUTOMÁTICO
+ * ============================================================
+ */
 
 async function createAutoSticker(
     sock,
@@ -66,12 +270,18 @@ async function createAutoSticker(
         msg.message?.videoMessage;
 
 
-    if (!image && !video)
+    if (
+        !image &&
+        !video
+    ) {
         return;
+    }
 
 
-    // Verifica se o auto-sticker
-    // está ativado neste grupo
+    /*
+     * Verifica se o recurso está
+     * habilitado no grupo.
+     */
 
     const enabled =
         await isEnabled(
@@ -79,8 +289,9 @@ async function createAutoSticker(
         );
 
 
-    if (!enabled)
+    if (!enabled) {
         return;
+    }
 
 
     console.log(
@@ -117,14 +328,22 @@ async function createAutoSticker(
         await fs.mkdir(
             "./temp",
             {
-                recursive: true
+                recursive:
+                    true
             }
         );
 
 
+        /*
+         * ====================================================
+         * DOWNLOAD
+         * ====================================================
+         */
+
         const media =
             await downloadMedia(
-                video || image,
+                video ||
+                image,
                 type
             );
 
@@ -134,6 +353,12 @@ async function createAutoSticker(
             media
         );
 
+
+        /*
+         * ====================================================
+         * CONVERSÃO PARA WEBP
+         * ====================================================
+         */
 
         await createSticker(
             input,
@@ -150,29 +375,115 @@ async function createAutoSticker(
         );
 
 
+        /*
+         * ====================================================
+         * LÊ O WEBP PARA RAM
+         * ====================================================
+         *
+         * Não guardamos o caminho porque o arquivo
+         * será apagado no finally.
+         */
+
         const sticker =
             await fs.readFile(
                 output
             );
 
 
-        await sock.sendMessage(
+        /*
+         * ====================================================
+         * CRIA FILA DO GRUPO
+         * ====================================================
+         */
+
+        if (
+            !autoStickerBuffers.has(
+                jid
+            )
+        ) {
+
+            autoStickerBuffers.set(
+                jid,
+                []
+            );
+        }
+
+
+        const queue =
+            autoStickerBuffers.get(
+                jid
+            );
+
+
+        queue.push(
+            sticker
+        );
+
+
+        console.log(
+            `📥 Sticker colocado na fila: ${queue.length}`
+        );
+
+
+        /*
+         * ====================================================
+         * REINICIA O TIMER
+         * ====================================================
+         *
+         * Cada nova mídia recebida dentro dos 2 segundos
+         * prolonga a fila.
+         */
+
+        const oldTimer =
+            autoStickerTimers.get(
+                jid
+            );
+
+
+        if (
+            oldTimer
+        ) {
+
+            clearTimeout(
+                oldTimer
+            );
+        }
+
+
+        const timer =
+            setTimeout(
+                () => {
+
+                    flushAutoSticker(
+                        sock,
+                        jid
+                    );
+
+                },
+                AUTO_STICKER_WAIT
+            );
+
+
+        autoStickerTimers.set(
             jid,
-            {
-                sticker
-            }
+            timer
         );
 
 
     } catch (error) {
 
         console.error(
-            "Erro auto-sticker:",
+            "❌ Erro auto-sticker:",
             error
         );
 
 
     } finally {
+
+        /*
+         * Apaga apenas os arquivos temporários.
+         * O WebP já está salvo na RAM da fila.
+         */
 
         await fs.unlink(
             input
@@ -186,11 +497,15 @@ async function createAutoSticker(
         ).catch(
             () => {}
         );
-
     }
-
 }
 
+
+/*
+ * ============================================================
+ * START BOT
+ * ============================================================
+ */
 
 async function startBot() {
 
@@ -209,12 +524,22 @@ async function startBot() {
         await fetchLatestBaileysVersion();
 
 
-    const sock = makeWASocket({
-    auth: state,
-    version,
-    markOnlineOnConnect: false,
-    logger: P({ level: "error" }),
-});
+    const sock =
+        makeWASocket({
+            auth:
+                state,
+
+            version,
+
+            markOnlineOnConnect:
+                false,
+
+            logger:
+                P({
+                    level:
+                        "error"
+                })
+        });
 
 
     const commandHandler =
@@ -232,6 +557,12 @@ async function startBot() {
     );
 
 
+    /*
+     * ========================================================
+     * MENSAGENS
+     * ========================================================
+     */
+
     sock.ev.on(
         "messages.upsert",
 
@@ -239,65 +570,96 @@ async function startBot() {
             messages
         }) => {
 
-            const msg =
-                messages[0];
+            /*
+             * Processa todas as mensagens
+             * do evento, e não somente messages[0].
+             */
+
+            for (
+                const msg of messages
+            ) {
+
+                if (
+                    !msg.message
+                ) {
+                    continue;
+                }
 
 
-            if (!msg.message)
-                return;
+                /*
+                 * Permite o menu acessar
+                 * os comandos carregados.
+                 */
+
+                msg.commandHandler =
+                    commandHandler;
 
 
-            // Permite o menu acessar
-            // os comandos carregados
+                /*
+                 * ID do chat.
+                 */
 
-            msg.commandHandler =
-                commandHandler;
-
-
-            // ID do chat
-
-            const jid =
-                msg.key.remoteJid;
+                const jid =
+                    msg.key.remoteJid;
 
 
-            // Verifica se é grupo
+                /*
+                 * Verifica se é grupo.
+                 */
 
-            const isGroup =
-                jid?.endsWith(
-                    "@g.us"
+                const isGroup =
+                    jid?.endsWith(
+                        "@g.us"
+                    );
+
+
+                /*
+                 * =================================================
+                 * AUTO-STICKER
+                 * =================================================
+                 */
+
+                if (
+                    isGroup
+                ) {
+
+                    await createAutoSticker(
+                        sock,
+                        msg
+                    );
+                }
+
+
+                /*
+                 * =================================================
+                 * DELAY HUMANO
+                 * =================================================
+                 */
+
+                await sleep(
+                    randomDelay()
                 );
 
 
-            // Auto-sticker
-            // somente em grupos
+                /*
+                 * =================================================
+                 * COMANDOS
+                 * =================================================
+                 */
 
-            if (isGroup) {
-
-                await createAutoSticker(
-                    sock,
+                await commandHandler.handle(
                     msg
                 );
-
             }
-
-
-            // Simula um tempo
-            // de resposta humano
-
-            await sleep(
-                randomDelay()
-            );
-
-
-            // Processa comandos
-
-            await commandHandler.handle(
-                msg
-            );
-
         }
     );
 
+
+    /*
+     * ========================================================
+     * CONEXÃO
+     * ========================================================
+     */
 
     sock.ev.on(
         "connection.update",
@@ -315,7 +677,6 @@ async function startBot() {
                 console.log(
                     "🟢 Bot conectado!"
                 );
-
             }
 
 
@@ -325,7 +686,8 @@ async function startBot() {
             ) {
 
                 const status =
-                    lastDisconnect?.error
+                    lastDisconnect
+                        ?.error
                         instanceof Boom
 
                         ? lastDisconnect
@@ -354,14 +716,17 @@ async function startBot() {
                     console.log(
                         "❌ Sessão encerrada."
                     );
-
                 }
-
             }
-
         }
     );
 
+
+    /*
+     * ========================================================
+     * PAIRING CODE
+     * ========================================================
+     */
 
     if (
         !state.creds.registered
@@ -373,31 +738,44 @@ async function startBot() {
 
             async numero => {
 
-                const codigo =
-                    await sock.requestPairingCode(
-                        numero
+                try {
+
+                    const codigo =
+                        await sock.requestPairingCode(
+                            numero
+                        );
+
+
+                    console.log(
+                        "\nCódigo:"
                     );
 
 
-                console.log(
-                    "\nCódigo:"
-                );
+                    console.log(
+                        codigo
+                    );
 
 
-                console.log(
-                    codigo
-                );
+                } catch (error) {
+
+                    console.error(
+                        "Erro ao gerar código:",
+                        error
+                    );
+                }
 
 
                 rl.close();
-
             }
-
         );
-
     }
-
 }
 
+
+/*
+ * ============================================================
+ * INICIA
+ * ============================================================
+ */
 
 startBot();
