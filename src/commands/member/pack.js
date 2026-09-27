@@ -1,69 +1,81 @@
+// src/commands/member/pack.js
+// Google Fotos → Safebooru → Pinterest → pack de 60 stickers
+
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { randomUUID } from "crypto";
+
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { fetchImageUrls } from "@marcus5914/google-photos-album-image-url-fetch";
 
 const execFileAsync = promisify(execFile);
 
-// ============================================================
-// CONFIG
-// ============================================================
-
 const TOTAL_STICKERS = 60;
-
-// Apenas 1 candidato por vez
 const CONCURRENCY = 3;
 
-// Intervalo entre candidatos do Pinterest
+const MAX_CANDIDATES = 180;
+const MAX_SEARCH_PAGES = 5;
+const MAX_SAFEBOORU = 120;
+
 const MIN_DELAY = 100;
 const MAX_DELAY = 200;
-
-const MAX_CANDIDATES = 150;
-const MAX_SEARCH_PAGES = 5;
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
 const MAX_STICKER_SIZE = 1 * 1024 * 1024;
 
-// Arquivo com os álbuns do Google Fotos
 const GOOGLE_PHOTOS_FILE = path.resolve(
     process.cwd(),
     "google-photos-albums.json"
 );
 
-// ============================================================
-// EXEC
-// ============================================================
 
-async function run(command, args, options = {}) {
-    return execFileAsync(command, args, {
-        maxBuffer: 32 * 1024 * 1024,
-        ...options
-    });
-}
+/*
+ * ============================================================
+ * AUXILIARES
+ * ============================================================
+ */
 
-// ============================================================
-// DELAY
-// ============================================================
-
-function sleep(ms) {
-    return new Promise(
-        resolve => setTimeout(resolve, ms)
+async function run(
+    command,
+    args,
+    options = {}
+) {
+    return execFileAsync(
+        command,
+        args,
+        {
+            maxBuffer:
+                32 * 1024 * 1024,
+            ...options
+        }
     );
 }
 
-function randomDelay(min, max) {
+
+function sleep(ms) {
+    return new Promise(
+        resolve =>
+            setTimeout(
+                resolve,
+                ms
+            )
+    );
+}
+
+
+function randomDelay(
+    min,
+    max
+) {
     return Math.floor(
-        Math.random() * (max - min + 1)
+        Math.random() *
+        (max - min + 1)
     ) + min;
 }
 
-// ============================================================
-// EMBARALHAR
-// ============================================================
 
 function shuffle(array) {
     return [...array].sort(
@@ -71,9 +83,6 @@ function shuffle(array) {
     );
 }
 
-// ============================================================
-// NORMALIZAR TEXTO
-// ============================================================
 
 function normalizeText(text) {
     return text
@@ -94,12 +103,25 @@ function normalizeText(text) {
         );
 }
 
-// ============================================================
-// CARREGAR ÁLBUNS DO GOOGLE FOTOS
-// ============================================================
+
+function toBooruTag(text) {
+    return normalizeText(text)
+        .replace(
+            /\s+/g,
+            "_"
+        );
+}
+
+
+/*
+ * ============================================================
+ * GOOGLE FOTOS
+ * ============================================================
+ */
 
 async function loadGooglePhotosAlbums() {
     try {
+
         const content =
             await fs.readFile(
                 GOOGLE_PHOTOS_FILE,
@@ -107,16 +129,16 @@ async function loadGooglePhotosAlbums() {
             );
 
         const data =
-            JSON.parse(content);
+            JSON.parse(
+                content
+            );
 
         if (
             !data ||
             typeof data !== "object" ||
             Array.isArray(data)
         ) {
-            throw new Error(
-                "google-photos-albums.json precisa conter um objeto."
-            );
+            return {};
         }
 
         return data;
@@ -124,41 +146,40 @@ async function loadGooglePhotosAlbums() {
     } catch (err) {
 
         if (
-            err.code === "ENOENT"
+            err.code !== "ENOENT"
         ) {
             console.log(
-                "⚠️ google-photos-albums.json não encontrado."
+                `⚠️ Falha ao carregar álbuns: ${err.message}`
             );
-
-            return {};
         }
-
-        console.log(
-            `⚠️ Falha ao carregar álbuns do Google Fotos: ${err.message}`
-        );
 
         return {};
     }
 }
 
-// ============================================================
-// ENCONTRAR ÁLBUM DO PERSONAGEM
-// ============================================================
 
 async function findGooglePhotosAlbum(
     query
 ) {
+
     const albums =
         await loadGooglePhotosAlbums();
 
     const normalizedQuery =
-        normalizeText(query);
+        normalizeText(
+            query
+        );
 
-    // Correspondência exata
+
+    /*
+     * Primeiro tenta correspondência exata.
+     */
+
     for (
-        const [name, url] of
-        Object.entries(albums)
+        const [name, url]
+        of Object.entries(albums)
     ) {
+
         if (
             normalizeText(name) ===
             normalizedQuery
@@ -170,13 +191,20 @@ async function findGooglePhotosAlbum(
         }
     }
 
-    // Correspondência por inclusão
+
+    /*
+     * Depois tenta correspondência parcial.
+     */
+
     for (
-        const [name, url] of
-        Object.entries(albums)
+        const [name, url]
+        of Object.entries(albums)
     ) {
+
         const normalizedName =
-            normalizeText(name);
+            normalizeText(
+                name
+            );
 
         if (
             normalizedName.includes(
@@ -193,46 +221,55 @@ async function findGooglePhotosAlbum(
         }
     }
 
+
     return null;
 }
 
-// ============================================================
-// BUSCAR GOOGLE FOTOS
-// ============================================================
 
 async function searchGooglePhotos(
     query
 ) {
+
     const album =
         await findGooglePhotosAlbum(
             query
         );
 
+
     if (!album) {
+
         console.log(
-            `📸 Google Fotos: nenhum álbum cadastrado para "${query}"`
+            `📸 Google Fotos: nenhum álbum para "${query}"`
         );
 
         return [];
     }
 
+
     console.log(
-        `📸 Google Fotos: álbum encontrado → ${album.name}`
+        `📸 Google Fotos: álbum → ${album.name}`
     );
 
+
     try {
+
         const items =
             await fetchImageUrls(
                 album.url
             );
 
-        if (!items?.length) {
+
+        if (
+            !items?.length
+        ) {
+
             console.log(
-                "⚠️ Google Fotos: álbum vazio ou sem mídias."
+                "⚠️ Google Fotos: álbum vazio"
             );
 
             return [];
         }
+
 
         const images =
             items
@@ -244,37 +281,47 @@ async function searchGooglePhotos(
                 )
                 .map(
                     item => {
+
                         let url =
                             item.url;
 
-                        // Tenta pegar uma versão grande
+
+                        /*
+                         * Só adiciona dimensões se
+                         * a URL ainda não tiver parâmetros.
+                         */
+
                         if (
                             item.width &&
-                            item.height
+                            item.height &&
+                            !url.includes("=")
                         ) {
+
                             url =
                                 `${url}=w${item.width}-h${item.height}`;
                         }
 
+
                         return {
                             url,
                             source:
-                                "google-photos",
-                            uid:
-                                item.uid
+                                "google-photos"
                         };
                     }
                 );
 
+
         console.log(
-            `📸 Google Fotos: ${images.length} imagens válidas`
+            `📸 Google Fotos: ${images.length} imagens`
         );
+
 
         return shuffle(
             images
         );
 
     } catch (err) {
+
         console.log(
             `⚠️ Google Fotos falhou: ${err.message}`
         );
@@ -283,28 +330,198 @@ async function searchGooglePhotos(
     }
 }
 
-// ============================================================
-// BUSCAR HTML DO PINTEREST
-// ============================================================
 
-async function fetchPinterest(url) {
+/*
+ * ============================================================
+ * SAFEBOORU
+ * ============================================================
+ */
+
+async function searchSafebooru(
+    query,
+    limit = MAX_SAFEBOORU
+) {
+
+    const tag =
+        toBooruTag(
+            query
+        );
+
+    const pages =
+        Math.ceil(
+            limit / 100
+        );
+
+    const results = [];
+
+
+    for (
+        let pid = 0;
+        pid < pages;
+        pid++
+    ) {
+
+        const url =
+            `https://safebooru.org/index.php` +
+            `?page=dapi` +
+            `&s=post` +
+            `&q=index` +
+            `&json=1` +
+            `&limit=100` +
+            `&pid=${pid}` +
+            `&tags=${encodeURIComponent(tag)}`;
+
+
+        console.log(
+            `🔒 Safebooru pid=${pid} tag=${tag}`
+        );
+
+
+        try {
+
+            const res =
+                await fetch(
+                    url,
+                    {
+                        headers: {
+                            "User-Agent":
+                                "chiru-san-bot/1.0"
+                        }
+                    }
+                );
+
+
+            if (
+                !res.ok
+            ) {
+
+                console.log(
+                    `⚠️ Safebooru HTTP ${res.status}`
+                );
+
+                break;
+            }
+
+
+            const data =
+                await res.json();
+
+
+            if (
+                !Array.isArray(data) ||
+                data.length === 0
+            ) {
+                break;
+            }
+
+
+            for (
+                const post of data
+            ) {
+
+                if (
+                    !post?.directory ||
+                    !post?.image
+                ) {
+                    continue;
+                }
+
+
+                results.push({
+                    url:
+                        `https://safebooru.org/images/` +
+                        `${post.directory}/${post.image}`,
+
+                    source:
+                        "safebooru",
+
+                    id:
+                        post.id
+                });
+
+
+                if (
+                    results.length >=
+                    limit
+                ) {
+                    break;
+                }
+            }
+
+
+            if (
+                results.length >=
+                limit
+            ) {
+                break;
+            }
+
+
+            if (
+                data.length < 100
+            ) {
+                break;
+            }
+
+
+            await sleep(
+                250
+            );
+
+        } catch (err) {
+
+            console.log(
+                `⚠️ Safebooru erro: ${err.message}`
+            );
+
+            break;
+        }
+    }
+
+
+    console.log(
+        `🔒 Safebooru: ${results.length} imagens`
+    );
+
+
+    return shuffle(
+        results
+    );
+}
+
+
+/*
+ * ============================================================
+ * PINTEREST
+ * ============================================================
+ */
+
+async function fetchPinterest(
+    url
+) {
+
     const response =
         await fetch(
             url,
             {
                 headers: {
                     "User-Agent":
-                        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 " +
-                        "(KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
+                        "Mozilla/5.0 (Linux; Android 10) " +
+                        "AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) " +
+                        "Chrome/151.0.0.0 " +
+                        "Mobile Safari/537.36",
 
-                    "Accept":
-                        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    Accept:
+                        "text/html,application/xhtml+xml," +
+                        "application/xml;q=0.9,*/*;q=0.8",
 
                     "Accept-Language":
                         "pt-BR,pt;q=0.9,en;q=0.8"
                 }
             }
         );
+
 
     if (
         !response.ok
@@ -314,131 +531,158 @@ async function fetchPinterest(url) {
         );
     }
 
-    return await response.text();
+
+    return response.text();
 }
 
-// ============================================================
-// EXTRAIR URLS DOS PINS
-// ============================================================
 
-function extractPinUrls(html) {
+function extractPinUrls(
+    html
+) {
+
     const pins =
         new Set();
+
 
     const absoluteRegex =
         /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)[^"'\\]*/gi;
 
     let match;
 
+
     while (
         (match =
-            absoluteRegex.exec(html))
+            absoluteRegex.exec(
+                html
+            ))
     ) {
+
         pins.add(
             `https://www.pinterest.com/pin/${match[1]}/`
         );
     }
 
+
     const relativeRegex =
-        /["'\\](\/pin\/(\d+)\/?)[^"'\\]*/gi;
+        /["'\\]\/pin\/(\d+)\/?[^"'\\]*/gi;
+
 
     while (
         (match =
-            relativeRegex.exec(html))
+            relativeRegex.exec(
+                html
+            ))
     ) {
+
         pins.add(
-            `https://www.pinterest.com/pin/${match[2]}/`
+            `https://www.pinterest.com/pin/${match[1]}/`
         );
     }
+
 
     const idRegex =
         /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi;
 
+
     while (
         (match =
-            idRegex.exec(html))
+            idRegex.exec(
+                html
+            ))
     ) {
+
         pins.add(
             `https://www.pinterest.com/pin/${match[1]}/`
         );
     }
+
 
     return [
         ...pins
     ];
 }
 
-// ============================================================
-// BUSCAR UMA PÁGINA
-// ============================================================
 
 async function searchPinterestPage(
     query,
     page = 1
 ) {
+
     const encoded =
         encodeURIComponent(
             query
         );
 
+
     let url =
         `https://www.pinterest.com/search/pins/?q=${encoded}`;
+
 
     if (
         page > 1
     ) {
-        url += `&page=${page}`;
+        url +=
+            `&page=${page}`;
     }
+
 
     console.log(
         `🔎 Pinterest página ${page}: ${query}`
     );
+
 
     const html =
         await fetchPinterest(
             url
         );
 
+
     return extractPinUrls(
         html
     );
 }
 
-// ============================================================
-// BUSCAR VÁRIAS PÁGINAS
-// ============================================================
 
 async function searchPinterest(
     query
 ) {
+
     const allPins =
         new Set();
+
 
     for (
         let page = 1;
         page <= MAX_SEARCH_PAGES;
         page++
     ) {
+
         try {
+
             const pins =
                 await searchPinterestPage(
                     query,
                     page
                 );
 
+
             console.log(
-                `📌 Página ${page}: ${pins.length} Pins encontrados`
+                `📌 Página ${page}: ${pins.length} pins`
             );
 
-            const antes =
+
+            const before =
                 allPins.size;
+
 
             for (
                 const pin of pins
             ) {
+
                 allPins.add(
                     pin
                 );
+
 
                 if (
                     allPins.size >=
@@ -448,16 +692,14 @@ async function searchPinterest(
                 }
             }
 
+
             if (
                 allPins.size ===
-                antes
+                before
             ) {
-                console.log(
-                    "⚠️ Nenhum Pin novo encontrado."
-                );
-
                 break;
             }
+
 
             if (
                 allPins.size >=
@@ -466,12 +708,22 @@ async function searchPinterest(
                 break;
             }
 
+
+            await sleep(
+                randomDelay(
+                    MIN_DELAY,
+                    MAX_DELAY
+                )
+            );
+
         } catch (err) {
+
             console.log(
                 `⚠️ Erro na página ${page}: ${err.message}`
             );
         }
     }
+
 
     return [
         ...allPins
@@ -481,18 +733,18 @@ async function searchPinterest(
     );
 }
 
-// ============================================================
-// EXTRAIR IMAGEM DO PIN
-// ============================================================
 
-async function extractPin(
+async function extractPinImage(
     pinUrl
 ) {
+
     try {
+
         const html =
             await fetchPinterest(
                 pinUrl
             );
+
 
         const ogMatch =
             html.match(
@@ -502,9 +754,11 @@ async function extractPin(
                 /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i
             );
 
+
         if (
             ogMatch?.[1]
         ) {
+
             return ogMatch[1]
                 .replace(
                     /&amp;/g,
@@ -520,18 +774,26 @@ async function extractPin(
                 );
         }
 
+
         const pinimgRegex =
             /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi;
+
 
         const matches =
             html.match(
                 pinimgRegex
             );
 
+
         if (
             matches?.length
         ) {
+
             return matches[0]
+                .replace(
+                    /&amp;/g,
+                    "&"
+                )
                 .replace(
                     /\\u002F/g,
                     "/"
@@ -539,664 +801,743 @@ async function extractPin(
                 .replace(
                     /\\\//g,
                     "/"
-                )
-                .replace(
-                    /\\u003D/g,
-                    "="
-                )
-                .replace(
-                    /&amp;/g,
-                    "&"
                 );
         }
 
+
         return null;
 
-    } catch (err) {
-        console.log(
-            `⚠️ Falha ao extrair Pin ${pinUrl}: ${err.message}`
-        );
+    } catch {
 
         return null;
     }
 }
 
-// ============================================================
-// BAIXAR IMAGEM COM NODE
-// ============================================================
 
-async function downloadImage(
-    url
+async function resolvePinterestImages(
+    pinUrls,
+    needed
 ) {
-    const response =
+
+    const images = [];
+
+    let i = 0;
+
+
+    async function worker() {
+
+        while (
+            images.length < needed &&
+            i < pinUrls.length
+        ) {
+
+            const current =
+                i++;
+
+
+            const pinUrl =
+                pinUrls[current];
+
+
+            const imgUrl =
+                await extractPinImage(
+                    pinUrl
+                );
+
+
+            if (
+                imgUrl
+            ) {
+
+                images.push({
+                    url:
+                        imgUrl,
+
+                    source:
+                        "pinterest"
+                });
+            }
+
+
+            await sleep(
+                randomDelay(
+                    MIN_DELAY,
+                    MAX_DELAY
+                )
+            );
+        }
+    }
+
+
+    const workers =
+        Array.from(
+            {
+                length:
+                    CONCURRENCY
+            },
+            () =>
+                worker()
+        );
+
+
+    await Promise.all(
+        workers
+    );
+
+
+    console.log(
+        `📌 Pinterest resolvido: ${images.length} imagens`
+    );
+
+
+    return images;
+}
+
+
+/*
+ * ============================================================
+ * BUSCA TODAS AS FONTES
+ * ============================================================
+ */
+
+async function buscarTodasFontes(
+    query
+) {
+
+    const seen =
+        new Set();
+
+    const candidates =
+        [];
+
+
+    function addAll(
+        list
+    ) {
+
+        for (
+            const item of list
+        ) {
+
+            if (
+                !item?.url ||
+                seen.has(
+                    item.url
+                )
+            ) {
+                continue;
+            }
+
+
+            seen.add(
+                item.url
+            );
+
+
+            candidates.push(
+                item
+            );
+        }
+    }
+
+
+    /*
+     * 1. GOOGLE FOTOS
+     */
+
+    const google =
+        await searchGooglePhotos(
+            query
+        );
+
+
+    addAll(
+        google
+    );
+
+
+    console.log(
+        `📦 Após Google Fotos: ${candidates.length} candidatos`
+    );
+
+
+    /*
+     * 2. SAFEBOORU
+     */
+
+    if (
+        candidates.length <
+        TOTAL_STICKERS
+    ) {
+
+        const falta =
+            TOTAL_STICKERS -
+            candidates.length +
+            50;
+
+
+        console.log(
+            `🔒 Faltam ${TOTAL_STICKERS - candidates.length} → consultando Safebooru`
+        );
+
+
+        const safe =
+            await searchSafebooru(
+                query,
+                Math.max(
+                    falta,
+                    60
+                )
+            );
+
+
+        addAll(
+            safe
+        );
+
+
+        console.log(
+            `📦 Após Safebooru: ${candidates.length} candidatos`
+        );
+    }
+
+
+    /*
+     * 3. PINTEREST
+     */
+
+    if (
+        candidates.length <
+        TOTAL_STICKERS
+    ) {
+
+        const falta =
+            TOTAL_STICKERS -
+            candidates.length +
+            40;
+
+
+        console.log(
+            `📌 Ainda faltam ${TOTAL_STICKERS - candidates.length} → consultando Pinterest`
+        );
+
+
+        const pins =
+            await searchPinterest(
+                query
+            );
+
+
+        const pinImages =
+            await resolvePinterestImages(
+                pins,
+                Math.max(
+                    falta,
+                    40
+                )
+            );
+
+
+        addAll(
+            pinImages
+        );
+
+
+        console.log(
+            `📦 Após Pinterest: ${candidates.length} candidatos`
+        );
+    }
+
+
+    console.log(
+        `📦 Total de candidatos únicos: ${candidates.length}`
+    );
+
+
+    return shuffle(
+        candidates
+    ).slice(
+        0,
+        MAX_CANDIDATES
+    );
+}
+
+
+/*
+ * ============================================================
+ * DOWNLOAD
+ * ============================================================
+ */
+
+async function downloadToFile(
+    url,
+    dest
+) {
+
+    const res =
         await fetch(
             url,
             {
                 headers: {
                     "User-Agent":
-                        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 " +
-                        "(KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
-
-                    "Accept":
-                        "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+                        "chiru-san-bot/1.0"
                 }
             }
         );
 
+
     if (
-        !response.ok
+        !res.ok
     ) {
         throw new Error(
-            `HTTP ${response.status}`
+            `HTTP ${res.status}`
         );
     }
 
-    const contentLength =
-        Number(
-            response.headers.get(
-                "content-length"
-            )
-        ) || 0;
 
-    if (
-        contentLength >
-        MAX_IMAGE_SIZE
-    ) {
-        throw new Error(
-            "Imagem maior que 12 MB"
-        );
-    }
-
-    const buffer =
+    const buf =
         Buffer.from(
-            await response.arrayBuffer()
+            await res.arrayBuffer()
         );
 
+
     if (
-        buffer.length >
+        buf.length >
         MAX_IMAGE_SIZE
     ) {
+
         throw new Error(
-            "Imagem maior que 12 MB"
+            "imagem muito grande"
         );
     }
 
-    if (
-        !buffer.length
-    ) {
-        throw new Error(
-            "Imagem vazia"
-        );
-    }
-
-    return buffer;
-}
-
-// ============================================================
-// CONVERTER PARA WEBP
-// ============================================================
-
-async function convertToWebP(
-    inputBuffer,
-    tempDir,
-    index
-) {
-    const input =
-        path.join(
-            tempDir,
-            `input_${index}_${randomUUID()}.img`
-        );
-
-    const output =
-        path.join(
-            tempDir,
-            `sticker_${index}_${randomUUID()}.webp`
-        );
 
     await fs.writeFile(
-        input,
-        inputBuffer
+        dest,
+        buf
+    );
+}
+
+
+/*
+ * ============================================================
+ * CONVERTE PARA WEBP
+ * ============================================================
+ */
+
+async function convertToSticker(
+    inputPath,
+    outputPath
+) {
+
+    const filter =
+        "scale=512:512:" +
+        "force_original_aspect_ratio=decrease," +
+        "pad=512:512:" +
+        "(ow-iw)/2:(oh-ih)/2:" +
+        "color=0x00000000";
+
+
+    await run(
+        "ffmpeg",
+        [
+            "-y",
+
+            "-i",
+            inputPath,
+
+            "-vf",
+            filter,
+
+            "-c:v",
+            "libwebp",
+
+            "-quality",
+            "80",
+
+            "-compression_level",
+            "4",
+
+            outputPath
+        ]
     );
 
-    try {
+
+    let stat =
+        await fs.stat(
+            outputPath
+        );
+
+
+    if (
+        stat.size >
+        MAX_STICKER_SIZE
+    ) {
+
         await run(
             "ffmpeg",
             [
                 "-y",
+
                 "-i",
-                input,
+                inputPath,
+
                 "-vf",
-                "scale=512:512",
+                filter,
+
                 "-c:v",
                 "libwebp",
+
                 "-quality",
-                "70",
-                "-preset",
-                "default",
-                output
+                "55",
+
+                outputPath
             ]
         );
 
-        let result =
-            await fs.readFile(
-                output
+
+        stat =
+            await fs.stat(
+                outputPath
             );
 
-        if (
-            result.length >
-            MAX_STICKER_SIZE
-        ) {
-            await run(
-                "ffmpeg",
-                [
-                    "-y",
-                    "-i",
-                    input,
-                    "-vf",
-                    "scale=512:512",
-                    "-c:v",
-                    "libwebp",
-                    "-quality",
-                    "50",
-                    "-preset",
-                    "default",
-                    output
-                ]
-            );
-
-            result =
-                await fs.readFile(
-                    output
-                );
-        }
 
         if (
-            result.length >
+            stat.size >
             MAX_STICKER_SIZE
         ) {
-            await run(
-                "ffmpeg",
-                [
-                    "-y",
-                    "-i",
-                    input,
-                    "-vf",
-                    "scale=512:512",
-                    "-c:v",
-                    "libwebp",
-                    "-quality",
-                    "35",
-                    "-preset",
-                    "default",
-                    output
-                ]
-            );
 
-            result =
-                await fs.readFile(
-                    output
-                );
-        }
-
-        if (
-            result.length >
-            MAX_STICKER_SIZE
-        ) {
             throw new Error(
-                `Sticker continua maior que 1 MB (${result.length} bytes)`
+                "sticker continua maior que 1 MB"
             );
         }
-
-        return result;
-
-    } finally {
-        await fs.unlink(
-            input
-        ).catch(
-            () => {}
-        );
-
-        await fs.unlink(
-            output
-        ).catch(
-            () => {}
-        );
     }
 }
 
-// ============================================================
-// PROCESSAR IMAGENS DO GOOGLE FOTOS
-// ============================================================
 
-async function processGooglePhotos(
-    images,
-    alreadyHave = []
-) {
-    const result =
-        [...alreadyHave];
+/*
+ * ============================================================
+ * PROCESSA IMAGENS
+ * ============================================================
+ */
 
-    if (
-        result.length >=
-        TOTAL_STICKERS
-    ) {
-        return result.slice(
-            0,
-            TOTAL_STICKERS
-        );
-    }
-
-    const tempDir =
-        await fs.mkdtemp(
-            path.join(
-                os.tmpdir(),
-                "pack-google-"
-            )
-        );
-
-    try {
-        let index = 0;
-
-        for (
-            const item of images
-        ) {
-            if (
-                result.length >=
-                TOTAL_STICKERS
-            ) {
-                break;
-            }
-
-            index++;
-
-            console.log(
-                `📸 [Google Fotos] Tentando ${index}/${images.length}`
-            );
-
-            try {
-                const image =
-                    await downloadImage(
-                        item.url
-                    );
-
-                const sticker =
-                    await convertToWebP(
-                        image,
-                        tempDir,
-                        index
-                    );
-
-                result.push(
-                    sticker
-                );
-
-                console.log(
-                    `✅ [Google Fotos] Sticker válido: ${result.length}/${TOTAL_STICKERS}`
-                );
-
-            } catch (err) {
-                console.log(
-                    `❌ [Google Fotos] Falhou: ${err.message}`
-                );
-            }
-        }
-
-    } finally {
-        await fs.rm(
-            tempDir,
-            {
-                recursive: true,
-                force: true
-            }
-        ).catch(
-            () => {}
-        );
-    }
-
-    return result;
-}
-
-// ============================================================
-// PROCESSAR CANDIDATOS DO PINTEREST
-// ============================================================
-
-async function processPinterestCandidates(
+async function processImages(
     candidates,
-    alreadyHave = []
+    tmpDir
 ) {
-    const result =
-        [...alreadyHave];
 
-    let current = 0;
+    const stickers =
+        [];
 
-    if (
-        result.length >=
-        TOTAL_STICKERS
-    ) {
-        return result.slice(
-            0,
-            TOTAL_STICKERS
-        );
-    }
+    let index =
+        0;
 
-    const tempDir =
-        await fs.mkdtemp(
-            path.join(
-                os.tmpdir(),
-                "pack-pinterest-"
-            )
-        );
 
-    async function worker(
-        workerId
-    ) {
-        while (true) {
+    async function worker() {
 
-            if (
-                result.length >=
-                TOTAL_STICKERS
-            ) {
-                return;
-            }
-
-            const index =
-                current++;
-
-            if (
-                index >=
+        while (
+            stickers.length <
+                TOTAL_STICKERS &&
+            index <
                 candidates.length
-            ) {
-                return;
-            }
+        ) {
 
-            const pinUrl =
-                candidates[index];
+            const current =
+                index++;
+
+
+            const item =
+                candidates[
+                    current
+                ];
+
 
             if (
-                index > 0
+                !item?.url
             ) {
-                const delay =
-                    randomDelay(
-                        MIN_DELAY,
-                        MAX_DELAY
-                    );
-
-                console.log(
-                    `⏳ Próximo Pin em ${delay}ms`
-                );
-
-                await sleep(
-                    delay
-                );
+                continue;
             }
 
-            console.log(
-                `🖼️ [Pinterest ${workerId}] Tentando ${index + 1}/${candidates.length}`
-            );
+
+            const id =
+                randomUUID();
+
+
+            const rawPath =
+                path.join(
+                    tmpDir,
+                    `${id}.img`
+                );
+
+
+            const webpPath =
+                path.join(
+                    tmpDir,
+                    `${id}.webp`
+                );
+
 
             try {
-                const imageUrl =
-                    await extractPin(
-                        pinUrl
+
+                await downloadToFile(
+                    item.url,
+                    rawPath
+                );
+
+
+                await convertToSticker(
+                    rawPath,
+                    webpPath
+                );
+
+
+                const buf =
+                    await fs.readFile(
+                        webpPath
                     );
+
 
                 if (
-                    !imageUrl
+                    buf.length > 0 &&
+                    buf.length <=
+                        MAX_STICKER_SIZE
                 ) {
-                    throw new Error(
-                        "Imagem não encontrada"
+
+                    stickers.push(
+                        buf
+                    );
+
+
+                    console.log(
+                        `✅ ${stickers.length}/${TOTAL_STICKERS} (${item.source})`
                     );
                 }
 
-                const image =
-                    await downloadImage(
-                        imageUrl
-                    );
-
-                const sticker =
-                    await convertToWebP(
-                        image,
-                        tempDir,
-                        index
-                    );
-
-                result.push(
-                    sticker
-                );
-
-                console.log(
-                    `✅ [Pinterest ${workerId}] Sticker válido: ${result.length}/${TOTAL_STICKERS}`
-                );
-
             } catch (err) {
+
                 console.log(
-                    `❌ [Pinterest ${workerId}] Falhou: ${err.message}`
+                    `⚠️ Falha em imagem (${item.source}): ${err.message}`
+                );
+
+            } finally {
+
+                await fs.unlink(
+                    rawPath
+                ).catch(
+                    () => {}
+                );
+
+
+                await fs.unlink(
+                    webpPath
+                ).catch(
+                    () => {}
                 );
             }
         }
     }
 
-    try {
-        const workers = [];
 
-        for (
-            let i = 0;
-            i < CONCURRENCY;
-            i++
-        ) {
-            workers.push(
-                worker(i + 1)
-            );
-        }
-
-        await Promise.all(
-            workers
-        );
-
-    } finally {
-        await fs.rm(
-            tempDir,
+    await Promise.all(
+        Array.from(
             {
-                recursive: true,
-                force: true
-            }
-        ).catch(
-            () => {}
-        );
-    }
+                length:
+                    CONCURRENCY
+            },
+            () =>
+                worker()
+        )
+    );
 
-    return result;
+
+    return stickers.slice(
+        0,
+        TOTAL_STICKERS
+    );
 }
 
-// ============================================================
-// EXECUTE
-// ============================================================
+
+/*
+ * ============================================================
+ * COMANDO
+ * ============================================================
+ */
 
 export default {
-    name: "pack",
+
+    name:
+        "pack",
 
     aliases: [
-        "pack",
-        "stickerpack"
+        "stickerpack",
+        "figpack"
     ],
+
+    description:
+        "Gera pack de stickers " +
+        "(Google Fotos + Safebooru + Pinterest)",
+
 
     async execute(
         sock,
         msg,
         args
     ) {
+
         const query =
-            args
+            (args ?? [])
                 .join(" ")
                 .trim();
 
-        if (!query) {
-            return sock.sendMessage(
-                msg.key.remoteJid,
+
+        const from =
+            msg.key.remoteJid;
+
+
+        /*
+         * Sem nome.
+         */
+
+        if (
+            !query
+        ) {
+
+            await sock.sendMessage(
+                from,
                 {
                     text:
-                        "❌ Use: .pack nome da coisa"
+                        "Use: *.pack nome do personagem*"
                 },
                 {
-                    quoted: msg
+                    quoted:
+                        msg
                 }
             );
+
+
+            return;
         }
 
-        console.log("");
-        console.log(
-            "=============================================="
+
+        /*
+         * Aviso inicial.
+         */
+
+        await sock.sendMessage(
+            from,
+            {
+                text:
+                    `🔎 Montando pack de *${query}* ` +
+                    `(até ${TOTAL_STICKERS} figs)...\n` +
+                    `Fonte: Google Fotos → Safebooru → Pinterest`
+            },
+            {
+                quoted:
+                    msg
+            }
         );
-        console.log(
-            "📦 STICKER PACK"
-        );
-        console.log(
-            "=============================================="
-        );
-        console.log(
-            `🔎 Busca: ${query}`
-        );
-        console.log(
-            `🎯 Meta: ${TOTAL_STICKERS}`
-        );
-        console.log(
-            "=============================================="
-        );
+
+
+        const tmpDir =
+            await fs.mkdtemp(
+                path.join(
+                    os.tmpdir(),
+                    "pack-"
+                )
+            );
+
 
         try {
 
-            // ==================================================
-            // 1. GOOGLE FOTOS
-            // ==================================================
+            /*
+             * Busca candidatos.
+             */
 
-            console.log("");
-            console.log(
-                "📸 FONTE PRINCIPAL: GOOGLE FOTOS"
-            );
-
-            const googleImages =
-                await searchGooglePhotos(
+            const candidates =
+                await buscarTodasFontes(
                     query
                 );
 
-            let stickers =
-                [];
 
             if (
-                googleImages.length
+                !candidates.length
             ) {
-                stickers =
-                    await processGooglePhotos(
-                        googleImages
-                    );
-            }
 
-            console.log("");
-            console.log(
-                `📸 Google Fotos forneceu: ${stickers.length}/${TOTAL_STICKERS}`
-            );
-
-            // ==================================================
-            // 2. PINTEREST FALLBACK
-            // ==================================================
-
-            if (
-                stickers.length <
-                TOTAL_STICKERS
-            ) {
-                const faltam =
-                    TOTAL_STICKERS -
-                    stickers.length;
-
-                console.log("");
-                console.log(
-                    "=============================================="
-                );
-                console.log(
-                    `🛟 FALLBACK PINTEREST: faltam ${faltam}`
-                );
-                console.log(
-                    "=============================================="
-                );
-
-                const pins =
-                    await searchPinterest(
-                        query
-                    );
-
-                console.log(
-                    `📌 Total de candidatos Pinterest: ${pins.length}`
-                );
-
-                if (
-                    pins.length
-                ) {
-                    const shuffledPins =
-                        shuffle(
-                            pins
-                        );
-
-                    stickers =
-                        await processPinterestCandidates(
-                            shuffledPins,
-                            stickers
-                        );
-                }
-            }
-
-            // ==================================================
-            // RESULTADO
-            // ==================================================
-
-            console.log("");
-            console.log(
-                "=============================================="
-            );
-            console.log(
-                `📦 RESULTADO: ${stickers.length}/${TOTAL_STICKERS}`
-            );
-            console.log(
-                "=============================================="
-            );
-
-            if (
-                !stickers.length
-            ) {
-                return sock.sendMessage(
-                    msg.key.remoteJid,
+                await sock.sendMessage(
+                    from,
                     {
                         text:
-                            "❌ Não consegui encontrar nenhuma imagem válida para esse pack."
+                            `❌ Não achei imagens pra *${query}*.`
                     },
                     {
-                        quoted: msg
+                        quoted:
+                            msg
                     }
                 );
+
+
+                return;
             }
+
+
+            /*
+             * Processa stickers.
+             */
+
+            const stickers =
+                await processImages(
+                    candidates,
+                    tmpDir
+                );
+
 
             if (
-                stickers.length <
-                TOTAL_STICKERS
+                stickers.length < 5
             ) {
-                console.log(
-                    `⚠️ Não foi possível chegar aos ${TOTAL_STICKERS}.`
+
+                await sock.sendMessage(
+                    from,
+                    {
+                        text:
+                            `❌ Só consegui *${stickers.length}* ` +
+                            `figurinhas válidas pra *${query}*.`
+                    },
+                    {
+                        quoted:
+                            msg
+                    }
                 );
 
-                console.log(
-                    `📦 Enviando mesmo assim: ${stickers.length} stickers`
-                );
+
+                return;
             }
 
-            // ==================================================
-            // ENVIAR PACK
-            // ==================================================
+
+            console.log(
+                `📦 Preparando envio do pack com ${stickers.length} stickers...`
+            );
+
+
+            /*
+             * =================================================
+             * CORREÇÃO IMPORTANTE
+             * =================================================
+             *
+             * sendStickerPack() recebe:
+             *
+             *   sock
+             *   jid
+             *   stickers
+             *   options
+             *
+             * Antes o objeto inteiro estava sendo passado
+             * como terceiro argumento.
+             */
 
             await sendStickerPack(
                 sock,
-                msg.key.remoteJid,
-                stickers.slice(
-                    0,
-                    TOTAL_STICKERS
-                ),
+                from,
+                stickers,
                 {
                     name:
                         query,
@@ -1205,29 +1546,68 @@ export default {
                         "Chiru-san Bot",
 
                     description:
-                        "🌸 Chiru-san Bot"
+                        `🌸 ${query}`
                 }
             );
 
+
             console.log(
-                `✅ Pack enviado com ${stickers.length} stickers`
+                `📦 Pack enviado com sucesso: ${query}`
             );
 
+
+            /*
+             * Confirmação.
+             */
+
+            await sock.sendMessage(
+                from,
+                {
+                    text:
+                        `✅ Pack *${query}* pronto ` +
+                        `(*${stickers.length}* figs)`
+                },
+                {
+                    quoted:
+                        msg
+                }
+            );
+
+
         } catch (err) {
+
             console.error(
-                "❌ Erro no .pack:",
+                "pack error:",
                 err
             );
 
+
             await sock.sendMessage(
-                msg.key.remoteJid,
+                from,
                 {
                     text:
-                        `❌ Deu erro no pack:\n${err.message}`
+                        `❌ Erro ao montar o pack: ${err.message}`
                 },
                 {
-                    quoted: msg
+                    quoted:
+                        msg
                 }
+            );
+
+
+        } finally {
+
+            await fs.rm(
+                tmpDir,
+                {
+                    recursive:
+                        true,
+
+                    force:
+                        true
+                }
+            ).catch(
+                () => {}
             );
         }
     }
