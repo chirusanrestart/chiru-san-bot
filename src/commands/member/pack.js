@@ -5,6 +5,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
+import { fetchImageUrls } from "@marcus5914/google-photos-album-image-url-fetch";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,17 +16,23 @@ const execFileAsync = promisify(execFile);
 const TOTAL_STICKERS = 60;
 
 // Apenas 1 candidato por vez
-const CONCURRENCY = 1;
+const CONCURRENCY = 3;
 
-// Intervalo entre candidatos
-const MIN_DELAY = 600;
-const MAX_DELAY = 800;
+// Intervalo entre candidatos do Pinterest
+const MIN_DELAY = 100;
+const MAX_DELAY = 200;
 
 const MAX_CANDIDATES = 150;
 const MAX_SEARCH_PAGES = 5;
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
 const MAX_STICKER_SIZE = 1 * 1024 * 1024;
+
+// Arquivo com os álbuns do Google Fotos
+const GOOGLE_PHOTOS_FILE = path.resolve(
+    process.cwd(),
+    "google-photos-albums.json"
+);
 
 // ============================================================
 // EXEC
@@ -65,25 +72,243 @@ function shuffle(array) {
 }
 
 // ============================================================
+// NORMALIZAR TEXTO
+// ============================================================
+
+function normalizeText(text) {
+    return text
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .toLowerCase()
+        .replace(
+            /[^a-z0-9]+/g,
+            " "
+        )
+        .trim()
+        .replace(
+            /\s+/g,
+            " "
+        );
+}
+
+// ============================================================
+// CARREGAR ÁLBUNS DO GOOGLE FOTOS
+// ============================================================
+
+async function loadGooglePhotosAlbums() {
+    try {
+        const content =
+            await fs.readFile(
+                GOOGLE_PHOTOS_FILE,
+                "utf8"
+            );
+
+        const data =
+            JSON.parse(content);
+
+        if (
+            !data ||
+            typeof data !== "object" ||
+            Array.isArray(data)
+        ) {
+            throw new Error(
+                "google-photos-albums.json precisa conter um objeto."
+            );
+        }
+
+        return data;
+
+    } catch (err) {
+
+        if (
+            err.code === "ENOENT"
+        ) {
+            console.log(
+                "⚠️ google-photos-albums.json não encontrado."
+            );
+
+            return {};
+        }
+
+        console.log(
+            `⚠️ Falha ao carregar álbuns do Google Fotos: ${err.message}`
+        );
+
+        return {};
+    }
+}
+
+// ============================================================
+// ENCONTRAR ÁLBUM DO PERSONAGEM
+// ============================================================
+
+async function findGooglePhotosAlbum(
+    query
+) {
+    const albums =
+        await loadGooglePhotosAlbums();
+
+    const normalizedQuery =
+        normalizeText(query);
+
+    // Correspondência exata
+    for (
+        const [name, url] of
+        Object.entries(albums)
+    ) {
+        if (
+            normalizeText(name) ===
+            normalizedQuery
+        ) {
+            return {
+                name,
+                url
+            };
+        }
+    }
+
+    // Correspondência por inclusão
+    for (
+        const [name, url] of
+        Object.entries(albums)
+    ) {
+        const normalizedName =
+            normalizeText(name);
+
+        if (
+            normalizedName.includes(
+                normalizedQuery
+            ) ||
+            normalizedQuery.includes(
+                normalizedName
+            )
+        ) {
+            return {
+                name,
+                url
+            };
+        }
+    }
+
+    return null;
+}
+
+// ============================================================
+// BUSCAR GOOGLE FOTOS
+// ============================================================
+
+async function searchGooglePhotos(
+    query
+) {
+    const album =
+        await findGooglePhotosAlbum(
+            query
+        );
+
+    if (!album) {
+        console.log(
+            `📸 Google Fotos: nenhum álbum cadastrado para "${query}"`
+        );
+
+        return [];
+    }
+
+    console.log(
+        `📸 Google Fotos: álbum encontrado → ${album.name}`
+    );
+
+    try {
+        const items =
+            await fetchImageUrls(
+                album.url
+            );
+
+        if (!items?.length) {
+            console.log(
+                "⚠️ Google Fotos: álbum vazio ou sem mídias."
+            );
+
+            return [];
+        }
+
+        const images =
+            items
+                .filter(
+                    item =>
+                        item &&
+                        item.url &&
+                        !item.isVideo
+                )
+                .map(
+                    item => {
+                        let url =
+                            item.url;
+
+                        // Tenta pegar uma versão grande
+                        if (
+                            item.width &&
+                            item.height
+                        ) {
+                            url =
+                                `${url}=w${item.width}-h${item.height}`;
+                        }
+
+                        return {
+                            url,
+                            source:
+                                "google-photos",
+                            uid:
+                                item.uid
+                        };
+                    }
+                );
+
+        console.log(
+            `📸 Google Fotos: ${images.length} imagens válidas`
+        );
+
+        return shuffle(
+            images
+        );
+
+    } catch (err) {
+        console.log(
+            `⚠️ Google Fotos falhou: ${err.message}`
+        );
+
+        return [];
+    }
+}
+
+// ============================================================
 // BUSCAR HTML DO PINTEREST
 // ============================================================
 
 async function fetchPinterest(url) {
-    const response = await fetch(url, {
-        headers: {
-            "User-Agent":
-                "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
+    const response =
+        await fetch(
+            url,
+            {
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
 
-            "Accept":
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept":
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 
-            "Accept-Language":
-                "pt-BR,pt;q=0.9,en;q=0.8"
-        }
-    });
+                    "Accept-Language":
+                        "pt-BR,pt;q=0.9,en;q=0.8"
+                }
+            }
+        );
 
-    if (!response.ok) {
+    if (
+        !response.ok
+    ) {
         throw new Error(
             `HTTP ${response.status}`
         );
@@ -97,7 +322,8 @@ async function fetchPinterest(url) {
 // ============================================================
 
 function extractPinUrls(html) {
-    const pins = new Set();
+    const pins =
+        new Set();
 
     const absoluteRegex =
         /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)[^"'\\]*/gi;
@@ -105,7 +331,8 @@ function extractPinUrls(html) {
     let match;
 
     while (
-        (match = absoluteRegex.exec(html))
+        (match =
+            absoluteRegex.exec(html))
     ) {
         pins.add(
             `https://www.pinterest.com/pin/${match[1]}/`
@@ -116,7 +343,8 @@ function extractPinUrls(html) {
         /["'\\](\/pin\/(\d+)\/?)[^"'\\]*/gi;
 
     while (
-        (match = relativeRegex.exec(html))
+        (match =
+            relativeRegex.exec(html))
     ) {
         pins.add(
             `https://www.pinterest.com/pin/${match[2]}/`
@@ -127,14 +355,17 @@ function extractPinUrls(html) {
         /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi;
 
     while (
-        (match = idRegex.exec(html))
+        (match =
+            idRegex.exec(html))
     ) {
         pins.add(
             `https://www.pinterest.com/pin/${match[1]}/`
         );
     }
 
-    return [...pins];
+    return [
+        ...pins
+    ];
 }
 
 // ============================================================
@@ -146,12 +377,16 @@ async function searchPinterestPage(
     page = 1
 ) {
     const encoded =
-        encodeURIComponent(query);
+        encodeURIComponent(
+            query
+        );
 
     let url =
         `https://www.pinterest.com/search/pins/?q=${encoded}`;
 
-    if (page > 1) {
+    if (
+        page > 1
+    ) {
         url += `&page=${page}`;
     }
 
@@ -160,17 +395,24 @@ async function searchPinterestPage(
     );
 
     const html =
-        await fetchPinterest(url);
+        await fetchPinterest(
+            url
+        );
 
-    return extractPinUrls(html);
+    return extractPinUrls(
+        html
+    );
 }
 
 // ============================================================
 // BUSCAR VÁRIAS PÁGINAS
 // ============================================================
 
-async function searchPinterest(query) {
-    const allPins = new Set();
+async function searchPinterest(
+    query
+) {
+    const allPins =
+        new Set();
 
     for (
         let page = 1;
@@ -191,8 +433,12 @@ async function searchPinterest(query) {
             const antes =
                 allPins.size;
 
-            for (const pin of pins) {
-                allPins.add(pin);
+            for (
+                const pin of pins
+            ) {
+                allPins.add(
+                    pin
+                );
 
                 if (
                     allPins.size >=
@@ -239,7 +485,9 @@ async function searchPinterest(query) {
 // EXTRAIR IMAGEM DO PIN
 // ============================================================
 
-async function extractPin(pinUrl) {
+async function extractPin(
+    pinUrl
+) {
     try {
         const html =
             await fetchPinterest(
@@ -317,7 +565,9 @@ async function extractPin(pinUrl) {
 // BAIXAR IMAGEM COM NODE
 // ============================================================
 
-async function downloadImage(url) {
+async function downloadImage(
+    url
+) {
     const response =
         await fetch(
             url,
@@ -515,21 +765,124 @@ async function convertToWebP(
 }
 
 // ============================================================
-// PROCESSAR CANDIDATOS
+// PROCESSAR IMAGENS DO GOOGLE FOTOS
 // ============================================================
 
-async function processCandidates(
-    candidates
+async function processGooglePhotos(
+    images,
+    alreadyHave = []
 ) {
-    const result = [];
+    const result =
+        [...alreadyHave];
 
-    let current = 0;
+    if (
+        result.length >=
+        TOTAL_STICKERS
+    ) {
+        return result.slice(
+            0,
+            TOTAL_STICKERS
+        );
+    }
 
     const tempDir =
         await fs.mkdtemp(
             path.join(
                 os.tmpdir(),
-                "pack-"
+                "pack-google-"
+            )
+        );
+
+    try {
+        let index = 0;
+
+        for (
+            const item of images
+        ) {
+            if (
+                result.length >=
+                TOTAL_STICKERS
+            ) {
+                break;
+            }
+
+            index++;
+
+            console.log(
+                `📸 [Google Fotos] Tentando ${index}/${images.length}`
+            );
+
+            try {
+                const image =
+                    await downloadImage(
+                        item.url
+                    );
+
+                const sticker =
+                    await convertToWebP(
+                        image,
+                        tempDir,
+                        index
+                    );
+
+                result.push(
+                    sticker
+                );
+
+                console.log(
+                    `✅ [Google Fotos] Sticker válido: ${result.length}/${TOTAL_STICKERS}`
+                );
+
+            } catch (err) {
+                console.log(
+                    `❌ [Google Fotos] Falhou: ${err.message}`
+                );
+            }
+        }
+
+    } finally {
+        await fs.rm(
+            tempDir,
+            {
+                recursive: true,
+                force: true
+            }
+        ).catch(
+            () => {}
+        );
+    }
+
+    return result;
+}
+
+// ============================================================
+// PROCESSAR CANDIDATOS DO PINTEREST
+// ============================================================
+
+async function processPinterestCandidates(
+    candidates,
+    alreadyHave = []
+) {
+    const result =
+        [...alreadyHave];
+
+    let current = 0;
+
+    if (
+        result.length >=
+        TOTAL_STICKERS
+    ) {
+        return result.slice(
+            0,
+            TOTAL_STICKERS
+        );
+    }
+
+    const tempDir =
+        await fs.mkdtemp(
+            path.join(
+                os.tmpdir(),
+                "pack-pinterest-"
             )
         );
 
@@ -558,10 +911,6 @@ async function processCandidates(
             const pinUrl =
                 candidates[index];
 
-            // ==================================================
-            // ESPERA ENTRE CANDIDATOS
-            // ==================================================
-
             if (
                 index > 0
             ) {
@@ -581,7 +930,7 @@ async function processCandidates(
             }
 
             console.log(
-                `🖼️ [${workerId}] Tentando ${index + 1}/${candidates.length}`
+                `🖼️ [Pinterest ${workerId}] Tentando ${index + 1}/${candidates.length}`
             );
 
             try {
@@ -590,7 +939,9 @@ async function processCandidates(
                         pinUrl
                     );
 
-                if (!imageUrl) {
+                if (
+                    !imageUrl
+                ) {
                     throw new Error(
                         "Imagem não encontrada"
                     );
@@ -613,12 +964,12 @@ async function processCandidates(
                 );
 
                 console.log(
-                    `✅ [${workerId}] Sticker válido: ${result.length}/${TOTAL_STICKERS}`
+                    `✅ [Pinterest ${workerId}] Sticker válido: ${result.length}/${TOTAL_STICKERS}`
                 );
 
             } catch (err) {
                 console.log(
-                    `❌ [${workerId}] Falhou: ${err.message}`
+                    `❌ [Pinterest ${workerId}] Falhou: ${err.message}`
                 );
             }
         }
@@ -712,50 +1063,109 @@ export default {
         );
 
         try {
-            const pins =
-                await searchPinterest(
+
+            // ==================================================
+            // 1. GOOGLE FOTOS
+            // ==================================================
+
+            console.log("");
+            console.log(
+                "📸 FONTE PRINCIPAL: GOOGLE FOTOS"
+            );
+
+            const googleImages =
+                await searchGooglePhotos(
                     query
                 );
 
-            console.log(
-                `📌 Total de candidatos encontrados: ${pins.length}`
-            );
+            let stickers =
+                [];
 
-            if (!pins.length) {
-                return sock.sendMessage(
-                    msg.key.remoteJid,
-                    {
-                        text:
-                            "❌ Não encontrei nenhum Pin para essa busca."
-                    },
-                    {
-                        quoted: msg
-                    }
-                );
+            if (
+                googleImages.length
+            ) {
+                stickers =
+                    await processGooglePhotos(
+                        googleImages
+                    );
             }
 
-            const shuffledPins =
-                shuffle(
-                    pins
-                );
-
-            const stickers =
-                await processCandidates(
-                    shuffledPins
-                );
-
             console.log("");
-
             console.log(
-                `📦 Resultado: ${stickers.length}/${TOTAL_STICKERS}`
+                `📸 Google Fotos forneceu: ${stickers.length}/${TOTAL_STICKERS}`
             );
 
-            if (!stickers.length) {
+            // ==================================================
+            // 2. PINTEREST FALLBACK
+            // ==================================================
+
+            if (
+                stickers.length <
+                TOTAL_STICKERS
+            ) {
+                const faltam =
+                    TOTAL_STICKERS -
+                    stickers.length;
+
+                console.log("");
+                console.log(
+                    "=============================================="
+                );
+                console.log(
+                    `🛟 FALLBACK PINTEREST: faltam ${faltam}`
+                );
+                console.log(
+                    "=============================================="
+                );
+
+                const pins =
+                    await searchPinterest(
+                        query
+                    );
+
+                console.log(
+                    `📌 Total de candidatos Pinterest: ${pins.length}`
+                );
+
+                if (
+                    pins.length
+                ) {
+                    const shuffledPins =
+                        shuffle(
+                            pins
+                        );
+
+                    stickers =
+                        await processPinterestCandidates(
+                            shuffledPins,
+                            stickers
+                        );
+                }
+            }
+
+            // ==================================================
+            // RESULTADO
+            // ==================================================
+
+            console.log("");
+            console.log(
+                "=============================================="
+            );
+            console.log(
+                `📦 RESULTADO: ${stickers.length}/${TOTAL_STICKERS}`
+            );
+            console.log(
+                "=============================================="
+            );
+
+            if (
+                !stickers.length
+            ) {
                 return sock.sendMessage(
                     msg.key.remoteJid,
                     {
                         text:
-                            "❌ Encontrei os Pins, mas nenhuma imagem pôde ser transformada em sticker."
+                            "❌ Não consegui encontrar nenhuma imagem válida para esse pack."
                     },
                     {
                         quoted: msg
@@ -783,11 +1193,17 @@ export default {
             await sendStickerPack(
                 sock,
                 msg.key.remoteJid,
-                stickers,
+                stickers.slice(
+                    0,
+                    TOTAL_STICKERS
+                ),
                 {
-                    name: query,
+                    name:
+                        query,
+
                     publisher:
                         "Chiru-san Bot",
+
                     description:
                         "🌸 Chiru-san Bot"
                 }

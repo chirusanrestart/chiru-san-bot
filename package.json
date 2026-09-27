@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
+    "@marcus5914/google-photos-album-image-url-fetch": "^1.1.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "axios": "^1.18.1",
     "dotenv": "^17.4.2",
