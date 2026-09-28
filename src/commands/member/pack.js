@@ -1,5 +1,5 @@
 // src/commands/member/pack.js
-// Google Fotos → Safebooru → Pinterest → pack de 60 stickers
+// Google Fotos → Safebooru → Pinterest → Wikimedia Commons → pack de 60 stickers
 
 import fs from "fs/promises";
 import path from "path";
@@ -19,6 +19,7 @@ const CONCURRENCY = 3;
 const MAX_CANDIDATES = 180;
 const MAX_SEARCH_PAGES = 5;
 const MAX_SAFEBOORU = 120;
+const MAX_WIKIMEDIA = 120;
 
 const MIN_DELAY = 100;
 const MAX_DELAY = 200;
@@ -30,6 +31,9 @@ const GOOGLE_PHOTOS_FILE = path.resolve(
     process.cwd(),
     "google-photos-albums.json"
 );
+
+const WIKIMEDIA_API =
+    "https://commons.wikimedia.org/w/api.php";
 
 
 /*
@@ -896,6 +900,280 @@ async function resolvePinterestImages(
 
 /*
  * ============================================================
+ * WIKIMEDIA COMMONS
+ * ============================================================
+ *
+ * Usa a API oficial do Wikimedia Commons.
+ *
+ * Busca páginas no namespace de arquivos e pede:
+ *
+ * - URL da imagem
+ * - URL da página do arquivo
+ * - MIME
+ * - dimensões
+ *
+ * A thumbnail de até 1280 px é usada para evitar
+ * baixar arquivos gigantes.
+ */
+
+async function searchWikimediaCommons(
+    query,
+    limit = MAX_WIKIMEDIA
+) {
+
+    const results = [];
+
+    let offset = 0;
+
+    const batchSize = 50;
+
+
+    while (
+        results.length < limit
+    ) {
+
+        const batchLimit =
+            Math.min(
+                batchSize,
+                limit -
+                    results.length
+            );
+
+
+        const params =
+            new URLSearchParams({
+                action:
+                    "query",
+
+                format:
+                    "json",
+
+                formatversion:
+                    "2",
+
+                generator:
+                    "search",
+
+                gsrsearch:
+                    query,
+
+                gsrnamespace:
+                    "6",
+
+                gsrlimit:
+                    String(
+                        batchLimit
+                    ),
+
+                gsroffset:
+                    String(
+                        offset
+                    ),
+
+                prop:
+                    "imageinfo",
+
+                iiprop:
+                    "url|mime|size|dimensions",
+
+                iiurlwidth:
+                    "1280"
+            });
+
+
+        const url =
+            `${WIKIMEDIA_API}?${params.toString()}`;
+
+
+        console.log(
+            `🌐 Wikimedia Commons: "${query}" offset=${offset}`
+        );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    url,
+                    {
+                        headers: {
+                            "User-Agent":
+                                "Chiru-san-Bot/1.0 " +
+                                "(WhatsApp sticker bot)"
+                        }
+                    }
+                );
+
+
+            if (
+                !response.ok
+            ) {
+
+                console.log(
+                    `⚠️ Wikimedia HTTP ${response.status}`
+                );
+
+                break;
+            }
+
+
+            const data =
+                await response.json();
+
+
+            const pages =
+                data?.query?.pages;
+
+
+            if (
+                !Array.isArray(pages) ||
+                pages.length === 0
+            ) {
+                break;
+            }
+
+
+            for (
+                const page of pages
+            ) {
+
+                const info =
+                    page?.imageinfo?.[0];
+
+
+                if (
+                    !info
+                ) {
+                    continue;
+                }
+
+
+                /*
+                 * Só queremos imagens.
+                 *
+                 * SVG é evitado porque o FFmpeg pode
+                 * lidar com ele de maneira diferente
+                 * dependendo da instalação.
+                 */
+
+                const mime =
+                    String(
+                        info.mime ?? ""
+                    ).toLowerCase();
+
+
+                if (
+                    !mime.startsWith(
+                        "image/"
+                    ) ||
+                    mime ===
+                        "image/svg+xml"
+                ) {
+                    continue;
+                }
+
+
+                const imageUrl =
+                    info.thumburl ||
+                    info.url;
+
+
+                if (
+                    !imageUrl
+                ) {
+                    continue;
+                }
+
+
+                results.push({
+                    url:
+                        imageUrl,
+
+                    source:
+                        "wikimedia",
+
+                    title:
+                        page.title,
+
+                    pageUrl:
+                        info.descriptionurl,
+
+                    mime,
+
+                    width:
+                        info.thumbwidth ||
+                        info.width,
+
+                    height:
+                        info.thumbheight ||
+                        info.height
+                });
+
+
+                if (
+                    results.length >=
+                    limit
+                ) {
+                    break;
+                }
+            }
+
+
+            if (
+                results.length >=
+                limit
+            ) {
+                break;
+            }
+
+
+            /*
+             * A API informa se ainda existe
+             * continuação.
+             */
+
+            if (
+                !data?.continue
+            ) {
+                break;
+            }
+
+
+            offset +=
+                pages.length;
+
+
+            await sleep(
+                randomDelay(
+                    MIN_DELAY,
+                    MAX_DELAY
+                )
+            );
+
+        } catch (err) {
+
+            console.log(
+                `⚠️ Wikimedia erro: ${err.message}`
+            );
+
+            break;
+        }
+    }
+
+
+    console.log(
+        `🌐 Wikimedia Commons: ${results.length} imagens`
+    );
+
+
+    return shuffle(
+        results
+    );
+}
+
+
+/*
+ * ============================================================
  * BUSCA TODAS AS FONTES
  * ============================================================
  */
@@ -1045,6 +1323,50 @@ async function buscarTodasFontes(
 
         console.log(
             `📦 Após Pinterest: ${candidates.length} candidatos`
+        );
+    }
+
+
+    /*
+     * 4. WIKIMEDIA COMMONS
+     */
+
+    if (
+        candidates.length <
+        TOTAL_STICKERS
+    ) {
+
+        const falta =
+            TOTAL_STICKERS -
+            candidates.length +
+            60;
+
+
+        console.log(
+            `🌐 Ainda faltam ${TOTAL_STICKERS - candidates.length} → consultando Wikimedia Commons`
+        );
+
+
+        const wikimedia =
+            await searchWikimediaCommons(
+                query,
+                Math.min(
+                    Math.max(
+                        falta,
+                        60
+                    ),
+                    MAX_WIKIMEDIA
+                )
+            );
+
+
+        addAll(
+            wikimedia
+        );
+
+
+        console.log(
+            `📦 Após Wikimedia Commons: ${candidates.length} candidatos`
         );
     }
 
@@ -1375,7 +1697,7 @@ export default {
 
     description:
         "Gera pack de stickers " +
-        "(Google Fotos + Safebooru + Pinterest)",
+        "(Google Fotos + Safebooru + Pinterest + Wikimedia Commons)",
 
 
     async execute(
@@ -1429,7 +1751,7 @@ export default {
                 text:
                     `🔎 Montando pack de *${query}* ` +
                     `(até ${TOTAL_STICKERS} figs)...\n` +
-                    `Fonte: Google Fotos → Safebooru → Pinterest`
+                    `Fonte: Google Fotos → Safebooru → Pinterest → Wikimedia Commons`
             },
             {
                 quoted:
@@ -1529,9 +1851,6 @@ export default {
              *   jid
              *   stickers
              *   options
-             *
-             * Antes o objeto inteiro estava sendo passado
-             * como terceiro argumento.
              */
 
             await sendStickerPack(
