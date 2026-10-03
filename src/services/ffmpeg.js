@@ -39,10 +39,6 @@ async function removeOutput(output) {
     } catch {}
 }
 
-/* =========================================================
- * VULKAN
- * ========================================================= */
-
 async function testVulkan() {
     if (vulkanAvailable !== null) {
         return vulkanAvailable;
@@ -72,10 +68,6 @@ async function testVulkan() {
 
     return vulkanAvailable;
 }
-
-/* =========================================================
- * OPENCL
- * ========================================================= */
 
 async function testOpenCL() {
     if (openclDevice !== null) {
@@ -107,10 +99,6 @@ async function testOpenCL() {
     return null;
 }
 
-/* =========================================================
- * MEDIACODEC
- * ========================================================= */
-
 async function testMediaCodec() {
     if (mediacodecAvailable !== null) {
         return mediacodecAvailable;
@@ -133,19 +121,10 @@ async function testMediaCodec() {
     return mediacodecAvailable;
 }
 
-/* =========================================================
- * BACKEND DISCOVERY
- * ========================================================= */
-
 async function getStickerMethods(type) {
     const methods = [];
 
-    /*
-     * Vulkan continua sendo PRIMEIRO.
-     *
-     * Não mudamos isso porque é justamente o caminho
-     * que está comprovadamente funcionando no aparelho.
-     */
+    
     if (await testVulkan()) {
         methods.push("vulkan");
     }
@@ -179,10 +158,6 @@ async function getHDMethods() {
     return methods;
 }
 
-/* =========================================================
- * STICKER
- * ========================================================= */
-
 export async function runFFmpegSticker(
     input,
     output,
@@ -192,10 +167,7 @@ export async function runFFmpegSticker(
 
     const methods = await getStickerMethods(type);
 
-    /*
-     * Se já sabemos qual backend funcionou antes,
-     * tentamos ele primeiro.
-     */
+    
     const orderedMethods = [];
 
     if (stickerBackend && methods.includes(stickerBackend)) {
@@ -252,10 +224,7 @@ export async function runFFmpegSticker(
 
             await removeOutput(output);
 
-            /*
-             * Se o backend que estava em cache falhou,
-             * removemos ele do cache para a próxima execução.
-             */
+            
             if (stickerBackend === method) {
                 stickerBackend = null;
             }
@@ -266,10 +235,6 @@ export async function runFFmpegSticker(
         "❌ Todos os métodos FFmpeg falharam"
     );
 }
-
-/* =========================================================
- * HD IMAGE
- * ========================================================= */
 
 export async function runFFmpegHD(
     input,
@@ -343,10 +308,6 @@ export async function runFFmpegHD(
     );
 }
 
-/* =========================================================
- * WEBP → IMAGE
- * ========================================================= */
-
 export async function webpToImage(
     input,
     output
@@ -357,10 +318,6 @@ export async function webpToImage(
 
     return output;
 }
-
-/* =========================================================
- * HD COMMAND
- * ========================================================= */
 
 function buildHDCommand(
     input,
@@ -381,12 +338,7 @@ function buildHDCommand(
             "-init_hw_device vulkan=vk " +
             "-filter_hw_device vk";
 
-        /*
-         * Mantido exatamente no modelo funcional
-         * do projeto atual.
-         *
-         * O hwupload/hwdownload é importante aqui.
-         */
+        
         filter =
             "format=rgba," +
             "hwupload," +
@@ -433,10 +385,6 @@ function buildHDCommand(
     ).replace(/\s+/g, " ");
 }
 
-/* =========================================================
- * STICKER COMMAND
- * ========================================================= */
-
 function buildFFmpegCommand(
     input,
     output,
@@ -452,12 +400,7 @@ function buildFFmpegCommand(
             "-filter_hw_device vk";
 
         if (type === "video") {
-            /*
-             * Mantido do código funcional.
-             *
-             * O fps acontece entre hwupload/hwdownload,
-             * mantendo o pipeline de hardware.
-             */
+            
             filter =
                 "format=rgba," +
                 "hwupload," +
@@ -465,13 +408,7 @@ function buildFFmpegCommand(
                 "hwdownload," +
                 "format=rgba";
         } else {
-            /*
-             * CAMINHO PRINCIPAL DAS FIGURINHAS.
-             *
-             * Não mexer nesse fluxo sem testar:
-             *
-             * CPU → RGBA → GPU → GPU → CPU → WebP
-             */
+            
             filter =
                 "format=rgba," +
                 "hwupload," +
@@ -508,10 +445,7 @@ function buildFFmpegCommand(
         filter = "";
     }
 
-    /*
-     * Escala final continua sendo feita depois
-     * do processamento de hardware.
-     */
+    
     filter += ",scale=512:512";
 
     return (
@@ -528,10 +462,6 @@ function buildFFmpegCommand(
         `${shellPath(output)}`
     ).replace(/\s+/g, " ");
 }
-
-/* =========================================================
- * OPTIONAL DIAGNOSTICS
- * ========================================================= */
 
 export function getFFmpegAccelerationState() {
     return {
