@@ -3,6 +3,7 @@ import Downloader from "../../services/downloader.js";
 export default {
 
     name: "play",
+  description: "Baixa vídeos ou áudios a partir de uma URL",
 
     async execute(sock, msg, args) {
 
