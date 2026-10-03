@@ -1,6 +1,3 @@
-// src/commands/member/pack.js
-// Google Fotos → Pinterest → NekosBest → OtakuGIFs → Safebooru → Wikimedia restrito → pack de 60 stickers
-
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -42,13 +39,6 @@ const GOOGLE_PHOTOS_FILE = path.resolve(
 const WIKIMEDIA_API =
     "https://commons.wikimedia.org/w/api.php";
 
-
-/*
- * ============================================================
- * AUXILIARES
- * ============================================================
- */
-
 async function run(
     command,
     args,
@@ -65,7 +55,6 @@ async function run(
     );
 }
 
-
 function sleep(ms) {
     return new Promise(
         resolve =>
@@ -75,7 +64,6 @@ function sleep(ms) {
             )
     );
 }
-
 
 function randomDelay(
     min,
@@ -87,13 +75,11 @@ function randomDelay(
     ) + min;
 }
 
-
 function shuffle(array) {
     return [...array].sort(
         () => Math.random() - 0.5
     );
 }
-
 
 function normalizeText(text) {
     return text
@@ -113,7 +99,6 @@ function normalizeText(text) {
             " "
         );
 }
-
 
 function toBooruTag(text) {
     return normalizeText(text)
@@ -142,13 +127,6 @@ function shouldUseWikimedia(query) {
 
     return safeTerms.includes(normalized);
 }
-
-
-/*
- * ============================================================
- * GOOGLE FOTOS
- * ============================================================
- */
 
 async function loadGooglePhotosAlbums() {
     try {
@@ -188,7 +166,6 @@ async function loadGooglePhotosAlbums() {
     }
 }
 
-
 async function findGooglePhotosAlbum(
     query
 ) {
@@ -201,10 +178,7 @@ async function findGooglePhotosAlbum(
             query
         );
 
-
-    /*
-     * Primeiro tenta correspondência exata.
-     */
+    
 
     for (
         const [name, url]
@@ -222,10 +196,7 @@ async function findGooglePhotosAlbum(
         }
     }
 
-
-    /*
-     * Depois tenta correspondência parcial.
-     */
+    
 
     for (
         const [name, url]
@@ -252,10 +223,8 @@ async function findGooglePhotosAlbum(
         }
     }
 
-
     return null;
 }
-
 
 async function searchGooglePhotos(
     query
@@ -266,7 +235,6 @@ async function searchGooglePhotos(
             query
         );
 
-
     if (!album) {
 
         console.log(
@@ -276,11 +244,9 @@ async function searchGooglePhotos(
         return [];
     }
 
-
     console.log(
         `📸 Google Fotos: álbum → ${album.name}`
     );
-
 
     try {
 
@@ -288,7 +254,6 @@ async function searchGooglePhotos(
             await fetchImageUrls(
                 album.url
             );
-
 
         if (
             !items?.length
@@ -300,7 +265,6 @@ async function searchGooglePhotos(
 
             return [];
         }
-
 
         const images =
             items
@@ -316,11 +280,7 @@ async function searchGooglePhotos(
                         let url =
                             item.url;
 
-
-                        /*
-                         * Só adiciona dimensões se
-                         * a URL ainda não tiver parâmetros.
-                         */
+                        
 
                         if (
                             item.width &&
@@ -332,7 +292,6 @@ async function searchGooglePhotos(
                                 `${url}=w${item.width}-h${item.height}`;
                         }
 
-
                         return {
                             url,
                             source:
@@ -343,11 +302,9 @@ async function searchGooglePhotos(
                     }
                 );
 
-
         console.log(
             `📸 Google Fotos: ${images.length} imagens`
         );
-
 
         return shuffle(
             images
@@ -362,15 +319,6 @@ async function searchGooglePhotos(
         return [];
     }
 }
-
-
-
-
-/*
- * ============================================================
- * NEKOSBEST
- * ============================================================
- */
 
 async function searchNekosBest(query) {
     const results = [];
@@ -425,13 +373,6 @@ async function searchNekosBest(query) {
     console.log(`🐱 NekosBest: ${results.length} resultados para "${query}"`);
     return shuffle(results);
 }
-
-
-/*
- * ============================================================
- * OTAKUGIFS
- * ============================================================
- */
 
 async function searchOtakuGifs(query, limit = MAX_OTAKUGIFS) {
     try {
@@ -517,13 +458,6 @@ async function searchOtakuGifs(query, limit = MAX_OTAKUGIFS) {
     }
 }
 
-
-/*
- * ============================================================
- * SAFEBOORU
- * ============================================================
- */
-
 async function searchSafebooru(
     query,
     limit = MAX_SAFEBOORU
@@ -541,7 +475,6 @@ async function searchSafebooru(
 
     const results = [];
 
-
     for (
         let pid = 0;
         pid < pages;
@@ -558,11 +491,9 @@ async function searchSafebooru(
             `&pid=${pid}` +
             `&tags=${encodeURIComponent(tag)}`;
 
-
         console.log(
             `🔒 Safebooru pid=${pid} tag=${tag}`
         );
-
 
         try {
 
@@ -577,7 +508,6 @@ async function searchSafebooru(
                     }
                 );
 
-
             if (
                 !res.ok
             ) {
@@ -589,10 +519,8 @@ async function searchSafebooru(
                 break;
             }
 
-
             const data =
                 await res.json();
-
 
             if (
                 !Array.isArray(data) ||
@@ -600,7 +528,6 @@ async function searchSafebooru(
             ) {
                 break;
             }
-
 
             for (
                 const post of data
@@ -612,7 +539,6 @@ async function searchSafebooru(
                 ) {
                     continue;
                 }
-
 
                 results.push({
                     url:
@@ -631,7 +557,6 @@ async function searchSafebooru(
                         post.id
                 });
 
-
                 if (
                     results.length >=
                     limit
@@ -640,7 +565,6 @@ async function searchSafebooru(
                 }
             }
 
-
             if (
                 results.length >=
                 limit
@@ -648,13 +572,11 @@ async function searchSafebooru(
                 break;
             }
 
-
             if (
                 data.length < 100
             ) {
                 break;
             }
-
 
             await sleep(
                 250
@@ -670,23 +592,14 @@ async function searchSafebooru(
         }
     }
 
-
     console.log(
         `🔒 Safebooru: ${results.length} imagens`
     );
-
 
     return shuffle(
         results
     );
 }
-
-
-/*
- * ============================================================
- * PINTEREST
- * ============================================================
- */
 
 async function fetchPinterest(
     url
@@ -706,41 +619,9 @@ async function fetchPinterest(
 
                     Accept:
                         "text/html,application/xhtml+xml," +
-                        "application/xml;q=0.9,*/*;q=0.8",
-
-                    "Accept-Language":
-                        "pt-BR,pt;q=0.9,en;q=0.8"
-                }
-            }
-        );
-
-
-    if (
-        !response.ok
-    ) {
-        throw new Error(
-            `HTTP ${response.status}`
-        );
-    }
-
-
-    return response.text();
-}
-
-
-function extractPinUrls(
-    html
-) {
-
-    const pins =
-        new Set();
-
-
-    const absoluteRegex =
-        /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)[^"'\\]*/gi;
+                        "application/xml;q=0.9,*gi;
 
     let match;
-
 
     while (
         (match =
@@ -754,10 +635,8 @@ function extractPinUrls(
         );
     }
 
-
     const relativeRegex =
         /["'\\]\/pin\/(\d+)\/?[^"'\\]*/gi;
-
 
     while (
         (match =
@@ -771,10 +650,8 @@ function extractPinUrls(
         );
     }
 
-
     const idRegex =
         /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi;
-
 
     while (
         (match =
@@ -788,12 +665,10 @@ function extractPinUrls(
         );
     }
 
-
     return [
         ...pins
     ];
 }
-
 
 async function searchPinterestPage(
     query,
@@ -805,10 +680,8 @@ async function searchPinterestPage(
             query
         );
 
-
     let url =
         `https://www.pinterest.com/search/pins/?q=${encoded}`;
-
 
     if (
         page > 1
@@ -817,23 +690,19 @@ async function searchPinterestPage(
             `&page=${page}`;
     }
 
-
     console.log(
         `🔎 Pinterest página ${page}: ${query}`
     );
-
 
     const html =
         await fetchPinterest(
             url
         );
 
-
     return extractPinUrls(
         html
     );
 }
-
 
 async function searchPinterest(
     query
@@ -841,7 +710,6 @@ async function searchPinterest(
 
     const allPins =
         new Set();
-
 
     for (
         let page = 1;
@@ -857,15 +725,12 @@ async function searchPinterest(
                     page
                 );
 
-
             console.log(
                 `📌 Página ${page}: ${pins.length} pins`
             );
 
-
             const before =
                 allPins.size;
-
 
             for (
                 const pin of pins
@@ -875,7 +740,6 @@ async function searchPinterest(
                     pin
                 );
 
-
                 if (
                     allPins.size >=
                     MAX_CANDIDATES
@@ -884,7 +748,6 @@ async function searchPinterest(
                 }
             }
 
-
             if (
                 allPins.size ===
                 before
@@ -892,14 +755,12 @@ async function searchPinterest(
                 break;
             }
 
-
             if (
                 allPins.size >=
                 MAX_CANDIDATES
             ) {
                 break;
             }
-
 
             await sleep(
                 randomDelay(
@@ -916,7 +777,6 @@ async function searchPinterest(
         }
     }
 
-
     return [
         ...allPins
     ].slice(
@@ -924,7 +784,6 @@ async function searchPinterest(
         MAX_CANDIDATES
     );
 }
-
 
 async function extractPinImage(
     pinUrl
@@ -937,7 +796,6 @@ async function extractPinImage(
                 pinUrl
             );
 
-
         const ogMatch =
             html.match(
                 /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i
@@ -945,7 +803,6 @@ async function extractPinImage(
             html.match(
                 /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i
             );
-
 
         if (
             ogMatch?.[1]
@@ -966,16 +823,13 @@ async function extractPinImage(
                 );
         }
 
-
         const pinimgRegex =
             /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi;
-
 
         const matches =
             html.match(
                 pinimgRegex
             );
-
 
         if (
             matches?.length
@@ -996,7 +850,6 @@ async function extractPinImage(
                 );
         }
 
-
         return null;
 
     } catch {
@@ -1004,7 +857,6 @@ async function extractPinImage(
         return null;
     }
 }
-
 
 async function resolvePinterestImages(
     pinUrls,
@@ -1014,7 +866,6 @@ async function resolvePinterestImages(
     const images = [];
 
     let i = 0;
-
 
     async function worker() {
 
@@ -1026,16 +877,13 @@ async function resolvePinterestImages(
             const current =
                 i++;
 
-
             const pinUrl =
                 pinUrls[current];
-
 
             const imgUrl =
                 await extractPinImage(
                     pinUrl
                 );
-
 
             if (
                 imgUrl
@@ -1052,7 +900,6 @@ async function resolvePinterestImages(
                 });
             }
 
-
             await sleep(
                 randomDelay(
                     MIN_DELAY,
@@ -1061,7 +908,6 @@ async function resolvePinterestImages(
             );
         }
     }
-
 
     const workers =
         Array.from(
@@ -1073,38 +919,16 @@ async function resolvePinterestImages(
                 worker()
         );
 
-
     await Promise.all(
         workers
     );
-
 
     console.log(
         `📌 Pinterest resolvido: ${images.length} imagens`
     );
 
-
     return images;
 }
-
-
-/*
- * ============================================================
- * WIKIMEDIA COMMONS
- * ============================================================
- *
- * Usa a API oficial do Wikimedia Commons.
- *
- * Busca páginas no namespace de arquivos e pede:
- *
- * - URL da imagem
- * - URL da página do arquivo
- * - MIME
- * - dimensões
- *
- * A thumbnail de até 1280 px é usada para evitar
- * baixar arquivos gigantes.
- */
 
 async function searchWikimediaCommons(
     query,
@@ -1117,7 +941,6 @@ async function searchWikimediaCommons(
 
     const batchSize = 50;
 
-
     while (
         results.length < limit
     ) {
@@ -1128,7 +951,6 @@ async function searchWikimediaCommons(
                 limit -
                     results.length
             );
-
 
         const params =
             new URLSearchParams({
@@ -1170,15 +992,12 @@ async function searchWikimediaCommons(
                     "1280"
             });
 
-
         const url =
             `${WIKIMEDIA_API}?${params.toString()}`;
-
 
         console.log(
             `🌐 Wikimedia Commons: "${query}" offset=${offset}`
         );
-
 
         try {
 
@@ -1194,7 +1013,6 @@ async function searchWikimediaCommons(
                     }
                 );
 
-
             if (
                 !response.ok
             ) {
@@ -1206,14 +1024,11 @@ async function searchWikimediaCommons(
                 break;
             }
 
-
             const data =
                 await response.json();
 
-
             const pages =
                 data?.query?.pages;
-
 
             if (
                 !Array.isArray(pages) ||
@@ -1222,7 +1037,6 @@ async function searchWikimediaCommons(
                 break;
             }
 
-
             for (
                 const page of pages
             ) {
@@ -1230,27 +1044,18 @@ async function searchWikimediaCommons(
                 const info =
                     page?.imageinfo?.[0];
 
-
                 if (
                     !info
                 ) {
                     continue;
                 }
 
-
-                /*
-                 * Só queremos imagens.
-                 *
-                 * SVG é evitado porque o FFmpeg pode
-                 * lidar com ele de maneira diferente
-                 * dependendo da instalação.
-                 */
+                
 
                 const mime =
                     String(
                         info.mime ?? ""
                     ).toLowerCase();
-
 
                 if (
                     !mime.startsWith(
@@ -1262,18 +1067,15 @@ async function searchWikimediaCommons(
                     continue;
                 }
 
-
                 const imageUrl =
                     info.thumburl ||
                     info.url;
-
 
                 if (
                     !imageUrl
                 ) {
                     continue;
                 }
-
 
                 results.push({
                     url:
@@ -1302,7 +1104,6 @@ async function searchWikimediaCommons(
                         info.height
                 });
 
-
                 if (
                     results.length >=
                     limit
@@ -1311,7 +1112,6 @@ async function searchWikimediaCommons(
                 }
             }
 
-
             if (
                 results.length >=
                 limit
@@ -1319,11 +1119,7 @@ async function searchWikimediaCommons(
                 break;
             }
 
-
-            /*
-             * A API informa se ainda existe
-             * continuação.
-             */
+            
 
             if (
                 !data?.continue
@@ -1331,10 +1127,8 @@ async function searchWikimediaCommons(
                 break;
             }
 
-
             offset +=
                 pages.length;
-
 
             await sleep(
                 randomDelay(
@@ -1353,23 +1147,14 @@ async function searchWikimediaCommons(
         }
     }
 
-
     console.log(
         `🌐 Wikimedia Commons: ${results.length} imagens`
     );
-
 
     return shuffle(
         results
     );
 }
-
-
-/*
- * ============================================================
- * BUSCA TODAS AS FONTES
- * ============================================================
- */
 
 async function buscarTodasFontes(query) {
     const seen = new Set();
@@ -1388,11 +1173,9 @@ async function buscarTodasFontes(query) {
         }
     }
 
-    // 1. Google Fotos
     addAll(await searchGooglePhotos(query));
     console.log(`📦 Após Google Fotos: ${candidates.length} candidatos`);
 
-    // 2. Pinterest
     if (candidates.length < TOTAL_STICKERS) {
         const pins = await searchPinterest(query);
         addAll(await resolvePinterestImages(
@@ -1402,11 +1185,9 @@ async function buscarTodasFontes(query) {
         console.log(`📦 Após Pinterest: ${candidates.length} candidatos`);
     }
 
-    // 3. NekosBest, estáticos + GIFs
     addAll(await searchNekosBest(query));
     console.log(`📦 Após NekosBest: ${candidates.length} candidatos`);
 
-    // 4. OtakuGIFs, priorizado para completar os 30 animados.
     const animatedCount = candidates.filter(item => item.animated).length;
     if (animatedCount < TARGET_ANIMATED) {
         addAll(await searchOtakuGifs(
@@ -1416,14 +1197,12 @@ async function buscarTodasFontes(query) {
         console.log(`📦 Após OtakuGIFs: ${candidates.length} candidatos`);
     }
 
-    // 5. Safebooru
     if (candidates.length < TOTAL_STICKERS) {
         const falta = TOTAL_STICKERS - candidates.length + 60;
         addAll(await searchSafebooru(query, Math.max(falta, 80)));
         console.log(`📦 Após Safebooru: ${candidates.length} candidatos`);
     }
 
-    // 6. Wikimedia: somente termos genéricos explicitamente permitidos.
     if (candidates.length < TOTAL_STICKERS && shouldUseWikimedia(query)) {
         addAll(await searchWikimediaCommons(query, MAX_WIKIMEDIA));
         console.log(`📦 Após Wikimedia Commons: ${candidates.length} candidatos`);
@@ -1431,7 +1210,6 @@ async function buscarTodasFontes(query) {
         console.log(`🌐 Wikimedia ignorado para "${query}" (consulta não permitida)`);
     }
 
-    // Seleção: tenta 30 animados + 30 estáticos.
     const animated = shuffle(candidates.filter(item => item.animated));
     const staticImages = shuffle(candidates.filter(item => !item.animated));
 
@@ -1440,7 +1218,6 @@ async function buscarTodasFontes(query) {
         ...staticImages.slice(0, TARGET_STATIC)
     ];
 
-    // Se uma categoria não tiver 30, completa com o que existir.
     if (selected.length < TOTAL_STICKERS) {
         const selectedUrls = new Set(selected.map(item => item.url));
 
@@ -1462,12 +1239,6 @@ async function buscarTodasFontes(query) {
     return finalCandidates;
 }
 
-/*
- * ============================================================
- * DOWNLOAD
- * ============================================================
- */
-
 async function downloadToFile(
     url,
     dest
@@ -1484,7 +1255,6 @@ async function downloadToFile(
             }
         );
 
-
     if (
         !res.ok
     ) {
@@ -1493,12 +1263,10 @@ async function downloadToFile(
         );
     }
 
-
     const buf =
         Buffer.from(
             await res.arrayBuffer()
         );
-
 
     if (
         buf.length >
@@ -1510,19 +1278,11 @@ async function downloadToFile(
         );
     }
 
-
     await fs.writeFile(
         dest,
         buf
     );
 }
-
-
-/*
- * ============================================================
- * CONVERTE PARA WEBP
- * ============================================================
- */
 
 async function convertToSticker(
     inputPath,
@@ -1582,13 +1342,6 @@ async function convertToSticker(
     }
 }
 
-
-/*
- * ============================================================
- * PROCESSA IMAGENS
- * ============================================================
- */
-
 async function processImages(
     candidates,
     tmpDir
@@ -1599,7 +1352,6 @@ async function processImages(
 
     let index =
         0;
-
 
     async function worker() {
 
@@ -1613,12 +1365,10 @@ async function processImages(
             const current =
                 index++;
 
-
             const item =
                 candidates[
                     current
                 ];
-
 
             if (
                 !item?.url
@@ -1626,10 +1376,8 @@ async function processImages(
                 continue;
             }
 
-
             const id =
                 randomUUID();
-
 
             const rawPath =
                 path.join(
@@ -1637,13 +1385,11 @@ async function processImages(
                     `${id}.img`
                 );
 
-
             const webpPath =
                 path.join(
                     tmpDir,
                     `${id}.webp`
                 );
-
 
             try {
 
@@ -1652,19 +1398,16 @@ async function processImages(
                     rawPath
                 );
 
-
                 await convertToSticker(
                     rawPath,
                     webpPath,
                     item.animated === true
                 );
 
-
                 const buf =
                     await fs.readFile(
                         webpPath
                     );
-
 
                 if (
                     buf.length > 0 &&
@@ -1675,7 +1418,6 @@ async function processImages(
                     stickers.push(
                         buf
                     );
-
 
                     console.log(
                         `✅ ${stickers.length}/${TOTAL_STICKERS} (${item.source} • ${item.animated ? "animado" : "estático"})`
@@ -1696,7 +1438,6 @@ async function processImages(
                     () => {}
                 );
 
-
                 await fs.unlink(
                     webpPath
                 ).catch(
@@ -1705,7 +1446,6 @@ async function processImages(
             }
         }
     }
-
 
     await Promise.all(
         Array.from(
@@ -1718,19 +1458,11 @@ async function processImages(
         )
     );
 
-
     return stickers.slice(
         0,
         TOTAL_STICKERS
     );
 }
-
-
-/*
- * ============================================================
- * COMANDO
- * ============================================================
- */
 
 export default {
 
@@ -1746,7 +1478,6 @@ export default {
         "Gera pack de stickers " +
         "(Google Fotos + Pinterest + NekosBest + OtakuGIFs + Safebooru + Wikimedia restrito)",
 
-
     async execute(
         sock,
         msg,
@@ -1758,14 +1489,10 @@ export default {
                 .join(" ")
                 .trim();
 
-
         const from =
             msg.key.remoteJid;
 
-
-        /*
-         * Sem nome.
-         */
+        
 
         if (
             !query
@@ -1783,14 +1510,10 @@ export default {
                 }
             );
 
-
             return;
         }
 
-
-        /*
-         * Aviso inicial.
-         */
+        
 
         await sock.sendMessage(
             from,
@@ -1806,7 +1529,6 @@ export default {
             }
         );
 
-
         const tmpDir =
             await fs.mkdtemp(
                 path.join(
@@ -1815,18 +1537,14 @@ export default {
                 )
             );
 
-
         try {
 
-            /*
-             * Busca candidatos.
-             */
+            
 
             const candidates =
                 await buscarTodasFontes(
                     query
                 );
-
 
             if (
                 !candidates.length
@@ -1844,21 +1562,16 @@ export default {
                     }
                 );
 
-
                 return;
             }
 
-
-            /*
-             * Processa stickers.
-             */
+            
 
             const stickers =
                 await processImages(
                     candidates,
                     tmpDir
                 );
-
 
             if (
                 stickers.length < 5
@@ -1877,28 +1590,14 @@ export default {
                     }
                 );
 
-
                 return;
             }
-
 
             console.log(
                 `📦 Preparando envio do pack com ${stickers.length} stickers...`
             );
 
-
-            /*
-             * =================================================
-             * CORREÇÃO IMPORTANTE
-             * =================================================
-             *
-             * sendStickerPack() recebe:
-             *
-             *   sock
-             *   jid
-             *   stickers
-             *   options
-             */
+            
 
             await sendStickerPack(
                 sock,
@@ -1916,15 +1615,11 @@ export default {
                 }
             );
 
-
             console.log(
                 `📦 Pack enviado com sucesso: ${query}`
             );
 
-
-            /*
-             * Confirmação.
-             */
+            
 
             await sock.sendMessage(
                 from,
@@ -1939,14 +1634,12 @@ export default {
                 }
             );
 
-
         } catch (err) {
 
             console.error(
                 "pack error:",
                 err
             );
-
 
             await sock.sendMessage(
                 from,
@@ -1959,7 +1652,6 @@ export default {
                         msg
                 }
             );
-
 
         } finally {
 
