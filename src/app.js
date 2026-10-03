@@ -31,7 +31,6 @@ import {
     sendStickerPack
 } from "./services/stickerPack.js";
 
-
 const rl =
     readline.createInterface({
         input:
@@ -41,38 +40,14 @@ const rl =
             process.stdout
     });
 
-
-/*
- * ============================================================
- * CONFIGURAÇÕES
- * ============================================================
- */
-
 const AUTO_STICKER_WAIT =
     2000;
-
-
-/*
- * ============================================================
- * FILAS DO AUTO-STICKER
- * ============================================================
- *
- * Cada grupo possui sua própria fila.
- */
 
 const autoStickerBuffers =
     new Map();
 
-
 const autoStickerTimers =
     new Map();
-
-
-/*
- * ============================================================
- * FUNÇÕES AUXILIARES
- * ============================================================
- */
 
 const sleep =
     ms =>
@@ -84,20 +59,12 @@ const sleep =
                 )
         );
 
-
 const randomDelay =
     () =>
         Math.floor(
             Math.random() *
             201
         ) + 500;
-
-
-/*
- * ============================================================
- * ENVIA A FILA DO GRUPO
- * ============================================================
- */
 
 async function flushAutoSticker(
     sock,
@@ -109,16 +76,13 @@ async function flushAutoSticker(
             jid
         );
 
-
     autoStickerBuffers.delete(
         jid
     );
 
-
     autoStickerTimers.delete(
         jid
     );
-
 
     if (
         !stickers ||
@@ -127,21 +91,13 @@ async function flushAutoSticker(
         return;
     }
 
-
     console.log(
         `📦 Auto-sticker: ${stickers.length} sticker(s) aguardando envio em ${jid}`
     );
 
-
     try {
 
-        /*
-         * ====================================================
-         * APENAS 1 STICKER
-         * ====================================================
-         *
-         * Mantém o comportamento antigo.
-         */
+        
 
         if (
             stickers.length === 1
@@ -155,26 +111,14 @@ async function flushAutoSticker(
                 }
             );
 
-
             console.log(
                 "✅ Sticker individual enviado"
             );
 
-
             return;
         }
 
-
-        /*
-         * ====================================================
-         * 2+ STICKERS
-         * ====================================================
-         *
-         * Cria pack nativo.
-         *
-         * sendStickerPack() automaticamente
-         * divide em 60 + 60 + ...
-         */
+        
 
         await sendStickerPack(
             sock,
@@ -192,11 +136,9 @@ async function flushAutoSticker(
             }
         );
 
-
         console.log(
             `✅ Sticker pack enviado com ${stickers.length} sticker(s)`
         );
-
 
     } catch (error) {
 
@@ -205,20 +147,11 @@ async function flushAutoSticker(
             error
         );
 
-
-        /*
-         * ====================================================
-         * FALLBACK
-         * ====================================================
-         *
-         * Se o pack falhar, não perdemos as figurinhas.
-         * Envia individualmente.
-         */
+        
 
         console.log(
             "↩️ Enviando stickers individualmente..."
         );
-
 
         for (
             const sticker of stickers
@@ -246,13 +179,6 @@ async function flushAutoSticker(
     }
 }
 
-
-/*
- * ============================================================
- * CRIA STICKER AUTOMÁTICO
- * ============================================================
- */
-
 async function createAutoSticker(
     sock,
     msg
@@ -261,14 +187,11 @@ async function createAutoSticker(
     const jid =
         msg.key.remoteJid;
 
-
     const image =
         msg.message?.imageMessage;
 
-
     const video =
         msg.message?.videoMessage;
-
 
     if (
         !image &&
@@ -277,51 +200,39 @@ async function createAutoSticker(
         return;
     }
 
-
-    /*
-     * Verifica se o recurso está
-     * habilitado no grupo.
-     */
+    
 
     const enabled =
         await isEnabled(
             jid
         );
 
-
     if (!enabled) {
         return;
     }
-
 
     console.log(
         `🖼️ Auto-sticker ativado em: ${jid}`
     );
 
-
     const id =
         randomUUID();
-
 
     const type =
         video
             ? "video"
             : "image";
 
-
     const ext =
         video
             ? "mp4"
             : "jpg";
 
-
     const input =
         `./temp/${id}.${ext}`;
 
-
     const output =
         `./temp/${id}.webp`;
-
 
     try {
 
@@ -333,12 +244,7 @@ async function createAutoSticker(
             }
         );
 
-
-        /*
-         * ====================================================
-         * DOWNLOAD
-         * ====================================================
-         */
+        
 
         const media =
             await downloadMedia(
@@ -347,18 +253,12 @@ async function createAutoSticker(
                 type
             );
 
-
         await fs.writeFile(
             input,
             media
         );
 
-
-        /*
-         * ====================================================
-         * CONVERSÃO PARA WEBP
-         * ====================================================
-         */
+        
 
         await createSticker(
             input,
@@ -374,27 +274,14 @@ async function createAutoSticker(
             type
         );
 
-
-        /*
-         * ====================================================
-         * LÊ O WEBP PARA RAM
-         * ====================================================
-         *
-         * Não guardamos o caminho porque o arquivo
-         * será apagado no finally.
-         */
+        
 
         const sticker =
             await fs.readFile(
                 output
             );
 
-
-        /*
-         * ====================================================
-         * CRIA FILA DO GRUPO
-         * ====================================================
-         */
+        
 
         if (
             !autoStickerBuffers.has(
@@ -408,37 +295,25 @@ async function createAutoSticker(
             );
         }
 
-
         const queue =
             autoStickerBuffers.get(
                 jid
             );
 
-
         queue.push(
             sticker
         );
-
 
         console.log(
             `📥 Sticker colocado na fila: ${queue.length}`
         );
 
-
-        /*
-         * ====================================================
-         * REINICIA O TIMER
-         * ====================================================
-         *
-         * Cada nova mídia recebida dentro dos 2 segundos
-         * prolonga a fila.
-         */
+        
 
         const oldTimer =
             autoStickerTimers.get(
                 jid
             );
-
 
         if (
             oldTimer
@@ -448,7 +323,6 @@ async function createAutoSticker(
                 oldTimer
             );
         }
-
 
         const timer =
             setTimeout(
@@ -463,12 +337,10 @@ async function createAutoSticker(
                 AUTO_STICKER_WAIT
             );
 
-
         autoStickerTimers.set(
             jid,
             timer
         );
-
 
     } catch (error) {
 
@@ -477,20 +349,15 @@ async function createAutoSticker(
             error
         );
 
-
     } finally {
 
-        /*
-         * Apaga apenas os arquivos temporários.
-         * O WebP já está salvo na RAM da fila.
-         */
+        
 
         await fs.unlink(
             input
         ).catch(
             () => {}
         );
-
 
         await fs.unlink(
             output
@@ -499,13 +366,6 @@ async function createAutoSticker(
         );
     }
 }
-
-
-/*
- * ============================================================
- * START BOT
- * ============================================================
- */
 
 async function startBot() {
 
@@ -517,12 +377,10 @@ async function startBot() {
             "./auth"
         );
 
-
     const {
         version
     } =
         await fetchLatestBaileysVersion();
-
 
     const sock =
         makeWASocket({
@@ -541,27 +399,19 @@ async function startBot() {
                 })
         });
 
-
     const commandHandler =
         new CommandHandler(
             sock
         );
 
-
     await commandHandler.loadCommands();
-
 
     sock.ev.on(
         "creds.update",
         saveCreds
     );
 
-
-    /*
-     * ========================================================
-     * MENSAGENS
-     * ========================================================
-     */
+    
 
     sock.ev.on(
         "messages.upsert",
@@ -570,10 +420,7 @@ async function startBot() {
             messages
         }) => {
 
-            /*
-             * Processa todas as mensagens
-             * do evento, e não somente messages[0].
-             */
+            
 
             for (
                 const msg of messages
@@ -585,39 +432,24 @@ async function startBot() {
                     continue;
                 }
 
-
-                /*
-                 * Permite o menu acessar
-                 * os comandos carregados.
-                 */
+                
 
                 msg.commandHandler =
                     commandHandler;
 
-
-                /*
-                 * ID do chat.
-                 */
+                
 
                 const jid =
                     msg.key.remoteJid;
 
-
-                /*
-                 * Verifica se é grupo.
-                 */
+                
 
                 const isGroup =
                     jid?.endsWith(
                         "@g.us"
                     );
 
-
-                /*
-                 * =================================================
-                 * AUTO-STICKER
-                 * =================================================
-                 */
+                
 
                 if (
                     isGroup
@@ -629,23 +461,13 @@ async function startBot() {
                     );
                 }
 
-
-                /*
-                 * =================================================
-                 * DELAY HUMANO
-                 * =================================================
-                 */
+                
 
                 await sleep(
                     randomDelay()
                 );
 
-
-                /*
-                 * =================================================
-                 * COMANDOS
-                 * =================================================
-                 */
+                
 
                 await commandHandler.handle(
                     msg
@@ -654,12 +476,7 @@ async function startBot() {
         }
     );
 
-
-    /*
-     * ========================================================
-     * CONEXÃO
-     * ========================================================
-     */
+    
 
     sock.ev.on(
         "connection.update",
@@ -679,7 +496,6 @@ async function startBot() {
                 );
             }
 
-
             if (
                 connection ===
                 "close"
@@ -697,7 +513,6 @@ async function startBot() {
 
                         : 0;
 
-
                 if (
                     status !==
                     DisconnectReason.loggedOut
@@ -707,9 +522,7 @@ async function startBot() {
                         "🔄 Reconectando..."
                     );
 
-
                     startBot();
-
 
                 } else {
 
@@ -721,12 +534,7 @@ async function startBot() {
         }
     );
 
-
-    /*
-     * ========================================================
-     * PAIRING CODE
-     * ========================================================
-     */
+    
 
     if (
         !state.creds.registered
@@ -745,16 +553,13 @@ async function startBot() {
                             numero
                         );
 
-
                     console.log(
                         "\nCódigo:"
                     );
 
-
                     console.log(
                         codigo
                     );
-
 
                 } catch (error) {
 
@@ -764,18 +569,10 @@ async function startBot() {
                     );
                 }
 
-
                 rl.close();
             }
         );
     }
 }
-
-
-/*
- * ============================================================
- * INICIA
- * ============================================================
- */
 
 startBot();
