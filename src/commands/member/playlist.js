@@ -13,6 +13,7 @@ const TEMP_DIR = path.resolve("temp/playlist");
 
 export default {
   name: "playlist",
+  description: "Baixa e envia músicas de uma playlist do YouTube",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
