@@ -52,8 +52,6 @@ export default {
             const output = `./temp/${id}-nord.jpg`;
 
             await fs.writeFile(input, buffer);
-
-            // ❄️ Nord Theme Edition
             await execAsync(
                 `ffmpeg -y -i "${input}" -vf "eq=contrast=1.15:brightness=0.03:saturation=0.82,colorbalance=rs=-0.08:gs=0.04:bs=0.28,curves=blue='0/0 0.45/0.55 0.75/0.82 1/1',unsharp=5:5:0.4" "${output}"`
             );
