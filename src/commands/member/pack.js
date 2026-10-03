@@ -1,5 +1,5 @@
 // src/commands/member/pack.js
-// Google Fotos → Safebooru → Pinterest → Wikimedia Commons → pack de 60 stickers
+// Google Fotos → Pinterest → NekosBest → OtakuGIFs → Safebooru → Wikimedia restrito → pack de 60 stickers
 
 import fs from "fs/promises";
 import path from "path";
@@ -19,7 +19,14 @@ const CONCURRENCY = 3;
 const MAX_CANDIDATES = 180;
 const MAX_SEARCH_PAGES = 5;
 const MAX_SAFEBOORU = 120;
-const MAX_WIKIMEDIA = 120;
+const MAX_WIKIMEDIA = 60;
+
+const TARGET_STATIC = 30;
+const TARGET_ANIMATED = 30;
+
+const MAX_OTAKUGIFS = 30;
+const MAX_NEKOSBEST_STATIC = 20;
+const MAX_NEKOSBEST_ANIMATED = 20;
 
 const MIN_DELAY = 100;
 const MAX_DELAY = 200;
@@ -114,6 +121,26 @@ function toBooruTag(text) {
             /\s+/g,
             "_"
         );
+}
+
+function looksAnimatedUrl(url) {
+    return /\.(?:gif)(?:[?#]|$)/i.test(
+        String(url ?? "")
+    );
+}
+
+function shouldUseWikimedia(query) {
+    const normalized = normalizeText(query).replace(/\s+/g, " ");
+
+    const safeTerms = [
+        "animal", "cat", "dog", "bird", "fish", "flower", "tree",
+        "nature", "landscape", "ocean", "sea", "mountain", "space",
+        "planet", "moon", "sun", "food", "pizza", "cake", "car",
+        "airplane", "ship", "city", "building", "flag", "map",
+        "logo", "computer", "phone"
+    ];
+
+    return safeTerms.includes(normalized);
 }
 
 
@@ -309,7 +336,9 @@ async function searchGooglePhotos(
                         return {
                             url,
                             source:
-                                "google-photos"
+                                "google-photos",
+                            animated:
+                                looksAnimatedUrl(url)
                         };
                     }
                 );
@@ -330,6 +359,160 @@ async function searchGooglePhotos(
             `⚠️ Google Fotos falhou: ${err.message}`
         );
 
+        return [];
+    }
+}
+
+
+
+
+/*
+ * ============================================================
+ * NEKOSBEST
+ * ============================================================
+ */
+
+async function searchNekosBest(query) {
+    const results = [];
+
+    async function search(type, amount) {
+        const params = new URLSearchParams({
+            query,
+            type: String(type),
+            amount: String(Math.min(amount, 20))
+        });
+
+        try {
+            const response = await fetch(
+                `https://nekos.best/api/v2/search?${params.toString()}`,
+                {
+                    headers: {
+                        "User-Agent":
+                            "Chiru-san-Bot (https://github.com/chirusanrestart/chiru-san-bot)"
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                console.log(`⚠️ NekosBest HTTP ${response.status} (type=${type})`);
+                return;
+            }
+
+            const data = await response.json();
+            if (!Array.isArray(data?.results)) return;
+
+            for (const item of data.results) {
+                if (!item?.url) continue;
+                results.push({
+                    url: item.url,
+                    source: "nekosbest",
+                    animated: type === 2 || looksAnimatedUrl(item.url),
+                    animeName: item.anime_name,
+                    artistName: item.artist_name,
+                    sourceUrl: item.source_url,
+                    width: item.dimensions?.width,
+                    height: item.dimensions?.height
+                });
+            }
+        } catch (err) {
+            console.log(`⚠️ NekosBest erro (type=${type}): ${err.message}`);
+        }
+    }
+
+    await search(1, MAX_NEKOSBEST_STATIC);
+    await search(2, MAX_NEKOSBEST_ANIMATED);
+
+    console.log(`🐱 NekosBest: ${results.length} resultados para "${query}"`);
+    return shuffle(results);
+}
+
+
+/*
+ * ============================================================
+ * OTAKUGIFS
+ * ============================================================
+ */
+
+async function searchOtakuGifs(query, limit = MAX_OTAKUGIFS) {
+    try {
+        const normalizedQuery = normalizeText(query).replace(/\s+/g, "");
+
+        const reactionsResponse = await fetch(
+            "https://api.otakugifs.xyz/gif/allreactions",
+            {
+                headers: {
+                    "User-Agent": "chiru-san-bot/1.0"
+                }
+            }
+        );
+
+        if (!reactionsResponse.ok) {
+            console.log(`⚠️ OtakuGIFs reactions HTTP ${reactionsResponse.status}`);
+            return [];
+        }
+
+        const reactionData = await reactionsResponse.json();
+
+        const reactions =
+            Array.isArray(reactionData)
+                ? reactionData
+                : Array.isArray(reactionData?.reactions)
+                    ? reactionData.reactions
+                    : Array.isArray(reactionData?.data)
+                        ? reactionData.data
+                        : [];
+
+        const reaction = reactions.find(item => {
+            const name = typeof item === "string" ? item : item?.name;
+            if (!name) return false;
+            return normalizeText(name).replace(/\s+/g, "") === normalizedQuery;
+        });
+
+        if (!reaction) {
+            console.log(`🎞️ OtakuGIFs: "${query}" não é uma reação conhecida`);
+            return [];
+        }
+
+        const reactionName = typeof reaction === "string" ? reaction : reaction.name;
+        const results = [];
+
+        for (let i = 0; i < Math.min(limit, MAX_OTAKUGIFS); i++) {
+            try {
+                const response = await fetch(
+                    "https://api.otakugifs.xyz/gif" +
+                    `?reaction=${encodeURIComponent(reactionName)}`,
+                    {
+                        headers: {
+                            "User-Agent": "chiru-san-bot/1.0"
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    console.log(`⚠️ OtakuGIFs HTTP ${response.status}`);
+                    break;
+                }
+
+                const data = await response.json();
+
+                if (data?.url) {
+                    results.push({
+                        url: data.url,
+                        source: "otakugifs",
+                        animated: true
+                    });
+                }
+            } catch (err) {
+                console.log(`⚠️ OtakuGIFs erro: ${err.message}`);
+            }
+
+            await sleep(randomDelay(MIN_DELAY, MAX_DELAY));
+        }
+
+        console.log(`🎞️ OtakuGIFs: ${results.length} GIFs para "${query}"`);
+        return shuffle(results);
+    } catch (err) {
+        console.log(`⚠️ OtakuGIFs falhou: ${err.message}`);
         return [];
     }
 }
@@ -438,6 +621,11 @@ async function searchSafebooru(
 
                     source:
                         "safebooru",
+
+                    animated:
+                        looksAnimatedUrl(
+                            `https://safebooru.org/images/${post.directory}/${post.image}`
+                        ),
 
                     id:
                         post.id
@@ -858,7 +1046,9 @@ async function resolvePinterestImages(
                         imgUrl,
 
                     source:
-                        "pinterest"
+                        "pinterest",
+                    animated:
+                        looksAnimatedUrl(imgUrl)
                 });
             }
 
@@ -1092,6 +1282,9 @@ async function searchWikimediaCommons(
                     source:
                         "wikimedia",
 
+                    animated:
+                        false,
+
                     title:
                         page.title,
 
@@ -1178,212 +1371,96 @@ async function searchWikimediaCommons(
  * ============================================================
  */
 
-async function buscarTodasFontes(
-    query
-) {
+async function buscarTodasFontes(query) {
+    const seen = new Set();
+    const candidates = [];
 
-    const seen =
-        new Set();
-
-    const candidates =
-        [];
-
-
-    function addAll(
-        list
-    ) {
-
-        for (
-            const item of list
-        ) {
-
-            if (
-                !item?.url ||
-                seen.has(
-                    item.url
-                )
-            ) {
-                continue;
-            }
-
-
-            seen.add(
-                item.url
-            );
-
-
-            candidates.push(
-                item
-            );
+    function addAll(list) {
+        for (const item of list) {
+            if (!item?.url || seen.has(item.url)) continue;
+            seen.add(item.url);
+            candidates.push({
+                ...item,
+                animated:
+                    item.animated === true ||
+                    looksAnimatedUrl(item.url)
+            });
         }
     }
 
+    // 1. Google Fotos
+    addAll(await searchGooglePhotos(query));
+    console.log(`📦 Após Google Fotos: ${candidates.length} candidatos`);
 
-    /*
-     * 1. GOOGLE FOTOS
-     */
+    // 2. Pinterest
+    if (candidates.length < TOTAL_STICKERS) {
+        const pins = await searchPinterest(query);
+        addAll(await resolvePinterestImages(
+            pins,
+            Math.max(TOTAL_STICKERS - candidates.length + 40, 40)
+        ));
+        console.log(`📦 Após Pinterest: ${candidates.length} candidatos`);
+    }
 
-    const google =
-        await searchGooglePhotos(
-            query
-        );
+    // 3. NekosBest, estáticos + GIFs
+    addAll(await searchNekosBest(query));
+    console.log(`📦 Após NekosBest: ${candidates.length} candidatos`);
 
+    // 4. OtakuGIFs, priorizado para completar os 30 animados.
+    const animatedCount = candidates.filter(item => item.animated).length;
+    if (animatedCount < TARGET_ANIMATED) {
+        addAll(await searchOtakuGifs(
+            query,
+            Math.max(TARGET_ANIMATED - animatedCount, 10)
+        ));
+        console.log(`📦 Após OtakuGIFs: ${candidates.length} candidatos`);
+    }
 
-    addAll(
-        google
-    );
+    // 5. Safebooru
+    if (candidates.length < TOTAL_STICKERS) {
+        const falta = TOTAL_STICKERS - candidates.length + 60;
+        addAll(await searchSafebooru(query, Math.max(falta, 80)));
+        console.log(`📦 Após Safebooru: ${candidates.length} candidatos`);
+    }
 
+    // 6. Wikimedia: somente termos genéricos explicitamente permitidos.
+    if (candidates.length < TOTAL_STICKERS && shouldUseWikimedia(query)) {
+        addAll(await searchWikimediaCommons(query, MAX_WIKIMEDIA));
+        console.log(`📦 Após Wikimedia Commons: ${candidates.length} candidatos`);
+    } else if (!shouldUseWikimedia(query)) {
+        console.log(`🌐 Wikimedia ignorado para "${query}" (consulta não permitida)`);
+    }
+
+    // Seleção: tenta 30 animados + 30 estáticos.
+    const animated = shuffle(candidates.filter(item => item.animated));
+    const staticImages = shuffle(candidates.filter(item => !item.animated));
+
+    const selected = [
+        ...animated.slice(0, TARGET_ANIMATED),
+        ...staticImages.slice(0, TARGET_STATIC)
+    ];
+
+    // Se uma categoria não tiver 30, completa com o que existir.
+    if (selected.length < TOTAL_STICKERS) {
+        const selectedUrls = new Set(selected.map(item => item.url));
+
+        for (const item of shuffle(candidates)) {
+            if (selected.length >= TOTAL_STICKERS) break;
+            if (!selectedUrls.has(item.url)) {
+                selected.push(item);
+                selectedUrls.add(item.url);
+            }
+        }
+    }
+
+    const finalCandidates = shuffle(selected).slice(0, TOTAL_STICKERS);
 
     console.log(
-        `📦 Após Google Fotos: ${candidates.length} candidatos`
+        `📦 Seleção final: ${finalCandidates.filter(item => item.animated).length} animados + ${finalCandidates.filter(item => !item.animated).length} estáticos`
     );
 
-
-    /*
-     * 2. SAFEBOORU
-     */
-
-    if (
-        candidates.length <
-        TOTAL_STICKERS
-    ) {
-
-        const falta =
-            TOTAL_STICKERS -
-            candidates.length +
-            50;
-
-
-        console.log(
-            `🔒 Faltam ${TOTAL_STICKERS - candidates.length} → consultando Safebooru`
-        );
-
-
-        const safe =
-            await searchSafebooru(
-                query,
-                Math.max(
-                    falta,
-                    60
-                )
-            );
-
-
-        addAll(
-            safe
-        );
-
-
-        console.log(
-            `📦 Após Safebooru: ${candidates.length} candidatos`
-        );
-    }
-
-
-    /*
-     * 3. PINTEREST
-     */
-
-    if (
-        candidates.length <
-        TOTAL_STICKERS
-    ) {
-
-        const falta =
-            TOTAL_STICKERS -
-            candidates.length +
-            40;
-
-
-        console.log(
-            `📌 Ainda faltam ${TOTAL_STICKERS - candidates.length} → consultando Pinterest`
-        );
-
-
-        const pins =
-            await searchPinterest(
-                query
-            );
-
-
-        const pinImages =
-            await resolvePinterestImages(
-                pins,
-                Math.max(
-                    falta,
-                    40
-                )
-            );
-
-
-        addAll(
-            pinImages
-        );
-
-
-        console.log(
-            `📦 Após Pinterest: ${candidates.length} candidatos`
-        );
-    }
-
-
-    /*
-     * 4. WIKIMEDIA COMMONS
-     */
-
-    if (
-        candidates.length <
-        TOTAL_STICKERS
-    ) {
-
-        const falta =
-            TOTAL_STICKERS -
-            candidates.length +
-            60;
-
-
-        console.log(
-            `🌐 Ainda faltam ${TOTAL_STICKERS - candidates.length} → consultando Wikimedia Commons`
-        );
-
-
-        const wikimedia =
-            await searchWikimediaCommons(
-                query,
-                Math.min(
-                    Math.max(
-                        falta,
-                        60
-                    ),
-                    MAX_WIKIMEDIA
-                )
-            );
-
-
-        addAll(
-            wikimedia
-        );
-
-
-        console.log(
-            `📦 Após Wikimedia Commons: ${candidates.length} candidatos`
-        );
-    }
-
-
-    console.log(
-        `📦 Total de candidatos únicos: ${candidates.length}`
-    );
-
-
-    return shuffle(
-        candidates
-    ).slice(
-        0,
-        MAX_CANDIDATES
-    );
+    return finalCandidates;
 }
-
 
 /*
  * ============================================================
@@ -1449,88 +1526,57 @@ async function downloadToFile(
 
 async function convertToSticker(
     inputPath,
-    outputPath
+    outputPath,
+    animated = false
 ) {
-
-    const filter =
+    const baseFilter =
         "scale=512:512:" +
         "force_original_aspect_ratio=decrease," +
         "pad=512:512:" +
         "(ow-iw)/2:(oh-ih)/2:" +
         "color=0x00000000";
 
+    async function encode(quality, fps) {
+        const finalFilter = animated
+            ? `fps=${fps},${baseFilter}`
+            : baseFilter;
 
-    await run(
-        "ffmpeg",
-        [
+        const args = [
             "-y",
-
             "-i",
             inputPath,
-
             "-vf",
-            filter,
-
+            finalFilter,
+            "-an",
             "-c:v",
             "libwebp",
-
             "-quality",
-            "80",
-
+            String(quality),
             "-compression_level",
-            "4",
+            "4"
+        ];
 
-            outputPath
-        ]
-    );
+        if (animated) {
+            args.push("-loop", "0", "-t", "6");
+        }
 
+        args.push(outputPath);
+        await run("ffmpeg", args);
+    }
 
-    let stat =
-        await fs.stat(
-            outputPath
-        );
+    await encode(animated ? 70 : 80, animated ? 12 : null);
 
+    let stat = await fs.stat(outputPath);
 
-    if (
-        stat.size >
-        MAX_STICKER_SIZE
-    ) {
+    if (stat.size > MAX_STICKER_SIZE) {
+        await encode(animated ? 45 : 55, animated ? 8 : null);
+        stat = await fs.stat(outputPath);
 
-        await run(
-            "ffmpeg",
-            [
-                "-y",
-
-                "-i",
-                inputPath,
-
-                "-vf",
-                filter,
-
-                "-c:v",
-                "libwebp",
-
-                "-quality",
-                "55",
-
-                outputPath
-            ]
-        );
-
-
-        stat =
-            await fs.stat(
-                outputPath
-            );
-
-
-        if (
-            stat.size >
-            MAX_STICKER_SIZE
-        ) {
-
+        if (stat.size > MAX_STICKER_SIZE) {
             throw new Error(
-                "sticker continua maior que 1 MB"
+                animated
+                    ? "sticker animado continua maior que 1 MB"
+                    : "sticker continua maior que 1 MB"
             );
         }
     }
@@ -1609,7 +1655,8 @@ async function processImages(
 
                 await convertToSticker(
                     rawPath,
-                    webpPath
+                    webpPath,
+                    item.animated === true
                 );
 
 
@@ -1631,7 +1678,7 @@ async function processImages(
 
 
                     console.log(
-                        `✅ ${stickers.length}/${TOTAL_STICKERS} (${item.source})`
+                        `✅ ${stickers.length}/${TOTAL_STICKERS} (${item.source} • ${item.animated ? "animado" : "estático"})`
                     );
                 }
 
@@ -1697,7 +1744,7 @@ export default {
 
     description:
         "Gera pack de stickers " +
-        "(Google Fotos + Safebooru + Pinterest + Wikimedia Commons)",
+        "(Google Fotos + Pinterest + NekosBest + OtakuGIFs + Safebooru + Wikimedia restrito)",
 
 
     async execute(
@@ -1751,7 +1798,7 @@ export default {
                 text:
                     `🔎 Montando pack de *${query}* ` +
                     `(até ${TOTAL_STICKERS} figs)...\n` +
-                    `Fonte: Google Fotos → Safebooru → Pinterest → Wikimedia Commons`
+                    `Fontes: Google Fotos → Pinterest → NekosBest → OtakuGIFs → Safebooru → Wikimedia restrito`
             },
             {
                 quoted:
