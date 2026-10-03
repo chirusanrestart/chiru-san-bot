@@ -28,18 +28,10 @@ import {
     unixTimestampSeconds
 } from "@whiskeysockets/baileys/lib/Utils/generics.js";
 
-
 const execFileAsync =
     promisify(
         execFile
     );
-
-
-/*
- * ============================================================
- * CONFIGURAÇÃO
- * ============================================================
- */
 
 const MAX_STICKERS_PER_PACK = 60;
 
@@ -47,18 +39,6 @@ const PROCESS_BATCH_SIZE = 16;
 
 const MAX_STICKER_SIZE =
     1024 * 1024;
-
-
-/*
- * ============================================================
- * ADICIONA OS TIPOS DE MÍDIA DO STICKER PACK AO RC13
- * ============================================================
- *
- * O rc13 já possui waUploadToServer().
- *
- * O que falta no mapa oficial dessa versão são os dois
- * tipos usados pelo protocolo de sticker pack.
- */
 
 MEDIA_PATH_MAP[
     "sticker-pack"
@@ -68,7 +48,6 @@ MEDIA_PATH_MAP[
     "thumbnail-sticker-pack"
 ] =
     "/mms/thumbnail-sticker-pack";
-
 
 MEDIA_HKDF_KEY_MAPPING[
     "sticker-pack"
@@ -80,13 +59,6 @@ MEDIA_HKDF_KEY_MAPPING[
 ] =
     "Sticker Pack Thumbnail";
 
-
-/*
- * ============================================================
- * FUNÇÕES AUXILIARES
- * ============================================================
- */
-
 function sha256(
     buffer
 ) {
@@ -96,7 +68,6 @@ function sha256(
         .update(buffer)
         .digest();
 }
-
 
 function chunk(
     array,
@@ -120,10 +91,6 @@ function chunk(
     return result;
 }
 
-
-/*
- * Detecta WebP animado.
- */
 function isAnimatedWebP(
     buffer
 ) {
@@ -184,9 +151,7 @@ function isAnimatedWebP(
                         offset + 8
                     ] || 0;
 
-                /*
-                 * Bit 1 = animation.
-                 */
+                
                 return (
                     flags & 0x02
                 ) !== 0;
@@ -205,19 +170,6 @@ function isAnimatedWebP(
     return false;
 }
 
-
-/*
- * ============================================================
- * CRIPTOGRAFIA DE MÍDIA
- * ============================================================
- *
- * É equivalente ao encryptedStream() do Baileys,
- * mas permite fornecer uma mediaKey já existente.
- *
- * Isso é necessário porque a thumbnail do sticker pack
- * utiliza a MESMA mediaKey do ZIP.
- */
-
 async function encryptBuffer(
     buffer,
     mediaType,
@@ -234,14 +186,12 @@ async function encryptBuffer(
             mediaType
         );
 
-
     const cipher =
         createCipheriv(
             "aes-256-cbc",
             cipherKey,
             iv
         );
-
 
     const hmac =
         createHmac(
@@ -250,26 +200,21 @@ async function encryptBuffer(
         )
             .update(iv);
 
-
     const plainHash =
         createHash(
             "sha256"
         );
-
 
     const encryptedHash =
         createHash(
             "sha256"
         );
 
-
     plainHash.update(
         buffer
     );
 
-
     const encryptedParts = [];
-
 
     const first =
         cipher.update(
@@ -293,7 +238,6 @@ async function encryptBuffer(
         );
     }
 
-
     const last =
         cipher.final();
 
@@ -314,11 +258,7 @@ async function encryptBuffer(
         );
     }
 
-
-    /*
-     * WhatsApp usa os primeiros 10 bytes
-     * do HMAC como MAC.
-     */
+    
     const mac =
         hmac
             .digest()
@@ -327,11 +267,9 @@ async function encryptBuffer(
                 10
             );
 
-
     encryptedHash.update(
         mac
     );
-
 
     const encryptedBuffer =
         Buffer.concat([
@@ -339,23 +277,17 @@ async function encryptBuffer(
             mac
         ]);
 
-
-    /*
-     * Salva em arquivo temporário porque
-     * waUploadToServer() recebe um caminho.
-     */
+    
     const filePath =
         path.join(
             os.tmpdir(),
             `${mediaType}-${generateMessageIDV2()}-enc`
         );
 
-
     await fs.writeFile(
         filePath,
         encryptedBuffer
     );
-
 
     return {
         mediaKey,
@@ -374,13 +306,6 @@ async function encryptBuffer(
         mac
     };
 }
-
-
-/*
- * ============================================================
- * THUMBNAIL
- * ============================================================
- */
 
 async function createThumbnail(
     webpBuffer
@@ -401,14 +326,12 @@ async function createThumbnail(
             `sticker-pack-${id}.jpg`
         );
 
-
     try {
 
         await fs.writeFile(
             input,
             webpBuffer
         );
-
 
         await execFileAsync(
             "ffmpeg",
@@ -436,7 +359,6 @@ async function createThumbnail(
             }
         );
 
-
         return await fs.readFile(
             output
         );
@@ -457,13 +379,6 @@ async function createThumbnail(
     }
 }
 
-
-/*
- * ============================================================
- * CRIA UM STICKER PACK
- * ============================================================
- */
-
 export async function createStickerPack(
     sock,
     stickers,
@@ -480,7 +395,6 @@ export async function createStickerPack(
         );
     }
 
-
     if (
         stickers.length === 0
     ) {
@@ -488,7 +402,6 @@ export async function createStickerPack(
             "Sticker pack vazio"
         );
     }
-
 
     if (
         stickers.length >
@@ -499,7 +412,6 @@ export async function createStickerPack(
         );
     }
 
-
     if (
         typeof sock.waUploadToServer !==
         "function"
@@ -509,13 +421,9 @@ export async function createStickerPack(
         );
     }
 
-
-    /*
-     * ID único do pack.
-     */
+    
     const stickerPackId =
         generateMessageIDV2();
-
 
     const stickerFiles = {};
 
@@ -524,12 +432,7 @@ export async function createStickerPack(
             stickers.length
         );
 
-
-    /*
-     * ========================================================
-     * PROCESSAMENTO EM LOTES DE 16
-     * ========================================================
-     */
+    
 
     for (
         let i = 0;
@@ -544,7 +447,6 @@ export async function createStickerPack(
                 PROCESS_BATCH_SIZE
             );
 
-
         const results =
             await Promise.all(
                 batch.map(
@@ -557,7 +459,6 @@ export async function createStickerPack(
                             i +
                             offset;
 
-
                         const buffer =
                             Buffer.isBuffer(
                                 sticker
@@ -566,7 +467,6 @@ export async function createStickerPack(
                                 : Buffer.from(
                                     sticker
                                 );
-
 
                         if (
                             buffer.length >
@@ -577,7 +477,6 @@ export async function createStickerPack(
                             );
                         }
 
-
                         const hash =
                             sha256(
                                 buffer
@@ -586,15 +485,10 @@ export async function createStickerPack(
                                     "base64url"
                                 );
 
-
                         const fileName =
                             `${hash}.webp`;
 
-
-                        /*
-                         * Só coloca uma vez no ZIP
-                         * se houver stickers duplicados.
-                         */
+                        
                         if (
                             !stickerFiles[
                                 fileName
@@ -612,7 +506,6 @@ export async function createStickerPack(
                                 }
                             ];
                         }
-
 
                         return {
                             fileName,
@@ -639,7 +532,6 @@ export async function createStickerPack(
                 )
             );
 
-
         for (
             let j = 0;
             j < results.length;
@@ -653,14 +545,7 @@ export async function createStickerPack(
         }
     }
 
-
-    /*
-     * ========================================================
-     * COVER / TRAY ICON
-     * ========================================================
-     *
-     * O WhatsApp espera o cover dentro do ZIP.
-     */
+    
 
     const cover =
         Buffer.isBuffer(
@@ -671,10 +556,8 @@ export async function createStickerPack(
                 stickers[0]
             );
 
-
     const trayIconFileName =
         `${stickerPackId}.webp`;
-
 
     stickerFiles[
         trayIconFileName
@@ -687,12 +570,7 @@ export async function createStickerPack(
         }
     ];
 
-
-    /*
-     * ========================================================
-     * ZIP
-     * ========================================================
-     */
+    
 
     const zipBuffer =
         Buffer.from(
@@ -701,12 +579,7 @@ export async function createStickerPack(
             )
         );
 
-
-    /*
-     * ========================================================
-     * CRIPTOGRAFA O PACK
-     * ========================================================
-     */
+    
 
     const encryptedPack =
         await encryptBuffer(
@@ -714,9 +587,7 @@ export async function createStickerPack(
             "sticker-pack"
         );
 
-
     let uploadedPack;
-
 
     try {
 
@@ -748,25 +619,14 @@ export async function createStickerPack(
         );
     }
 
-
-    /*
-     * ========================================================
-     * THUMBNAIL
-     * ========================================================
-     */
+    
 
     const thumbnail =
         await createThumbnail(
             cover
         );
 
-
-    /*
-     * IMPORTANTE:
-     *
-     * A thumbnail usa a MESMA mediaKey
-     * do sticker-pack.
-     */
+    
 
     const encryptedThumbnail =
         await encryptBuffer(
@@ -777,9 +637,7 @@ export async function createStickerPack(
             encryptedPack.mediaKey
         );
 
-
     let uploadedThumbnail;
-
 
     try {
 
@@ -811,12 +669,7 @@ export async function createStickerPack(
         );
     }
 
-
-    /*
-     * ========================================================
-     * MONTA O PROTOCOLO
-     * ========================================================
-     */
+    
 
     const stickerPackMessage =
         proto.Message
@@ -900,16 +753,8 @@ export async function createStickerPack(
                         )
             });
 
-
     return stickerPackMessage;
 }
-
-
-/*
- * ============================================================
- * ENVIA STICKER PACK
- * ============================================================
- */
 
 export async function sendStickerPack(
     sock,
@@ -924,7 +769,6 @@ export async function sendStickerPack(
             MAX_STICKERS_PER_PACK
         );
 
-
     for (
         const pack of packs
     ) {
@@ -935,7 +779,6 @@ export async function sendStickerPack(
                 pack,
                 options
             );
-
 
         await sock.relayMessage(
             jid,
@@ -951,11 +794,7 @@ export async function sendStickerPack(
             }
         );
 
-
-        /*
-         * Se houver mais de um pack,
-         * dá um pequeno espaço entre eles.
-         */
+        
         if (
             packs.length > 1
         ) {
@@ -970,13 +809,6 @@ export async function sendStickerPack(
         }
     }
 }
-
-
-/*
- * ============================================================
- * EXPORTS
- * ============================================================
- */
 
 export {
     MAX_STICKERS_PER_PACK,
