@@ -619,7 +619,34 @@ async function fetchPinterest(
 
                     Accept:
                         "text/html,application/xhtml+xml," +
-                        "application/xml;q=0.9,*gi;
+                        "application/xml;q=0.9,*/*;q=0.8",
+
+                    "Accept-Language":
+                        "pt-BR,pt;q=0.9,en;q=0.8"
+                }
+            }
+        );
+
+    if (
+        !response.ok
+    ) {
+        throw new Error(
+            "HTTP " + response.status
+        );
+    }
+
+    return response.text();
+}
+
+function extractPinUrls(
+    html
+) {
+
+    const pins =
+        new Set();
+
+    const absoluteRegex =
+        /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)[^"'\\]*/gi;
 
     let match;
 
@@ -631,7 +658,7 @@ async function fetchPinterest(
     ) {
 
         pins.add(
-            `https://www.pinterest.com/pin/${match[1]}/`
+            "https://www.pinterest.com/pin/" + match[1] + "/"
         );
     }
 
@@ -646,7 +673,7 @@ async function fetchPinterest(
     ) {
 
         pins.add(
-            `https://www.pinterest.com/pin/${match[1]}/`
+            "https://www.pinterest.com/pin/" + match[1] + "/"
         );
     }
 
@@ -661,7 +688,7 @@ async function fetchPinterest(
     ) {
 
         pins.add(
-            `https://www.pinterest.com/pin/${match[1]}/`
+            "https://www.pinterest.com/pin/" + match[1] + "/"
         );
     }
 
@@ -669,7 +696,6 @@ async function fetchPinterest(
         ...pins
     ];
 }
-
 async function searchPinterestPage(
     query,
     page = 1
