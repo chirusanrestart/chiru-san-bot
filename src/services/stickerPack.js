@@ -684,7 +684,7 @@ export async function createStickerPack(
 
                 publisher:
                     options.publisher ||
-                    "Chiru-san Bot",
+                    "Melissa",
 
                 packDescription:
                     options.description ||
