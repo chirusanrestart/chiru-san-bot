@@ -65,16 +65,12 @@ export default {
 
         menu += `🌸 Use .menu sempre que quiser ver os comandos!
 💗 Feito com carinho pela Chiru-san`;
-
-        // Caminho da imagem do menu
         const menuImage = path.join(
             process.cwd(),
             "assets",
             "bot",
             "menu.jpg"
         );
-
-        // Se a imagem existir, envia imagem + menu
         if (fs.existsSync(menuImage)) {
 
             await sock.sendMessage(
@@ -89,8 +85,6 @@ export default {
             );
 
         } else {
-
-            // Se não encontrar a imagem, envia somente o texto
             await sock.sendMessage(
                 jid,
                 {
