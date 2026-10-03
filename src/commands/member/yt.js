@@ -5,6 +5,7 @@ import { downloadAudio } from "../../services/youtubeDownload.js";
 
 export default {
   name: "yt",
+  description: "Busca uma música no YouTube e envia o áudio",
 
   async execute(sock, msg, args) {
     const from = msg.key.remoteJid;
