@@ -8,13 +8,6 @@ import {
     saveUserMessage
 } from "./memory.js";
 
-
-/*
-|--------------------------------------------------------------------------
-| CONFIGURAÇÃO
-|--------------------------------------------------------------------------
-*/
-
 const MODEL = "openai/gpt-oss-120b";
 
 const MAX_HISTORY_MESSAGES = 6;
@@ -27,22 +20,13 @@ const MAX_TOTAL_SEARCH_CHARS = 2400;
 
 const MAX_TOOL_ROUNDS = 2;
 
-
 let groq = null;
-
 
 const apiKey =
     process.env.GROQ_API_KEY;
 
 const tavilyApiKey =
     process.env.TAVILY_API_KEY;
-
-
-/*
-|--------------------------------------------------------------------------
-| GROQ
-|--------------------------------------------------------------------------
-*/
 
 if (
     apiKey &&
@@ -65,13 +49,6 @@ if (
 
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| TAVILY
-|--------------------------------------------------------------------------
-*/
-
 if (
     tavilyApiKey &&
     tavilyApiKey.trim().length > 0
@@ -88,13 +65,6 @@ if (
     );
 
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| FERRAMENTA DE BUSCA
-|--------------------------------------------------------------------------
-*/
 
 const tools = tavilyApiKey
     ? [
@@ -141,13 +111,6 @@ const tools = tavilyApiKey
     ]
     : [];
 
-
-/*
-|--------------------------------------------------------------------------
-| BUSCA TAVILY
-|--------------------------------------------------------------------------
-*/
-
 async function searchWeb(query) {
 
     if (!tavilyApiKey) {
@@ -163,13 +126,11 @@ async function searchWeb(query) {
 
     }
 
-
     try {
 
         console.log(
             `🔎 Pesquisando: ${query}`
         );
-
 
         const response =
             await axios.post(
@@ -216,15 +177,12 @@ async function searchWeb(query) {
 
             );
 
-
         const data =
             response.data;
-
 
         let totalChars = 0;
 
         const results = [];
-
 
         for (
             const result
@@ -238,7 +196,6 @@ async function searchWeb(query) {
                 break;
             }
 
-
             if (
                 totalChars >=
                 MAX_TOTAL_SEARCH_CHARS
@@ -246,22 +203,14 @@ async function searchWeb(query) {
                 break;
             }
 
-
             const title =
                 result.title || "";
-
 
             const url =
                 result.url || "";
 
-
             let content =
                 result.content || "";
-
-
-            /*
-             * Limita cada resultado.
-             */
 
             content =
                 content.slice(
@@ -269,15 +218,9 @@ async function searchWeb(query) {
                     MAX_RESULT_CONTENT
                 );
 
-
-            /*
-             * Limita o tamanho total.
-             */
-
             const remaining =
                 MAX_TOTAL_SEARCH_CHARS -
                 totalChars;
-
 
             if (
                 content.length >
@@ -292,10 +235,8 @@ async function searchWeb(query) {
 
             }
 
-
             totalChars +=
                 content.length;
-
 
             results.push({
 
@@ -311,7 +252,6 @@ async function searchWeb(query) {
             });
 
         }
-
 
         return {
 
@@ -332,7 +272,6 @@ async function searchWeb(query) {
 
         };
 
-
     } catch (error) {
 
         console.error(
@@ -340,7 +279,6 @@ async function searchWeb(query) {
             error.response?.data ||
             error.message
         );
-
 
         return {
 
@@ -357,13 +295,6 @@ async function searchWeb(query) {
 
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| EXECUTAR FERRAMENTA
-|--------------------------------------------------------------------------
-*/
-
 async function executeTool(
     toolCall
 ) {
@@ -371,14 +302,11 @@ async function executeTool(
     const functionName =
         toolCall.function?.name;
 
-
     const rawArguments =
         toolCall.function?.arguments ||
         "{}";
 
-
     let args;
-
 
     try {
 
@@ -399,7 +327,6 @@ async function executeTool(
         };
 
     }
-
 
     if (
         functionName ===
@@ -423,13 +350,11 @@ async function executeTool(
 
         }
 
-
         return await searchWeb(
             args.query
         );
 
     }
-
 
     return {
 
@@ -442,34 +367,16 @@ async function executeTool(
 
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| MEMÓRIA
-|--------------------------------------------------------------------------
-*/
-
 function buildMemoryMessages(
     history
 ) {
-
-    /*
-     * Somente as últimas 3 conversas.
-     *
-     * Cada item possui uma mensagem do usuário
-     * e uma resposta da IA.
-     *
-     * Isso mantém a conversa leve.
-     */
 
     const recentHistory =
         history.slice(
             -MAX_HISTORY_MESSAGES
         );
 
-
     const messages = [];
-
 
     for (
         const chat
@@ -491,7 +398,6 @@ function buildMemoryMessages(
 
         }
 
-
         if (
             chat.ai
         ) {
@@ -509,17 +415,9 @@ function buildMemoryMessages(
 
     }
 
-
     return messages;
 
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| PERSONALIDADE E REGRAS
-|--------------------------------------------------------------------------
-*/
 
 const systemPrompt = `
 
@@ -591,13 +489,6 @@ Ser uma IA:
 - sem enrolação
 `;
 
-
-/*
-|--------------------------------------------------------------------------
-| ASK AI
-|--------------------------------------------------------------------------
-*/
-
 export async function askAI(
     userId,
     message
@@ -611,10 +502,8 @@ export async function askAI(
 
     }
 
-
     const memory =
         getUserMemory(userId);
-
 
     const messages = [
 
@@ -642,21 +531,13 @@ export async function askAI(
 
     ];
 
-
     try {
-
-        /*
-        |--------------------------------------------------------------------------
-        | LOOP DE FERRAMENTAS
-        |--------------------------------------------------------------------------
-        */
 
         for (
             let round = 0;
             round < MAX_TOOL_ROUNDS;
             round++
         ) {
-
 
             const request = {
 
@@ -665,37 +546,16 @@ export async function askAI(
 
                 messages,
 
-                /*
-                 * Mantém personalidade,
-                 * mas sem deixar a resposta
-                 * ficar exageradamente aleatória.
-                 */
-
                 temperature:
                     0.8,
 
-                /*
-                 * Respostas curtas.
-                 */
-
                 max_tokens:
                     700,
-
-                /*
-                 * Menos raciocínio = menos
-                 * tokens consumidos.
-                 */
 
                 reasoning_effort:
                     "low"
 
             };
-
-
-            /*
-             * Ativa a busca somente
-             * quando o Tavily existe.
-             */
 
             if (
                 tools.length > 0
@@ -712,7 +572,6 @@ export async function askAI(
 
             }
 
-
             const response =
                 await groq
                     .chat
@@ -721,14 +580,11 @@ export async function askAI(
                         request
                     );
 
-
             const choice =
                 response.choices?.[0];
 
-
             const assistantMessage =
                 choice?.message;
-
 
             if (!assistantMessage) {
 
@@ -737,13 +593,6 @@ export async function askAI(
                 );
 
             }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | RESPOSTA NORMAL
-            |--------------------------------------------------------------------------
-            */
 
             if (
                 !assistantMessage.tool_calls ||
@@ -755,7 +604,6 @@ export async function askAI(
                         .content
                         ?.trim();
 
-
                 if (!answer) {
 
                     throw new Error(
@@ -763,7 +611,6 @@ export async function askAI(
                     );
 
                 }
-
 
                 saveUserMessage(
 
@@ -775,22 +622,13 @@ export async function askAI(
 
                 );
 
-
                 return answer;
 
             }
 
-
-            /*
-            |--------------------------------------------------------------------------
-            | IA PEDIU UMA BUSCA
-            |--------------------------------------------------------------------------
-            */
-
             messages.push(
                 assistantMessage
             );
-
 
             for (
                 const toolCall
@@ -802,12 +640,6 @@ export async function askAI(
                         toolCall
                     );
 
-
-                /*
-                 * Última proteção contra
-                 * resultado gigante.
-                 */
-
                 const toolResult =
                     JSON.stringify(
                         result
@@ -815,7 +647,6 @@ export async function askAI(
                         0,
                         4500
                     );
-
 
                 messages.push({
 
@@ -836,11 +667,9 @@ export async function askAI(
 
         }
 
-
         throw new Error(
             "Limite de chamadas de ferramentas atingido."
         );
-
 
     } catch (error) {
 
@@ -848,7 +677,6 @@ export async function askAI(
             "❌ Erro na IA:",
             error.message
         );
-
 
         if (
             error.status === 413 ||
@@ -862,7 +690,6 @@ export async function askAI(
             );
 
         }
-
 
         return (
             "🌸 Tive um probleminha para responder agora."
