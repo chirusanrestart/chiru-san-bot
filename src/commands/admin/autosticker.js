@@ -18,8 +18,6 @@ export default {
             msg.key.remoteJid;
 
 
-        // Verifica se é grupo
-
         if (!jid.endsWith("@g.us")) {
 
             await sock.sendMessage(
@@ -35,8 +33,6 @@ export default {
         }
 
 
-        // Pega os participantes do grupo
-
         const metadata =
             await sock.groupMetadata(
                 jid
@@ -50,8 +46,6 @@ export default {
                     msg.key.participant
             );
 
-
-        // Verifica se é administrador
 
         const isAdmin =
             participant?.admin === "admin" ||
@@ -73,13 +67,9 @@ export default {
         }
 
 
-        // Pega o argumento
-
         const action =
             args[0]?.toLowerCase();
 
-
-        // Ativar
 
         if (action === "on") {
 
@@ -100,8 +90,6 @@ export default {
         }
 
 
-        // Desativar
-
         if (action === "off") {
 
             await disable(
@@ -120,8 +108,6 @@ export default {
 
         }
 
-
-        // Comando inválido
 
         await sock.sendMessage(
             jid,
