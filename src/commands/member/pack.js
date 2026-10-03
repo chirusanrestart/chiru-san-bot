@@ -20,6 +20,8 @@ const MAX_CANDIDATES = 180;
 const MAX_SEARCH_PAGES = 5;
 const MAX_SAFEBOORU = 120;
 const MAX_WIKIMEDIA = 120;
+const MAX_OTAKUGIFS = 60;
+const MAX_NEKOSBEST = 20;
 
 const MIN_DELAY = 100;
 const MAX_DELAY = 200;
@@ -1174,6 +1176,147 @@ async function searchWikimediaCommons(
 
 /*
  * ============================================================
+ * OTAKUGIFS
+ * ============================================================
+ */
+
+async function searchOtakuGifs(query, limit = MAX_OTAKUGIFS) {
+    const normalizedQuery = normalizeText(query).replace(/\s+/g, "");
+    if (!normalizedQuery) return [];
+
+    try {
+        const reactionsResponse = await fetch(
+            "https://api.otakugifs.xyz/gif/allreactions",
+            { headers: { "User-Agent": "chiru-san-bot/1.0" } }
+        );
+
+        if (!reactionsResponse.ok) {
+            console.log(`⚠️ OtakuGIFs reactions HTTP ${reactionsResponse.status}`);
+            return [];
+        }
+
+        const reactionData = await reactionsResponse.json();
+        const reactions = Array.isArray(reactionData)
+            ? reactionData
+            : Array.isArray(reactionData?.reactions)
+                ? reactionData.reactions
+                : Array.isArray(reactionData?.data)
+                    ? reactionData.data
+                    : [];
+
+        const reaction = reactions.find(item =>
+            normalizeText(typeof item === "string" ? item : item?.name)
+                .replace(/\s+/g, "") === normalizedQuery
+        );
+
+        if (!reaction) {
+            console.log(`🎞️ OtakuGIFs: "${query}" não é uma reação conhecida`);
+            return [];
+        }
+
+        const reactionName = typeof reaction === "string" ? reaction : reaction.name;
+        const results = [];
+
+        for (let i = 0; i < Math.min(limit, 10); i++) {
+            try {
+                const response = await fetch(
+                    "https://api.otakugifs.xyz/gif" +
+                    `?reaction=${encodeURIComponent(reactionName)}`,
+                    { headers: { "User-Agent": "chiru-san-bot/1.0" } }
+                );
+
+                if (!response.ok) {
+                    console.log(`⚠️ OtakuGIFs HTTP ${response.status}`);
+                    break;
+                }
+
+                const data = await response.json();
+                if (data?.url) results.push({ url: data.url, source: "otakugifs" });
+            } catch (err) {
+                console.log(`⚠️ OtakuGIFs erro: ${err.message}`);
+            }
+
+            await sleep(randomDelay(MIN_DELAY, MAX_DELAY));
+        }
+
+        console.log(`🎞️ OtakuGIFs: ${results.length} GIFs para "${query}"`);
+        return shuffle(results);
+    } catch (err) {
+        console.log(`⚠️ OtakuGIFs falhou: ${err.message}`);
+        return [];
+    }
+}
+
+
+/*
+ * ============================================================
+ * NEKOSBEST
+ * ============================================================
+ */
+
+async function searchNekosBest(query, limit = MAX_NEKOSBEST) {
+    const results = [];
+
+    async function search(type) {
+        const params = new URLSearchParams({
+            query,
+            type: String(type),
+            amount: String(Math.min(limit, 20))
+        });
+
+        try {
+            const response = await fetch(
+                `https://nekos.best/api/v2/search?${params.toString()}`,
+                { headers: { "User-Agent": "chiru-san-bot/1.0" } }
+            );
+
+            if (!response.ok) {
+                console.log(`⚠️ NekosBest HTTP ${response.status} (type=${type})`);
+                return;
+            }
+
+            const data = await response.json();
+            if (!Array.isArray(data?.results)) return;
+
+            for (const item of data.results) {
+                if (!item?.url) continue;
+                results.push({
+                    url: item.url,
+                    source: "nekosbest",
+                    animeName: item.anime_name,
+                    artistName: item.artist_name,
+                    sourceUrl: item.source_url,
+                    width: item.dimensions?.width,
+                    height: item.dimensions?.height
+                });
+            }
+        } catch (err) {
+            console.log(`⚠️ NekosBest erro (type=${type}): ${err.message}`);
+        }
+    }
+
+    await search(1);
+
+    const reactionQueries = new Set([
+        "angry", "baka", "bite", "bleh", "blowkiss", "blush", "bonk",
+        "bored", "carry", "clap", "confused", "cry", "cuddle", "dance",
+        "facepalm", "feed", "happy", "handhold", "handshake", "highfive",
+        "hug", "kiss", "laugh", "nom", "nya", "pat", "peck", "poke", "pout",
+        "punch", "run", "salute", "slap", "sleep", "smile", "smug", "stare",
+        "think", "thumbsup", "tickle", "wave", "wink", "yawn"
+    ]);
+
+    if (reactionQueries.has(normalizeText(query).replace(/\s+/g, ""))) {
+        await search(2);
+    }
+
+    console.log(`🐱 NekosBest: ${results.length} resultados para "${query}"`);
+    return shuffle(results);
+}
+
+
+/*
+ * ============================================================
  * BUSCA TODAS AS FONTES
  * ============================================================
  */
@@ -1367,6 +1510,42 @@ async function buscarTodasFontes(
 
         console.log(
             `📦 Após Wikimedia Commons: ${candidates.length} candidatos`
+        );
+    }
+
+
+    /*
+     * 5. NEKOSBEST
+     */
+
+    if (candidates.length < TOTAL_STICKERS) {
+        console.log(
+            `🐱 Ainda faltam ${TOTAL_STICKERS - candidates.length} → consultando NekosBest`
+        );
+
+        const nekos = await searchNekosBest(query);
+        addAll(nekos);
+
+        console.log(
+            `📦 Após NekosBest: ${candidates.length} candidatos`
+        );
+    }
+
+
+    /*
+     * 6. OTAKUGIFS
+     */
+
+    if (candidates.length < TOTAL_STICKERS) {
+        console.log(
+            `🎞️ Ainda faltam ${TOTAL_STICKERS - candidates.length} → consultando OtakuGIFs`
+        );
+
+        const otaku = await searchOtakuGifs(query);
+        addAll(otaku);
+
+        console.log(
+            `📦 Após OtakuGIFs: ${candidates.length} candidatos`
         );
     }
 
@@ -1697,7 +1876,7 @@ export default {
 
     description:
         "Gera pack de stickers " +
-        "(Google Fotos + Safebooru + Pinterest + Wikimedia Commons)",
+        "(Google Fotos + Safebooru + Pinterest + Wikimedia Commons + NekosBest + OtakuGIFs)",
 
 
     async execute(
@@ -1751,7 +1930,7 @@ export default {
                 text:
                     `🔎 Montando pack de *${query}* ` +
                     `(até ${TOTAL_STICKERS} figs)...\n` +
-                    `Fonte: Google Fotos → Safebooru → Pinterest → Wikimedia Commons`
+                    `Fonte: Google Fotos → Safebooru → Pinterest → Wikimedia Commons → NekosBest → OtakuGIFs`
             },
             {
                 quoted:
