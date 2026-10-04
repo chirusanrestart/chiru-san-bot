@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 const DOWNLOAD_DIR = path.resolve("temp/playlist");
 
@@ -59,7 +60,7 @@ export async function downloadYoutubeAudioFast(
 ) {
   await ensureDownloadDir();
 
-  const safeName = sanitizeFilename(name);
+  const safeName = `${sanitizeFilename(name) || "audio"}-${randomUUID()}`;
 
   const outputTemplate = path.join(
     DOWNLOAD_DIR,
