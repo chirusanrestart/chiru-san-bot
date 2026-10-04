@@ -451,10 +451,7 @@ async function startBot() {
                 const msg of messages
             ) {
 
-                if (
-                    !msg.message ||
-                    msg.key?.fromMe
-                ) {
+                if (!msg.message) {
                     continue;
                 }
 
