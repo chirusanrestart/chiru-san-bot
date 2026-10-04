@@ -28,7 +28,7 @@ function normalizeType(type) {
 }
 
 function shellPath(path) {
-    return `"${String(path).replace(/(["\\$`])/g, "\\$1")}"`;
+    return `"${String(path).replace(/(["\\$\x60])/g, "\\$1")}"`;
 }
 
 async function removeOutput(output) {
@@ -124,7 +124,6 @@ async function testMediaCodec() {
 async function getStickerMethods(type) {
     const methods = [];
 
-    
     if (await testVulkan()) {
         methods.push("vulkan");
     }
@@ -167,7 +166,6 @@ export async function runFFmpegSticker(
 
     const methods = await getStickerMethods(type);
 
-    
     const orderedMethods = [];
 
     if (stickerBackend && methods.includes(stickerBackend)) {
@@ -224,7 +222,6 @@ export async function runFFmpegSticker(
 
             await removeOutput(output);
 
-            
             if (stickerBackend === method) {
                 stickerBackend = null;
             }
@@ -338,7 +335,6 @@ function buildHDCommand(
             "-init_hw_device vulkan=vk " +
             "-filter_hw_device vk";
 
-        
         filter =
             "format=rgba," +
             "hwupload," +
@@ -400,7 +396,6 @@ function buildFFmpegCommand(
             "-filter_hw_device vk";
 
         if (type === "video") {
-            
             filter =
                 "format=rgba," +
                 "hwupload," +
@@ -408,7 +403,6 @@ function buildFFmpegCommand(
                 "hwdownload," +
                 "format=rgba";
         } else {
-            
             filter =
                 "format=rgba," +
                 "hwupload," +
@@ -437,16 +431,16 @@ function buildFFmpegCommand(
     }
 
     else if (method === "mediacodec") {
-        filter =
-            "fps=10";
+        filter = "fps=10";
     }
 
     else if (method === "cpu") {
         filter = "";
     }
 
-    
-    filter += ",scale=512:512";
+    // Preenche todo o quadro 512x512 sem barras.
+    // Mantém a proporção e recorta apenas o excesso.
+    filter += ",scale=512:512:force_original_aspect_ratio=increase,crop=512:512";
 
     return (
         `${FFMPEG} -y ${hwInit} ` +
