@@ -49,6 +49,8 @@ const autoStickerBuffers =
 const autoStickerTimers =
     new Map();
 
+let reconnectTimer = null;
+
 const sleep =
     ms =>
         new Promise(
@@ -427,7 +429,8 @@ async function startBot() {
             ) {
 
                 if (
-                    !msg.message
+                    !msg.message ||
+                    msg.key?.fromMe
                 ) {
                     continue;
                 }
@@ -469,9 +472,14 @@ async function startBot() {
 
                 
 
-                await commandHandler.handle(
-                    msg
-                );
+                try {
+                    await commandHandler.handle(msg);
+                } catch (error) {
+                    console.error(
+                        "❌ Erro executando comando:",
+                        error
+                    );
+                }
             }
         }
     );
@@ -490,6 +498,11 @@ async function startBot() {
                 connection ===
                 "open"
             ) {
+
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
 
                 console.log(
                     "🟢 Bot conectado!"
@@ -514,21 +527,29 @@ async function startBot() {
                         : 0;
 
                 if (
-                    status !==
-                    DisconnectReason.loggedOut
+                    status === DisconnectReason.loggedOut
                 ) {
-
                     console.log(
-                        "🔄 Reconectando..."
+                        "❌ Sessão encerrada. Faça o pareamento novamente."
+                    );
+                    return;
+                }
+
+                if (!reconnectTimer) {
+                    console.log(
+                        "🔄 Reconectando em 3 segundos..."
                     );
 
-                    startBot();
+                    reconnectTimer = setTimeout(() => {
+                        reconnectTimer = null;
 
-                } else {
-
-                    console.log(
-                        "❌ Sessão encerrada."
-                    );
+                        startBot().catch(error => {
+                            console.error(
+                                "❌ Falha ao reconectar:",
+                                error
+                            );
+                        });
+                    }, 3000);
                 }
             }
         }
@@ -575,4 +596,6 @@ async function startBot() {
     }
 }
 
-startBot();
+startBot().catch(error => {
+    console.error("❌ Falha ao iniciar o bot:", error);
+});
