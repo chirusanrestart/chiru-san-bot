@@ -2,7 +2,12 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { unlink, stat } from "node:fs/promises";
 
-const execAsync = promisify(exec);
+const execCommand = promisify(exec);
+const execAsync = (command, options = {}) =>
+    execCommand(command, {
+        maxBuffer: 16 * 1024 * 1024,
+        ...options
+    });
 
 const FFMPEG = "ffmpeg";
 
@@ -486,10 +491,17 @@ function buildFFmpegCommand(
     // Preenche todo o quadro 512x512 sem barras.
     // Mantém a proporção e recorta apenas o excesso.
     if (type === "video" && method !== "vulkan" && method !== "mediacodec") {
-        filter += `,fps=${profile?.fps || 10}`;
+        filter = [
+            filter,
+            `fps=${profile?.fps || 10}`
+        ].filter(Boolean).join(",");
     }
 
-    filter += ",scale=512:512:force_original_aspect_ratio=increase,crop=512:512";
+    filter = [
+        filter,
+        "scale=512:512:force_original_aspect_ratio=increase",
+        "crop=512:512"
+    ].filter(Boolean).join(",");
 
     return (
         `${FFMPEG} -y ${hwInit} ` +
