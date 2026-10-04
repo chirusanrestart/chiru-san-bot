@@ -17,9 +17,7 @@ cd chiru-san-bot
 npm install
 ```
 
-Copie `.env.example` para `.env` e preencha as chaves que você usa (`GROQ_API_KEY` e `TAVILY_API_KEY`). Não publique o arquivo `.env`.
-
-Configure as variáveis de ambiente necessárias e depois inicie:
+Copie `.env.example` para `.env` e preencha as chaves que você usa (`GROQ_API_KEY` e `TAVILY_API_KEY`). Não publique o arquivo `.env`. Depois inicie:
 
 ```bash
 npm start
@@ -56,7 +54,9 @@ Exemplos:
 
 O código principal fica em `src/`, com comandos e serviços separados por função.
 
-A sessão do WhatsApp é armazenada em `auth/`.
+A sessão do WhatsApp é armazenada em `auth/`. A memória da IA é criada localmente em `src/data/memory.json` quando necessária.
+
+**Privacidade:** não versione `.env`, sessões/cookies, credenciais do WhatsApp nem arquivos de memória/conversas. Esses dados são ignorados pelo Git.
 
 ## Observação
 
