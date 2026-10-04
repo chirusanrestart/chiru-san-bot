@@ -130,7 +130,6 @@ function shouldUseWikimedia(query) {
 
 async function loadGooglePhotosAlbums() {
     try {
-
         const content =
             await fs.readFile(
                 GOOGLE_PHOTOS_FILE,
@@ -151,9 +150,7 @@ async function loadGooglePhotosAlbums() {
         }
 
         return data;
-
     } catch (err) {
-
         if (
             err.code !== "ENOENT"
         ) {
@@ -169,7 +166,6 @@ async function loadGooglePhotosAlbums() {
 async function findGooglePhotosAlbum(
     query
 ) {
-
     const albums =
         await loadGooglePhotosAlbums();
 
@@ -178,13 +174,10 @@ async function findGooglePhotosAlbum(
             query
         );
 
-    
-
     for (
         const [name, url]
         of Object.entries(albums)
     ) {
-
         if (
             normalizeText(name) ===
             normalizedQuery
@@ -196,13 +189,10 @@ async function findGooglePhotosAlbum(
         }
     }
 
-    
-
     for (
         const [name, url]
         of Object.entries(albums)
     ) {
-
         const normalizedName =
             normalizeText(
                 name
@@ -229,18 +219,15 @@ async function findGooglePhotosAlbum(
 async function searchGooglePhotos(
     query
 ) {
-
     const album =
         await findGooglePhotosAlbum(
             query
         );
 
     if (!album) {
-
         console.log(
             `📸 Google Fotos: nenhum álbum para "${query}"`
         );
-
         return [];
     }
 
@@ -249,7 +236,6 @@ async function searchGooglePhotos(
     );
 
     try {
-
         const items =
             await fetchImageUrls(
                 album.url
@@ -258,11 +244,9 @@ async function searchGooglePhotos(
         if (
             !items?.length
         ) {
-
             console.log(
                 "⚠️ Google Fotos: álbum vazio"
             );
-
             return [];
         }
 
@@ -276,18 +260,14 @@ async function searchGooglePhotos(
                 )
                 .map(
                     item => {
-
                         let url =
                             item.url;
-
-                        
 
                         if (
                             item.width &&
                             item.height &&
                             !url.includes("=")
                         ) {
-
                             url =
                                 `${url}=w${item.width}-h${item.height}`;
                         }
@@ -309,13 +289,10 @@ async function searchGooglePhotos(
         return shuffle(
             images
         );
-
     } catch (err) {
-
         console.log(
             `⚠️ Google Fotos falhou: ${err.message}`
         );
-
         return [];
     }
 }
@@ -462,7 +439,6 @@ async function searchSafebooru(
     query,
     limit = MAX_SAFEBOORU
 ) {
-
     const tag =
         toBooruTag(
             query
@@ -480,7 +456,6 @@ async function searchSafebooru(
         pid < pages;
         pid++
     ) {
-
         const url =
             `https://safebooru.org/index.php` +
             `?page=dapi` +
@@ -496,7 +471,6 @@ async function searchSafebooru(
         );
 
         try {
-
             const res =
                 await fetch(
                     url,
@@ -511,11 +485,9 @@ async function searchSafebooru(
             if (
                 !res.ok
             ) {
-
                 console.log(
                     `⚠️ Safebooru HTTP ${res.status}`
                 );
-
                 break;
             }
 
@@ -532,7 +504,6 @@ async function searchSafebooru(
             for (
                 const post of data
             ) {
-
                 if (
                     !post?.directory ||
                     !post?.image
@@ -581,13 +552,10 @@ async function searchSafebooru(
             await sleep(
                 250
             );
-
         } catch (err) {
-
             console.log(
                 `⚠️ Safebooru erro: ${err.message}`
             );
-
             break;
         }
     }
@@ -604,7 +572,6 @@ async function searchSafebooru(
 async function fetchPinterest(
     url
 ) {
-
     const response =
         await fetch(
             url,
@@ -641,7 +608,6 @@ async function fetchPinterest(
 function extractPinUrls(
     html
 ) {
-
     const pins =
         new Set();
 
@@ -656,7 +622,6 @@ function extractPinUrls(
                 html
             ))
     ) {
-
         pins.add(
             "https://www.pinterest.com/pin/" + match[1] + "/"
         );
@@ -671,7 +636,6 @@ function extractPinUrls(
                 html
             ))
     ) {
-
         pins.add(
             "https://www.pinterest.com/pin/" + match[1] + "/"
         );
@@ -686,7 +650,6 @@ function extractPinUrls(
                 html
             ))
     ) {
-
         pins.add(
             "https://www.pinterest.com/pin/" + match[1] + "/"
         );
@@ -696,11 +659,11 @@ function extractPinUrls(
         ...pins
     ];
 }
+
 async function searchPinterestPage(
     query,
     page = 1
 ) {
-
     const encoded =
         encodeURIComponent(
             query
@@ -733,7 +696,6 @@ async function searchPinterestPage(
 async function searchPinterest(
     query
 ) {
-
     const allPins =
         new Set();
 
@@ -742,9 +704,7 @@ async function searchPinterest(
         page <= MAX_SEARCH_PAGES;
         page++
     ) {
-
         try {
-
             const pins =
                 await searchPinterestPage(
                     query,
@@ -761,7 +721,6 @@ async function searchPinterest(
             for (
                 const pin of pins
             ) {
-
                 allPins.add(
                     pin
                 );
@@ -794,9 +753,7 @@ async function searchPinterest(
                     MAX_DELAY
                 )
             );
-
         } catch (err) {
-
             console.log(
                 `⚠️ Erro na página ${page}: ${err.message}`
             );
@@ -814,9 +771,7 @@ async function searchPinterest(
 async function extractPinImage(
     pinUrl
 ) {
-
     try {
-
         const html =
             await fetchPinterest(
                 pinUrl
@@ -833,7 +788,6 @@ async function extractPinImage(
         if (
             ogMatch?.[1]
         ) {
-
             return ogMatch[1]
                 .replace(
                     /&amp;/g,
@@ -860,7 +814,6 @@ async function extractPinImage(
         if (
             matches?.length
         ) {
-
             return matches[0]
                 .replace(
                     /&amp;/g,
@@ -877,9 +830,7 @@ async function extractPinImage(
         }
 
         return null;
-
     } catch {
-
         return null;
     }
 }
@@ -888,18 +839,15 @@ async function resolvePinterestImages(
     pinUrls,
     needed
 ) {
-
     const images = [];
 
     let i = 0;
 
     async function worker() {
-
         while (
             images.length < needed &&
             i < pinUrls.length
         ) {
-
             const current =
                 i++;
 
@@ -914,7 +862,6 @@ async function resolvePinterestImages(
             if (
                 imgUrl
             ) {
-
                 images.push({
                     url:
                         imgUrl,
@@ -960,7 +907,6 @@ async function searchWikimediaCommons(
     query,
     limit = MAX_WIKIMEDIA
 ) {
-
     const results = [];
 
     let offset = 0;
@@ -970,7 +916,6 @@ async function searchWikimediaCommons(
     while (
         results.length < limit
     ) {
-
         const batchLimit =
             Math.min(
                 batchSize,
@@ -1026,7 +971,6 @@ async function searchWikimediaCommons(
         );
 
         try {
-
             const response =
                 await fetch(
                     url,
@@ -1042,11 +986,9 @@ async function searchWikimediaCommons(
             if (
                 !response.ok
             ) {
-
                 console.log(
                     `⚠️ Wikimedia HTTP ${response.status}`
                 );
-
                 break;
             }
 
@@ -1066,7 +1008,6 @@ async function searchWikimediaCommons(
             for (
                 const page of pages
             ) {
-
                 const info =
                     page?.imageinfo?.[0];
 
@@ -1075,8 +1016,6 @@ async function searchWikimediaCommons(
                 ) {
                     continue;
                 }
-
-                
 
                 const mime =
                     String(
@@ -1145,8 +1084,6 @@ async function searchWikimediaCommons(
                 break;
             }
 
-            
-
             if (
                 !data?.continue
             ) {
@@ -1162,13 +1099,10 @@ async function searchWikimediaCommons(
                     MAX_DELAY
                 )
             );
-
         } catch (err) {
-
             console.log(
                 `⚠️ Wikimedia erro: ${err.message}`
             );
-
             break;
         }
     }
@@ -1269,7 +1203,6 @@ async function downloadToFile(
     url,
     dest
 ) {
-
     const res =
         await fetch(
             url,
@@ -1298,7 +1231,6 @@ async function downloadToFile(
         buf.length >
         MAX_IMAGE_SIZE
     ) {
-
         throw new Error(
             "imagem muito grande"
         );
@@ -1310,11 +1242,67 @@ async function downloadToFile(
     );
 }
 
+async function isReadyWebp(
+    inputPath
+) {
+    try {
+        const { stdout } =
+            await run(
+                "ffprobe",
+                [
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=codec_name,width,height",
+                    "-of",
+                    "csv=p=0",
+                    inputPath
+                ]
+            );
+
+        const [codec, width, height] =
+            stdout
+                .trim()
+                .split(",");
+
+        return (
+            codec === "webp" &&
+            Number(width) === 512 &&
+            Number(height) === 512
+        );
+    } catch {
+        return false;
+    }
+}
+
 async function convertToSticker(
     inputPath,
     outputPath,
     animated = false
 ) {
+    if (await isReadyWebp(inputPath)) {
+        const stat =
+            await fs.stat(inputPath);
+
+        if (
+            stat.size <=
+            MAX_STICKER_SIZE
+        ) {
+            await fs.copyFile(
+                inputPath,
+                outputPath
+            );
+
+            return;
+        }
+
+        throw new Error(
+            "WebP 512x512 pronto, mas continua maior que 1 MB"
+        );
+    }
+
     const baseFilter =
         "scale=512:512:" +
         "force_original_aspect_ratio=decrease," +
@@ -1372,7 +1360,6 @@ async function processImages(
     candidates,
     tmpDir
 ) {
-
     const stickers =
         [];
 
@@ -1380,14 +1367,12 @@ async function processImages(
         0;
 
     async function worker() {
-
         while (
             stickers.length <
                 TOTAL_STICKERS &&
             index <
                 candidates.length
         ) {
-
             const current =
                 index++;
 
@@ -1418,7 +1403,6 @@ async function processImages(
                 );
 
             try {
-
                 await downloadToFile(
                     item.url,
                     rawPath
@@ -1440,7 +1424,6 @@ async function processImages(
                     buf.length <=
                         MAX_STICKER_SIZE
                 ) {
-
                     stickers.push(
                         buf
                     );
@@ -1449,15 +1432,11 @@ async function processImages(
                         `✅ ${stickers.length}/${TOTAL_STICKERS} (${item.source} • ${item.animated ? "animado" : "estático"})`
                     );
                 }
-
             } catch (err) {
-
                 console.log(
                     `⚠️ Falha em imagem (${item.source}): ${err.message}`
                 );
-
             } finally {
-
                 await fs.unlink(
                     rawPath
                 ).catch(
@@ -1491,7 +1470,6 @@ async function processImages(
 }
 
 export default {
-
     name:
         "pack",
 
@@ -1509,7 +1487,6 @@ export default {
         msg,
         args
     ) {
-
         const query =
             (args ?? [])
                 .join(" ")
@@ -1518,12 +1495,9 @@ export default {
         const from =
             msg.key.remoteJid;
 
-        
-
         if (
             !query
         ) {
-
             await sock.sendMessage(
                 from,
                 {
@@ -1538,8 +1512,6 @@ export default {
 
             return;
         }
-
-        
 
         await sock.sendMessage(
             from,
@@ -1564,9 +1536,6 @@ export default {
             );
 
         try {
-
-            
-
             const candidates =
                 await buscarTodasFontes(
                     query
@@ -1575,7 +1544,6 @@ export default {
             if (
                 !candidates.length
             ) {
-
                 await sock.sendMessage(
                     from,
                     {
@@ -1591,8 +1559,6 @@ export default {
                 return;
             }
 
-            
-
             const stickers =
                 await processImages(
                     candidates,
@@ -1602,7 +1568,6 @@ export default {
             if (
                 stickers.length < 5
             ) {
-
                 await sock.sendMessage(
                     from,
                     {
@@ -1622,8 +1587,6 @@ export default {
             console.log(
                 `📦 Preparando envio do pack com ${stickers.length} stickers...`
             );
-
-            
 
             await sendStickerPack(
                 sock,
@@ -1645,8 +1608,6 @@ export default {
                 `📦 Pack enviado com sucesso: ${query}`
             );
 
-            
-
             await sock.sendMessage(
                 from,
                 {
@@ -1659,9 +1620,7 @@ export default {
                         msg
                 }
             );
-
         } catch (err) {
-
             console.error(
                 "pack error:",
                 err
@@ -1678,9 +1637,7 @@ export default {
                         msg
                 }
             );
-
         } finally {
-
             await fs.rm(
                 tmpDir,
                 {
