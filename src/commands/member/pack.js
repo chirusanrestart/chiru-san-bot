@@ -4,1536 +4,260 @@ import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { randomUUID } from "crypto";
-
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
 
-const execFileAsync = promisify(execFile);
-
-const TOTAL_STICKERS = 60;
+const run = promisify(execFile);
+const TOTAL = 60;
 const CONCURRENCY = 3;
+const MAX_IMAGE = 12 * 1024 * 1024;
+const MAX_STICKER = 1024 * 1024;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const shuffle = a => [...a].sort(() => Math.random() - 0.5);
+const isAnimated = url => /\.gif(?:[?#]|$)/i.test(String(url || ""));
 
-const MAX_CANDIDATES = 180;
-const MAX_SEARCH_PAGES = 5;
-const MAX_SAFEBOORU = 120;
-const MAX_WIKIMEDIA = 60;
-
-const TARGET_STATIC = 30;
-const TARGET_ANIMATED = 30;
-
-const MAX_OTAKUGIFS = 30;
-const MAX_NEKOSBEST_STATIC = 20;
-const MAX_NEKOSBEST_ANIMATED = 20;
-
-const MIN_DELAY = 100;
-const MAX_DELAY = 200;
-
-const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
-const MAX_STICKER_SIZE = 1 * 1024 * 1024;
-
-const WIKIMEDIA_API =
-    "https://commons.wikimedia.org/w/api.php";
-
-async function run(
-    command,
-    args,
-    options = {}
-) {
-    return execFileAsync(
-        command,
-        args,
-        {
-            maxBuffer:
-                32 * 1024 * 1024,
-            ...options
-        }
-    );
+async function googlePhotos(query) {
+    try { return await searchMasterGooglePhotos(query); }
+    catch (e) { console.log("⚠️ Google Fotos:", e.message); return []; }
 }
 
-function sleep(ms) {
-    return new Promise(
-        resolve =>
-            setTimeout(
-                resolve,
-                ms
-            )
-    );
-}
-
-function randomDelay(
-    min,
-    max
-) {
-    return Math.floor(
-        Math.random() *
-        (max - min + 1)
-    ) + min;
-}
-
-function shuffle(array) {
-    return [...array].sort(
-        () => Math.random() - 0.5
-    );
-}
-
-function normalizeText(text) {
-    return text
-        .normalize("NFD")
-        .replace(
-            /[\u0300-\u036f]/g,
-            ""
-        )
-        .toLowerCase()
-        .replace(
-            /[^a-z0-9]+/g,
-            " "
-        )
-        .trim()
-        .replace(
-            /\s+/g,
-            " "
-        );
-}
-
-function toBooruTag(text) {
-    return normalizeText(text)
-        .replace(
-            /\s+/g,
-            "_"
-        );
-}
-
-function shouldUseWikimedia(query) {
-    const normalized = normalizeText(query).replace(/\s+/g, " ");
-
-    const safeTerms = [
-        "animal", "cat", "dog", "bird", "fish", "flower", "tree",
-        "nature", "landscape", "ocean", "sea", "mountain", "space",
-        "planet", "moon", "sun", "food", "pizza", "cake", "car",
-        "airplane", "ship", "city", "building", "flag", "map",
-        "logo", "computer", "phone"
-    ];
-
-    return safeTerms.includes(normalized);
-}
-
-async function searchGooglePhotos(
-    query
-) {
-    try {
-        return await searchMasterGooglePhotos(
-            query
-        );
-    } catch (err) {
-        console.log(
-            "⚠️ Google Fotos mestre falhou: " +
-            err.message
-        );
-        return [];
-    }
-}
-
-async function searchNekosBest(query) {
-    const results = [];
-
-    async function search(type, amount) {
-        const params = new URLSearchParams({
-            query,
-            type: String(type),
-            amount: String(Math.min(amount, 20))
-        });
-
+async function nekosBest(query) {
+    const out = [];
+    for (const type of [1, 2]) {
         try {
-            const response = await fetch(
-                `https://nekos.best/api/v2/search?${params.toString()}`,
-                {
-                    headers: {
-                        "User-Agent":
-                            "Chiru-san-Bot (https://github.com/chirusanrestart/chiru-san-bot)"
-                    }
-                }
-            );
-
-            if (!response.ok) {
-                console.log(`⚠️ NekosBest HTTP ${response.status} (type=${type})`);
-                return;
-            }
-
-            const data = await response.json();
-            if (!Array.isArray(data?.results)) return;
-
-            for (const item of data.results) {
-                if (!item?.url) continue;
-                results.push({
-                    url: item.url,
-                    source: "nekosbest",
-                    animated: type === 2 || looksAnimatedUrl(item.url),
-                    animeName: item.anime_name,
-                    artistName: item.artist_name,
-                    sourceUrl: item.source_url,
-                    width: item.dimensions?.width,
-                    height: item.dimensions?.height,
-                    title: item.title,
-                    description: item.description,
-                    tags: item.tags
-                });
-            }
-        } catch (err) {
-            console.log(`⚠️ NekosBest erro (type=${type}): ${err.message}`);
-        }
+            const url = "https://nekos.best/api/v2/search?" +
+                new URLSearchParams({ query, type: String(type), amount: "20" });
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            const data = await res.json();
+            for (const x of data.results || [])
+                if (x.url) out.push({ url: x.url, source: "nekosbest", animated: type === 2 || isAnimated(x.url) });
+        } catch (e) { console.log("⚠️ NekosBest:", e.message); }
     }
-
-    await search(1, MAX_NEKOSBEST_STATIC);
-    await search(2, MAX_NEKOSBEST_ANIMATED);
-
-    console.log(`🐱 NekosBest: ${results.length} resultados para "${query}"`);
-    return shuffle(results);
+    return shuffle(out);
 }
 
-function looksAnimatedUrl(url) {
-    return /\.(?:gif)(?:[?#]|$)/i.test(
-        String(url ?? "")
-    );
-}
-
-async function searchOtakuGifs(query, limit = MAX_OTAKUGIFS) {
+async function otakuGifs(query) {
     try {
-        const normalizedQuery = normalizeText(query).replace(/\s+/g, "");
-
-        const reactionsResponse = await fetch(
-            "https://api.otakugifs.xyz/gif/allreactions",
-            {
-                headers: {
-                    "User-Agent": "chiru-san-bot/1.0"
-                }
+        const res = await fetch("https://api.otakugifs.xyz/gif/allreactions");
+        if (!res.ok) return [];
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data.reactions || data.data || [];
+        const clean = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s/g, "");
+        const found = list.find(x => clean(typeof x === "string" ? x : x.name) === clean(query));
+        if (!found) return [];
+        const reaction = typeof found === "string" ? found : found.name;
+        const out = [];
+        for (let i = 0; i < 20; i++) {
+            const r = await fetch("https://api.otakugifs.xyz/gif?reaction=" + encodeURIComponent(reaction));
+            if (r.ok) {
+                const x = await r.json();
+                if (x.url) out.push({ url: x.url, source: "otakugifs", animated: true });
             }
-        );
-
-        if (!reactionsResponse.ok) {
-            console.log(`⚠️ OtakuGIFs reactions HTTP ${reactionsResponse.status}`);
-            return [];
+            await sleep(100);
         }
-
-        const reactionData = await reactionsResponse.json();
-
-        const reactions =
-            Array.isArray(reactionData)
-                ? reactionData
-                : Array.isArray(reactionData?.reactions)
-                    ? reactionData.reactions
-                    : Array.isArray(reactionData?.data)
-                        ? reactionData.data
-                        : [];
-
-        const reaction = reactions.find(item => {
-            const name = typeof item === "string" ? item : item?.name;
-            if (!name) return false;
-            return normalizeText(name).replace(/\s+/g, "") === normalizedQuery;
-        });
-
-        if (!reaction) {
-            console.log(`🎞️ OtakuGIFs: "${query}" não é uma reação conhecida`);
-            return [];
-        }
-
-        const reactionName = typeof reaction === "string" ? reaction : reaction.name;
-        const results = [];
-
-        for (let i = 0; i < Math.min(limit, MAX_OTAKUGIFS); i++) {
-            try {
-                const response = await fetch(
-                    "https://api.otakugifs.xyz/gif" +
-                    `?reaction=${encodeURIComponent(reactionName)}`,
-                    {
-                        headers: {
-                            "User-Agent": "chiru-san-bot/1.0"
-                        }
-                    }
-                );
-
-                if (!response.ok) {
-                    console.log(`⚠️ OtakuGIFs HTTP ${response.status}`);
-                    break;
-                }
-
-                const data = await response.json();
-
-                if (data?.url) {
-                    results.push({
-                        url: data.url,
-                        source: "otakugifs",
-                        animated: true
-                    });
-                }
-            } catch (err) {
-                console.log(`⚠️ OtakuGIFs erro: ${err.message}`);
-            }
-
-            await sleep(randomDelay(MIN_DELAY, MAX_DELAY));
-        }
-
-        console.log(`🎞️ OtakuGIFs: ${results.length} GIFs para "${query}"`);
-        return shuffle(results);
-    } catch (err) {
-        console.log(`⚠️ OtakuGIFs falhou: ${err.message}`);
-        return [];
-    }
+        return shuffle(out);
+    } catch (e) { console.log("⚠️ OtakuGIFs:", e.message); return []; }
 }
 
-async function searchSafebooru(
-    query,
-    limit = MAX_SAFEBOORU
-) {
-    const tag =
-        toBooruTag(
-            query
-        );
-
-    const pages =
-        Math.ceil(
-            limit / 100
-        );
-
-    const results = [];
-
-    for (
-        let pid = 0;
-        pid < pages;
-        pid++
-    ) {
-        const url =
-            `https://safebooru.org/index.php` +
-            `?page=dapi` +
-            `&s=post` +
-            `&q=index` +
-            `&json=1` +
-            `&limit=100` +
-            `&pid=${pid}` +
-            `&tags=${encodeURIComponent(tag)}`;
-
-        console.log(
-            `🔒 Safebooru pid=${pid} tag=${tag}`
-        );
-
-        try {
-            const res =
-                await fetch(
-                    url,
-                    {
-                        headers: {
-                            "User-Agent":
-                                "chiru-san-bot/1.0"
-                        }
-                    }
-                );
-
-            if (
-                !res.ok
-            ) {
-                console.log(
-                    `⚠️ Safebooru HTTP ${res.status}`
-                );
-                break;
-            }
-
-            const data =
-                await res.json();
-
-            if (
-                !Array.isArray(data) ||
-                data.length === 0
-            ) {
-                break;
-            }
-
-            for (
-                const post of data
-            ) {
-                if (
-                    !post?.directory ||
-                    !post?.image
-                ) {
-                    continue;
-                }
-
-                results.push({
-                    url:
-                        `https://safebooru.org/images/` +
-                        `${post.directory}/${post.image}`,
-
-                    source:
-                        "safebooru",
-
-                    animated:
-                        looksAnimatedUrl(
-                            `https://safebooru.org/images/${post.directory}/${post.image}`
-                        ),
-
-                    id:
-                        post.id,
-
-                    title:
-                        post.title,
-
-                    tags:
-                        typeof post.tags === "string"
-                            ? post.tags.split(/\s+/).filter(Boolean)
-                            : Array.isArray(post.tags)
-                                ? post.tags
-                                : []
-                });
-
-                if (
-                    results.length >=
-                    limit
-                ) {
-                    break;
-                }
-            }
-
-            if (
-                results.length >=
-                limit
-            ) {
-                break;
-            }
-
-            if (
-                data.length < 100
-            ) {
-                break;
-            }
-
-            await sleep(
-                250
-            );
-        } catch (err) {
-            console.log(
-                `⚠️ Safebooru erro: ${err.message}`
-            );
-            break;
-        }
-    }
-
-    console.log(
-        `🔒 Safebooru: ${results.length} imagens`
-    );
-
-    return shuffle(
-        results
-    );
-}
-
-async function fetchPinterest(
-    url
-) {
-    const response =
-        await fetch(
-            url,
-            {
-                headers: {
-                    "User-Agent":
-                        "Mozilla/5.0 (Linux; Android 10) " +
-                        "AppleWebKit/537.36 " +
-                        "(KHTML, like Gecko) " +
-                        "Chrome/151.0.0.0 " +
-                        "Mobile Safari/537.36",
-
-                    Accept:
-                        "text/html,application/xhtml+xml," +
-                        "application/xml;q=0.9,*/*;q=0.8",
-
-                    "Accept-Language":
-                        "pt-BR,pt;q=0.9,en;q=0.8"
-                }
-            }
-        );
-
-    if (
-        !response.ok
-    ) {
-        throw new Error(
-            "HTTP " + response.status
-        );
-    }
-
-    return response.text();
-}
-
-function extractPinUrls(
-    html
-) {
-    const pins =
-        new Set();
-
-    const absoluteRegex =
-        /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)[^"'\\]*/gi;
-
-    let match;
-
-    while (
-        (match =
-            absoluteRegex.exec(
-                html
-            ))
-    ) {
-        pins.add(
-            "https://www.pinterest.com/pin/" + match[1] + "/"
-        );
-    }
-
-    const relativeRegex =
-        /["'\\]\/pin\/(\d+)\/?[^"'\\]*/gi;
-
-    while (
-        (match =
-            relativeRegex.exec(
-                html
-            ))
-    ) {
-        pins.add(
-            "https://www.pinterest.com/pin/" + match[1] + "/"
-        );
-    }
-
-    const idRegex =
-        /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi;
-
-    while (
-        (match =
-            idRegex.exec(
-                html
-            ))
-    ) {
-        pins.add(
-            "https://www.pinterest.com/pin/" + match[1] + "/"
-        );
-    }
-
-    return [
-        ...pins
-    ];
-}
-
-async function searchPinterestPage(
-    query,
-    page = 1
-) {
-    const encoded =
-        encodeURIComponent(
-            query
-        );
-
-    let url =
-        `https://www.pinterest.com/search/pins/?q=${encoded}`;
-
-    if (
-        page > 1
-    ) {
-        url +=
-            `&page=${page}`;
-    }
-
-    console.log(
-        `🔎 Pinterest página ${page}: ${query}`
-    );
-
-    const html =
-        await fetchPinterest(
-            url
-        );
-
-    return extractPinUrls(
-        html
-    );
-}
-
-async function searchPinterest(
-    query
-) {
-    const allPins =
-        new Set();
-
-    for (
-        let page = 1;
-        page <= MAX_SEARCH_PAGES;
-        page++
-    ) {
-        try {
-            const pins =
-                await searchPinterestPage(
-                    query,
-                    page
-                );
-
-            console.log(
-                `📌 Página ${page}: ${pins.length} pins`
-            );
-
-            const before =
-                allPins.size;
-
-            for (
-                const pin of pins
-            ) {
-                allPins.add(
-                    pin
-                );
-
-                if (
-                    allPins.size >=
-                    MAX_CANDIDATES
-                ) {
-                    break;
-                }
-            }
-
-            if (
-                allPins.size ===
-                before
-            ) {
-                break;
-            }
-
-            if (
-                allPins.size >=
-                MAX_CANDIDATES
-            ) {
-                break;
-            }
-
-            await sleep(
-                randomDelay(
-                    MIN_DELAY,
-                    MAX_DELAY
-                )
-            );
-        } catch (err) {
-            console.log(
-                `⚠️ Erro na página ${page}: ${err.message}`
-            );
-        }
-    }
-
-    return [
-        ...allPins
-    ].slice(
-        0,
-        MAX_CANDIDATES
-    );
-}
-
-async function extractPinImage(
-    pinUrl
-) {
+async function safebooru(query) {
     try {
-        const html = await fetchPinterest(pinUrl);
-
-        function getMeta(name) {
-            const a = new RegExp(
-                "<meta[^>]+(?:property|name)=[\\\"']" +
-                name +
-                "[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']",
-                "i"
-            );
-
-            const b = new RegExp(
-                "<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+(?:property|name)=[\\\"']" +
-                name +
-                "[\\\"']",
-                "i"
-            );
-
-            return (
-                html.match(a)?.[1] ||
-                html.match(b)?.[1] ||
-                ""
-            )
-                .replace(/&amp;/g, "&")
-                .replace(/\\u002F/g, "/")
-                .replace(/\\\//g, "/");
-        }
-
-        const imageUrl =
-            getMeta("og:image") ||
-            html.match(
-                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
-            )?.[0]
-                ?.replace(/&amp;/g, "&")
-                .replace(/\\u002F/g, "/")
-                .replace(/\\\//g, "/");
-
-        if (!imageUrl) return null;
-
-        return {
-            url: imageUrl,
-            title:
-                getMeta("og:title") ||
-                getMeta("twitter:title"),
-            description:
-                getMeta("og:description") ||
-                getMeta("description") ||
-                getMeta("twitter:description"),
-            pinUrl
-        };
-    } catch {
-        return null;
-    }
+        const tag = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/\s+/g, "_");
+        const url = "https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=120&tags=" + encodeURIComponent(tag);
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return shuffle((Array.isArray(data) ? data : []).filter(x => x.directory && x.image).map(x => {
+            const u = `https://safebooru.org/images/${x.directory}/${x.image}`;
+            return { url: u, source: "safebooru", animated: isAnimated(u) };
+        }));
+    } catch (e) { console.log("⚠️ Safebooru:", e.message); return []; }
 }
 
-async function resolvePinterestImages(
-    pinUrls,
-    needed
-) {
-    const images = [];
+async function pinterestSearch(query) {
+    const pins = new Set();
+    const headers = { "User-Agent": "Mozilla/5.0", Accept: "text/html" };
 
+    const searchPage = async page => {
+        const url = "https://www.pinterest.com/search/pins/?q=" + encodeURIComponent(query) + (page > 1 ? "&page=" + page : "");
+        const res = await fetch(url, { headers });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+    };
+
+    for (let page = 1; page <= 5 && pins.size < 180; page++) {
+        try {
+            const html = await searchPage(page);
+            for (const re of [
+                /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)/gi,
+                /["']\/pin\/(\d+)/gi,
+                /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi
+            ]) {
+                let m;
+                while ((m = re.exec(html))) pins.add("https://www.pinterest.com/pin/" + m[1] + "/");
+            }
+        } catch (e) { console.log("⚠️ Pinterest:", e.message); break; }
+        await sleep(100);
+    }
+
+    const list = [...pins];
+    const out = [];
     let i = 0;
 
     async function worker() {
-        while (
-            images.length < needed &&
-            i < pinUrls.length
-        ) {
-            const current =
-                i++;
-
-            const pinUrl =
-                pinUrls[current];
-
-            const imgUrl =
-                await extractPinImage(
-                    pinUrl
-                );
-
-            if (imgUrl?.url) {
-                images.push({
-                    url: imgUrl.url,
+        while (i < list.length && out.length < 120) {
+            const pin = list[i++];
+            try {
+                const res = await fetch(pin, { headers });
+                if (!res.ok) continue;
+                const html = await res.text();
+                const match =
+                    html.match(/<meta[^>]+(?:property|name)=["']og:image["'][^>]+content=["']([^"']+)/i) ||
+                    html.match(/https?:\/\/i\.pinimg\.com\/[^"'\s]+/i);
+                if (match?.[1]) out.push({
+                    url: match[1].replace(/&amp;/g, "&").replace(/\\u002F/g, "/").replace(/\\\//g, "/"),
                     source: "pinterest",
-                    animated: looksAnimatedUrl(imgUrl.url),
-                    title: imgUrl.title,
-                    description: imgUrl.description,
-                    pinUrl: imgUrl.pinUrl
+                    animated: isAnimated(match[1])
                 });
-            }
-
-            await sleep(
-                randomDelay(
-                    MIN_DELAY,
-                    MAX_DELAY
-                )
-            );
+            } catch {}
+            await sleep(100);
         }
     }
 
-    const workers =
-        Array.from(
-            {
-                length:
-                    CONCURRENCY
-            },
-            () =>
-                worker()
-        );
-
-    await Promise.all(
-        workers
-    );
-
-    console.log(
-        `📌 Pinterest resolvido: ${images.length} imagens`
-    );
-
-    return images;
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    return out;
 }
 
-async function searchWikimediaCommons(
-    query,
-    limit = MAX_WIKIMEDIA
-) {
-    const results = [];
-
-    let offset = 0;
-
-    const batchSize = 50;
-
-    while (
-        results.length < limit
-    ) {
-        const batchLimit =
-            Math.min(
-                batchSize,
-                limit -
-                    results.length
-            );
-
-        const params =
-            new URLSearchParams({
-                action:
-                    "query",
-
-                format:
-                    "json",
-
-                formatversion:
-                    "2",
-
-                generator:
-                    "search",
-
-                gsrsearch:
-                    query,
-
-                gsrnamespace:
-                    "6",
-
-                gsrlimit:
-                    String(
-                        batchLimit
-                    ),
-
-                gsroffset:
-                    String(
-                        offset
-                    ),
-
-                prop:
-                    "imageinfo",
-
-                iiprop:
-                    "url|mime|size|dimensions",
-
-                iiurlwidth:
-                    "1280"
-            });
-
-        const url =
-            `${WIKIMEDIA_API}?${params.toString()}`;
-
-        console.log(
-            `🌐 Wikimedia Commons: "${query}" offset=${offset}`
-        );
-
-        try {
-            const response =
-                await fetch(
-                    url,
-                    {
-                        headers: {
-                            "User-Agent":
-                                "Chiru-san-Bot/1.0 " +
-                                "(WhatsApp sticker bot)"
-                        }
-                    }
-                );
-
-            if (
-                !response.ok
-            ) {
-                console.log(
-                    `⚠️ Wikimedia HTTP ${response.status}`
-                );
-                break;
-            }
-
-            const data =
-                await response.json();
-
-            const pages =
-                data?.query?.pages;
-
-            if (
-                !Array.isArray(pages) ||
-                pages.length === 0
-            ) {
-                break;
-            }
-
-            for (
-                const page of pages
-            ) {
-                const info =
-                    page?.imageinfo?.[0];
-
-                if (
-                    !info
-                ) {
-                    continue;
-                }
-
-                const mime =
-                    String(
-                        info.mime ?? ""
-                    ).toLowerCase();
-
-                if (
-                    !mime.startsWith(
-                        "image/"
-                    ) ||
-                    mime ===
-                        "image/svg+xml"
-                ) {
-                    continue;
-                }
-
-                const imageUrl =
-                    info.thumburl ||
-                    info.url;
-
-                if (
-                    !imageUrl
-                ) {
-                    continue;
-                }
-
-                results.push({
-                    url:
-                        imageUrl,
-
-                    source:
-                        "wikimedia",
-
-                    animated:
-                        false,
-
-                    title:
-                        page.title,
-
-                    pageUrl:
-                        info.descriptionurl,
-
-                    mime,
-
-                    width:
-                        info.thumbwidth ||
-                        info.width,
-
-                    height:
-                        info.thumbheight ||
-                        info.height
-                });
-
-                if (
-                    results.length >=
-                    limit
-                ) {
-                    break;
-                }
-            }
-
-            if (
-                results.length >=
-                limit
-            ) {
-                break;
-            }
-
-            if (
-                !data?.continue
-            ) {
-                break;
-            }
-
-            offset +=
-                pages.length;
-
-            await sleep(
-                randomDelay(
-                    MIN_DELAY,
-                    MAX_DELAY
-                )
-            );
-        } catch (err) {
-            console.log(
-                `⚠️ Wikimedia erro: ${err.message}`
-            );
-            break;
-        }
-    }
-
-    console.log(
-        `🌐 Wikimedia Commons: ${results.length} imagens`
-    );
-
-    return shuffle(
-        results
-    );
-}
-
-async function buscarTodasFontes(query) {
+async function findImages(query) {
+    const all = [];
     const seen = new Set();
-    const candidates = [];
 
-    function addAll(list) {
-        for (const item of list) {
-            if (!item?.url || seen.has(item.url)) continue;
-
-            seen.add(item.url);
-
-            candidates.push({
-                ...item,
-                animated:
-                    item.animated === true ||
-                    looksAnimatedUrl(item.url)
-            });
+    const add = list => {
+        for (const x of list || []) {
+            if (!x?.url || seen.has(x.url)) continue;
+            seen.add(x.url);
+            all.push({ ...x, animated: x.animated || isAnimated(x.url) });
         }
-    }
+    };
 
-    addAll(await searchGooglePhotos(query));
-
-    if (candidates.length < TOTAL_STICKERS * 2) {
-        const pins = await searchPinterest(query);
-
-        addAll(
-            await resolvePinterestImages(
-                pins,
-                Math.max(TOTAL_STICKERS * 2, 80)
-            )
-        );
-    }
-
-    addAll(await searchNekosBest(query));
-
-    const animatedCount =
-        candidates.filter(item => item.animated).length;
-
-    if (animatedCount < TARGET_ANIMATED) {
-        addAll(
-            await searchOtakuGifs(
-                query,
-                Math.max(
-                    TARGET_ANIMATED - animatedCount,
-                    10
-                )
-            )
-        );
-    }
-
-    if (candidates.length < TOTAL_STICKERS * 2) {
-        const falta =
-            TOTAL_STICKERS - candidates.length + 60;
-
-        addAll(
-            await searchSafebooru(
-                query,
-                Math.max(falta, 80)
-            )
-        );
-    }
-
-    if (
-        candidates.length < TOTAL_STICKERS * 2 &&
-        shouldUseWikimedia(query)
-    ) {
-        addAll(
-            await searchWikimediaCommons(
-                query,
-                MAX_WIKIMEDIA
-            )
-        );
-    } else if (!shouldUseWikimedia(query)) {
-        console.log(
-            `🌐 Wikimedia ignorado para "${query}" (consulta não permitida)`
-        );
-    }
-
-    const animated =
-        shuffle(
-            candidates.filter(
-                item => item.animated
-            )
-        );
-
-    const staticImages =
-        shuffle(
-            candidates.filter(
-                item => !item.animated
-            )
-        );
+    add(await googlePhotos(query));
+    if (all.length < TOTAL * 2) add(await pinterestSearch(query));
+    add(await nekosBest(query));
+    if (all.filter(x => x.animated).length < 30) add(await otakuGifs(query));
+    if (all.length < TOTAL * 2) add(await safebooru(query));
 
     const selected = [
-        ...animated.slice(0, TARGET_ANIMATED),
-        ...staticImages.slice(0, TARGET_STATIC)
+        ...shuffle(all.filter(x => x.animated)).slice(0, 30),
+        ...shuffle(all.filter(x => !x.animated)).slice(0, 30)
     ];
 
-    if (selected.length < TOTAL_STICKERS) {
-        const selectedUrls =
-            new Set(
-                selected.map(
-                    item => item.url
-                )
-            );
-
-        for (const item of shuffle(candidates)) {
-            if (selected.length >= TOTAL_STICKERS) break;
-
-            if (!selectedUrls.has(item.url)) {
-                selected.push(item);
-                selectedUrls.add(item.url);
-            }
-        }
+    for (const x of shuffle(all)) {
+        if (selected.length >= TOTAL) break;
+        if (!selected.some(y => y.url === x.url)) selected.push(x);
     }
 
-    const finalCandidates =
-        shuffle(selected).slice(
-            0,
-            TOTAL_STICKERS
-        );
-
-    console.log(
-        `📦 Seleção final: ${finalCandidates.length} candidatos | ${finalCandidates.filter(item => item.animated).length} animados + ${finalCandidates.filter(item => !item.animated).length} estáticos`
-    );
-
-    return finalCandidates;
+    return shuffle(selected).slice(0, TOTAL);
 }
 
-async function downloadToFile(
-    url,
-    dest
-) {
-    const res =
-        await fetch(
-            url,
-            {
-                headers: {
-                    "User-Agent":
-                        "chiru-san-bot/1.0"
-                }
-            }
-        );
-
-    if (
-        !res.ok
-    ) {
-        throw new Error(
-            `HTTP ${res.status}`
-        );
-    }
-
-    const buf =
-        Buffer.from(
-            await res.arrayBuffer()
-        );
-
-    if (
-        buf.length >
-        MAX_IMAGE_SIZE
-    ) {
-        throw new Error(
-            "imagem muito grande"
-        );
-    }
-
-    await fs.writeFile(
-        dest,
-        buf
-    );
+async function download(url, file) {
+    const res = await fetch(url, { headers: { "User-Agent": "chiru-san-bot/1.0" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_IMAGE) throw new Error("imagem muito grande");
+    await fs.writeFile(file, buf);
 }
 
-async function isReadyWebp(
-    inputPath
-) {
-    try {
-        const { stdout } =
-            await run(
-                "ffprobe",
-                [
-                    "-v",
-                    "error",
-                    "-select_streams",
-                    "v:0",
-                    "-show_entries",
-                    "stream=codec_name,width,height",
-                    "-of",
-                    "csv=p=0",
-                    inputPath
-                ]
-            );
-
-        const [codec, width, height] =
-            stdout
-                .trim()
-                .split(",");
-
-        return (
-            codec === "webp" &&
-            Number(width) === 512 &&
-            Number(height) === 512
-        );
-    } catch {
-        return false;
-    }
-}
-
-async function convertToSticker(
-    inputPath,
-    outputPath,
-    animated = false
-) {
-    if (await isReadyWebp(inputPath)) {
-        const stat =
-            await fs.stat(inputPath);
-
-        if (
-            stat.size <=
-            MAX_STICKER_SIZE
-        ) {
-            await fs.copyFile(
-                inputPath,
-                outputPath
-            );
-
-            return;
-        }
-
-        throw new Error(
-            "WebP 512x512 pronto, mas continua maior que 1 MB"
-        );
-    }
-
-    const baseFilter =
-        "scale=512:512:" +
-        "force_original_aspect_ratio=decrease," +
-        "pad=512:512:" +
-        "(ow-iw)/2:(oh-ih)/2:" +
-        "color=0x00000000";
-
-    async function encode(quality, fps) {
-        const finalFilter = animated
-            ? `fps=${fps},${baseFilter}`
-            : baseFilter;
-
-        const args = [
-            "-y",
-            "-i",
-            inputPath,
-            "-vf",
-            finalFilter,
-            "-an",
-            "-c:v",
-            "libwebp",
-            "-quality",
-            String(quality),
-            "-compression_level",
-            "4"
-        ];
-
-        if (animated) {
-            args.push("-loop", "0", "-t", "15");
-        }
-
-        args.push(outputPath);
+async function convert(input, output, animated) {
+    const filter = "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000";
+    const encode = async (quality, fps) => {
+        const vf = animated ? `fps=${fps},${filter}` : filter;
+        const args = ["-y", "-i", input, "-vf", vf, "-an", "-c:v", "libwebp", "-quality", String(quality), "-compression_level", "4"];
+        if (animated) args.push("-loop", "0", "-t", "15");
+        args.push(output);
         await run("ffmpeg", args);
-    }
+    };
 
-    await encode(animated ? 70 : 80, animated ? 12 : null);
-
-    let stat = await fs.stat(outputPath);
-
-    if (stat.size > MAX_STICKER_SIZE) {
-        await encode(animated ? 45 : 55, animated ? 8 : null);
-        stat = await fs.stat(outputPath);
-
-        if (stat.size > MAX_STICKER_SIZE) {
-            throw new Error(
-                animated
-                    ? "sticker animado continua maior que 1 MB"
-                    : "sticker continua maior que 1 MB"
-            );
-        }
+    await encode(animated ? 70 : 80, animated ? 12 : 1);
+    if ((await fs.stat(output)).size > MAX_STICKER) {
+        await encode(animated ? 45 : 55, animated ? 8 : 1);
+        if ((await fs.stat(output)).size > MAX_STICKER) throw new Error("sticker maior que 1 MB");
     }
 }
 
-async function processImages(
-    candidates,
-    tmpDir
-) {
-    const stickers =
-        [];
-
-    let index =
-        0;
+async function makeStickers(items, dir) {
+    const out = [];
+    let index = 0;
 
     async function worker() {
-        while (
-            stickers.length <
-                TOTAL_STICKERS &&
-            index <
-                candidates.length
-        ) {
-            const current =
-                index++;
-
-            const item =
-                candidates[
-                    current
-                ];
-
-            if (
-                !item?.url
-            ) {
-                continue;
-            }
-
-            const id =
-                randomUUID();
-
-            const rawPath =
-                path.join(
-                    tmpDir,
-                    `${id}.img`
-                );
-
-            const webpPath =
-                path.join(
-                    tmpDir,
-                    `${id}.webp`
-                );
+        while (index < items.length && out.length < TOTAL) {
+            const item = items[index++];
+            const id = randomUUID();
+            const input = path.join(dir, id + ".img");
+            const output = path.join(dir, id + ".webp");
 
             try {
-                await downloadToFile(
-                    item.url,
-                    rawPath
-                );
-
-                await convertToSticker(
-                    rawPath,
-                    webpPath,
-                    item.animated === true
-                );
-
-                const buf =
-                    await fs.readFile(
-                        webpPath
-                    );
-
-                if (
-                    buf.length > 0 &&
-                    buf.length <=
-                        MAX_STICKER_SIZE
-                ) {
-                    stickers.push(
-                        buf
-                    );
-
-                    console.log(
-                        `✅ ${stickers.length}/${TOTAL_STICKERS} (${item.source} • ${item.animated ? "animado" : "estático"})`
-                    );
+                await download(item.url, input);
+                await convert(input, output, item.animated);
+                const buf = await fs.readFile(output);
+                if (buf.length <= MAX_STICKER) {
+                    out.push(buf);
+                    console.log(`✅ ${out.length}/${TOTAL}`);
                 }
-            } catch (err) {
-                console.log(
-                    `⚠️ Falha em imagem (${item.source}): ${err.message}`
-                );
+            } catch (e) {
+                console.log("⚠️ Imagem:", e.message);
             } finally {
-                await fs.unlink(
-                    rawPath
-                ).catch(
-                    () => {}
-                );
-
-                await fs.unlink(
-                    webpPath
-                ).catch(
-                    () => {}
-                );
+                await fs.unlink(input).catch(() => {});
+                await fs.unlink(output).catch(() => {});
             }
         }
     }
 
-    await Promise.all(
-        Array.from(
-            {
-                length:
-                    CONCURRENCY
-            },
-            () =>
-                worker()
-        )
-    );
-
-    return stickers.slice(
-        0,
-        TOTAL_STICKERS
-    );
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    return out.slice(0, TOTAL);
 }
 
 export default {
-    name:
-        "pack",
+    name: "pack",
+    aliases: ["stickerpack", "figpack"],
+    description: "Gera pack de stickers",
+    async execute(sock, msg, args) {
+        const query = (args || []).join(" ").trim();
+        const from = msg.key.remoteJid;
 
-    aliases: [
-        "stickerpack",
-        "figpack"
-    ],
+        if (!query)
+            return sock.sendMessage(from, { text: "Use: *.pack nome do personagem*" }, { quoted: msg });
 
-    description:
-        "Gera pack de stickers " +
-        "(Google Fotos + Pinterest + NekosBest + OtakuGIFs + Safebooru + Wikimedia)",
+        await sock.sendMessage(from, {
+            text: `🔎 Montando pack de *${query}* (até ${TOTAL} figs)...`
+        }, { quoted: msg });
 
-    async execute(
-        sock,
-        msg,
-        args
-    ) {
-        const query =
-            (args ?? [])
-                .join(" ")
-                .trim();
-
-        const from =
-            msg.key.remoteJid;
-
-        if (
-            !query
-        ) {
-            await sock.sendMessage(
-                from,
-                {
-                    text:
-                        "Use: *.pack nome do personagem*"
-                },
-                {
-                    quoted:
-                        msg
-                }
-            );
-
-            return;
-        }
-
-        await sock.sendMessage(
-            from,
-            {
-                text:
-                    `🔎 Montando pack de *${query}* (até ${TOTAL_STICKERS} figs)...\n` +
-                    "Fontes: Google Fotos → Pinterest → NekosBest → OtakuGIFs → Safebooru → Wikimedia"
-            },
-            {
-                quoted:
-                    msg
-            }
-        );
-
-        const tmpDir =
-            await fs.mkdtemp(
-                path.join(
-                    os.tmpdir(),
-                    "pack-"
-                )
-            );
+        const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
 
         try {
-            const candidates =
-                await buscarTodasFontes(
-                    query
-                );
+            const candidates = await findImages(query);
+            if (!candidates.length)
+                return sock.sendMessage(from, { text: `❌ Não achei imagens pra *${query}*.` }, { quoted: msg });
 
-            if (
-                !candidates.length
-            ) {
-                await sock.sendMessage(
-                    from,
-                    {
-                        text:
-                            `❌ Não achei imagens pra *${query}*.`
-                    },
-                    {
-                        quoted:
-                            msg
-                    }
-                );
+            const stickers = await makeStickers(candidates, dir);
+            if (stickers.length < 5)
+                return sock.sendMessage(from, { text: `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.` }, { quoted: msg });
 
-                return;
-            }
+            await sendStickerPack(sock, from, stickers, {
+                name: query,
+                publisher: "Chiru-san Bot",
+                description: `🌸 ${query}`
+            });
 
-            const stickers =
-                await processImages(
-                    candidates,
-                    tmpDir
-                );
-
-            if (
-                stickers.length < 5
-            ) {
-                await sock.sendMessage(
-                    from,
-                    {
-                        text:
-                            `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.`
-                    },
-                    {
-                        quoted:
-                            msg
-                    }
-                );
-
-                return;
-            }
-
-            console.log(
-                `📦 Preparando envio do pack com ${stickers.length} stickers...`
-            );
-
-            await sendStickerPack(
-                sock,
-                from,
-                stickers,
-                {
-                    name:
-                        query,
-
-                    publisher:
-                        "Chiru-san Bot",
-
-                    description:
-                        `🌸 ${query}`
-                }
-            );
-
-            console.log(
-                `📦 Pack enviado com sucesso: ${query}`
-            );
-
-            await sock.sendMessage(
-                from,
-                {
-                    text:
-                        `✅ Pack *${query}* pronto (*${stickers.length}* figs)`
-                },
-                {
-                    quoted:
-                        msg
-                }
-            );
-        } catch (err) {
-            console.error(
-                "pack error:",
-                err
-            );
-
-            await sock.sendMessage(
-                from,
-                {
-                    text:
-                        `❌ Erro ao montar o pack: ${err.message}`
-                },
-                {
-                    quoted:
-                        msg
-                }
-            );
+            await sock.sendMessage(from, {
+                text: `✅ Pack *${query}* pronto (*${stickers.length}* figs)`
+            }, { quoted: msg });
+        } catch (e) {
+            console.error("pack error:", e);
+            await sock.sendMessage(from, {
+                text: `❌ Erro ao montar o pack: ${e.message}`
+            }, { quoted: msg });
         } finally {
-            await fs.rm(
-                tmpDir,
-                {
-                    recursive:
-                        true,
-
-                    force:
-                        true
-                }
-            ).catch(
-                () => {}
-            );
+            await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
         }
     }
 };
