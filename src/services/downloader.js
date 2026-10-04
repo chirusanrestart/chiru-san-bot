@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -18,7 +19,7 @@ export default class Downloader {
 
       const output = path.join(
         DOWNLOAD_DIR,
-        "%(title)s.%(ext)s"
+        `${randomUUID()}-%(title)s.%(ext)s`
       );
 
       const args = [
@@ -191,57 +192,9 @@ export default class Downloader {
           !filePath ||
           !(await exists(filePath))
         ) {
-
-          const files =
-            await fs.readdir(
-              DOWNLOAD_DIR
-            );
-
-          if (files.length === 0) {
-
-            return reject(
-
-              new Error(
-                "Arquivo não encontrado."
-              )
-
-            );
-
-          }
-
-          const stats =
-            await Promise.all(
-
-              files.map(
-                async file => {
-
-                  const full =
-                    path.join(
-                      DOWNLOAD_DIR,
-                      file
-                    );
-
-                  const stat =
-                    await fs.stat(full);
-
-                  return {
-                    path: full,
-                    time: stat.mtimeMs
-                  };
-
-                }
-              )
-
-            );
-
-          stats.sort(
-            (a, b) =>
-              b.time - a.time
+          return reject(
+            new Error("O yt-dlp não informou um arquivo válido para este download.")
           );
-
-          filePath =
-            stats[0].path;
-
         }
 
         resolve({
@@ -264,18 +217,3 @@ export default class Downloader {
 
 }
 
-async function exists(file) {
-
-  try {
-
-    await fs.access(file);
-
-    return true;
-
-  } catch {
-
-    return false;
-
-  }
-
-}
