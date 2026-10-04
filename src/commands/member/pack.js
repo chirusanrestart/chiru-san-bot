@@ -664,7 +664,7 @@ async function extractPinImage(
         const imageUrl =
             getMeta("og:image") ||
             html.match(
-                /https?:\\/\\/i\\.pinimg\\.com\\/[^"'\\\\\\s]+/gi
+                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
             )?.[0]
                 ?.replace(/&amp;/g, "&")
                 .replace(/\\u002F/g, "/")
