@@ -638,16 +638,16 @@ async function extractPinImage(
 
         function getMeta(name) {
             const a = new RegExp(
-                '<meta[^>]+(?:property|name)=["\\']' +
+                "<meta[^>]+(?:property|name)=[\\\"']" +
                 name +
-                '["\\'][^>]+content=["\\']([^"\\']+)["\\']',
+                "[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']",
                 "i"
             );
 
             const b = new RegExp(
-                '<meta[^>]+content=["\\']([^"\\']+)["\\'][^>]+(?:property|name)=["\\']' +
+                "<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+(?:property|name)=[\\\"']" +
                 name +
-                '["\\']',
+                "[\\\"']",
                 "i"
             );
 
@@ -664,7 +664,7 @@ async function extractPinImage(
         const imageUrl =
             getMeta("og:image") ||
             html.match(
-                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
+                /https?:\\/\\/i\\.pinimg\\.com\\/[^"'\\\\\\s]+/gi
             )?.[0]
                 ?.replace(/&amp;/g, "&")
                 .replace(/\\u002F/g, "/")
