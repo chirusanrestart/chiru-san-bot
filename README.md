@@ -17,7 +17,7 @@ cd chiru-san-bot
 npm install
 ```
 
-Copie `.env.example` para `.env` e preencha as chaves que você usa (`GROQ_API_KEY` e `TAVILY_API_KEY`). Não publique o arquivo `.env`. Depois inicie:
+O arquivo `.env` já faz parte do repositório e contém as configurações usadas pelo bot. Se precisar alterar as chaves, edite `.env` e faça commit. Depois inicie:
 
 ```bash
 npm start
@@ -56,7 +56,7 @@ O código principal fica em `src/`, com comandos e serviços separados por funç
 
 A sessão do WhatsApp é armazenada em `auth/`. A memória da IA é criada localmente em `src/data/memory.json` quando necessária.
 
-**Privacidade:** não versione `.env`, sessões/cookies, credenciais do WhatsApp nem arquivos de memória/conversas. Esses dados são ignorados pelo Git.
+**Privacidade:** a sessão do WhatsApp, cookies, credenciais e arquivos de memória/conversas continuam fora do Git. O `.env` é uma exceção intencional deste projeto e permanece versionado.
 
 ## Observação
 
