@@ -7,13 +7,6 @@ import { randomUUID } from "crypto";
 
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
-import {
-    SECURITY_RESPONSE,
-    validatePackRequest,
-    buildPackProfile,
-    filterPackCandidates,
-    validateCandidateSet
-} from "../../security/packSecurity.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -110,12 +103,6 @@ function toBooruTag(text) {
         );
 }
 
-function looksAnimatedUrl(url) {
-    return /\.(?:gif)(?:[?#]|$)/i.test(
-        String(url ?? "")
-    );
-}
-
 function shouldUseWikimedia(query) {
     const normalized = normalizeText(query).replace(/\s+/g, " ");
 
@@ -201,6 +188,12 @@ async function searchNekosBest(query) {
 
     console.log(`🐱 NekosBest: ${results.length} resultados para "${query}"`);
     return shuffle(results);
+}
+
+function looksAnimatedUrl(url) {
+    return /\.(?:gif)(?:[?#]|$)/i.test(
+        String(url ?? "")
+    );
 }
 
 async function searchOtakuGifs(query, limit = MAX_OTAKUGIFS) {
@@ -967,7 +960,6 @@ async function searchWikimediaCommons(
 }
 
 async function buscarTodasFontes(query) {
-    const profile = buildPackProfile(query);
     const seen = new Set();
     const candidates = [];
 
@@ -986,27 +978,10 @@ async function buscarTodasFontes(query) {
         }
     }
 
-    function logQuality(source) {
-        const validation =
-            validateCandidateSet(
-                candidates,
-                profile
-            );
-
-        console.log(
-            `🧠 ${source}: ${validation.good}/${validation.total} candidatos compatíveis (${Math.round(validation.ratio * 100)}%)`
-        );
-    }
-
     addAll(await searchGooglePhotos(query));
-    logQuality("Google Fotos");
 
     if (candidates.length < TOTAL_STICKERS * 2) {
-        const pins = await searchPinterest(
-            profile.expectedTokens.length
-                ? `${query} ${profile.expectedTokens.join(" ")}`
-                : query
-        );
+        const pins = await searchPinterest(query);
 
         addAll(
             await resolvePinterestImages(
@@ -1014,12 +989,9 @@ async function buscarTodasFontes(query) {
                 Math.max(TOTAL_STICKERS * 2, 80)
             )
         );
-
-        logQuality("Pinterest");
     }
 
     addAll(await searchNekosBest(query));
-    logQuality("NekosBest");
 
     const animatedCount =
         candidates.filter(item => item.animated).length;
@@ -1034,8 +1006,6 @@ async function buscarTodasFontes(query) {
                 )
             )
         );
-
-        logQuality("OtakuGIFs");
     }
 
     if (candidates.length < TOTAL_STICKERS * 2) {
@@ -1048,8 +1018,6 @@ async function buscarTodasFontes(query) {
                 Math.max(falta, 80)
             )
         );
-
-        logQuality("Safebooru");
     }
 
     if (
@@ -1062,44 +1030,22 @@ async function buscarTodasFontes(query) {
                 MAX_WIKIMEDIA
             )
         );
-
-        logQuality("Wikimedia");
     } else if (!shouldUseWikimedia(query)) {
         console.log(
             `🌐 Wikimedia ignorado para "${query}" (consulta não permitida)`
         );
     }
 
-    const validation =
-        validateCandidateSet(
-            candidates,
-            profile
-        );
-
-    console.log(
-        `🧠 Validação final: ${validation.good}/${validation.total} candidatos confiáveis`
-    );
-
-    if (!validation.accepted) {
-        return [];
-    }
-
-    const scored =
-        filterPackCandidates(
-            candidates,
-            profile
-        );
-
     const animated =
         shuffle(
-            scored.filter(
+            candidates.filter(
                 item => item.animated
             )
         );
 
     const staticImages =
         shuffle(
-            scored.filter(
+            candidates.filter(
                 item => !item.animated
             )
         );
@@ -1117,7 +1063,7 @@ async function buscarTodasFontes(query) {
                 )
             );
 
-        for (const item of shuffle(scored)) {
+        for (const item of shuffle(candidates)) {
             if (selected.length >= TOTAL_STICKERS) break;
 
             if (!selectedUrls.has(item.url)) {
@@ -1134,7 +1080,7 @@ async function buscarTodasFontes(query) {
         );
 
     console.log(
-        `📦 Seleção final: ${finalCandidates.length} válidos | ${finalCandidates.filter(item => item.animated).length} animados + ${finalCandidates.filter(item => !item.animated).length} estáticos`
+        `📦 Seleção final: ${finalCandidates.length} candidatos | ${finalCandidates.filter(item => item.animated).length} animados + ${finalCandidates.filter(item => !item.animated).length} estáticos`
     );
 
     return finalCandidates;
@@ -1421,7 +1367,7 @@ export default {
 
     description:
         "Gera pack de stickers " +
-        "(Google Fotos + Pinterest + NekosBest + OtakuGIFs + Safebooru + Wikimedia restrito)",
+        "(Google Fotos + Pinterest + NekosBest + OtakuGIFs + Safebooru + Wikimedia)",
 
     async execute(
         sock,
@@ -1454,33 +1400,12 @@ export default {
             return;
         }
 
-        const security = validatePackRequest(query);
-
-        if (security.blocked) {
-            console.log(
-                `🛡️ .pack bloqueado: ${security.reason}`
-            );
-
-            await sock.sendMessage(
-                from,
-                {
-                    text: SECURITY_RESPONSE
-                },
-                {
-                    quoted: msg
-                }
-            );
-
-            return;
-        }
-
         await sock.sendMessage(
             from,
             {
                 text:
-                    `🔎 Montando pack de *${query}* ` +
-                    `(até ${TOTAL_STICKERS} figs)...\n` +
-                    `Fontes: Google Fotos → Pinterest → NekosBest → OtakuGIFs → Safebooru → Wikimedia restrito`
+                    `🔎 Montando pack de *${query}* (até ${TOTAL_STICKERS} figs)...\n` +
+                    "Fontes: Google Fotos → Pinterest → NekosBest → OtakuGIFs → Safebooru → Wikimedia"
             },
             {
                 quoted:
@@ -1509,7 +1434,7 @@ export default {
                     from,
                     {
                         text:
-                            `❌ Não achei imagens confiáveis pra *${query}*. O filtro descartou resultados que não correspondiam ao pedido.`
+                            `❌ Não achei imagens pra *${query}*.`
                     },
                     {
                         quoted:
@@ -1533,8 +1458,7 @@ export default {
                     from,
                     {
                         text:
-                            `❌ Só consegui *${stickers.length}* ` +
-                            `figurinhas válidas pra *${query}*.`
+                            `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.`
                     },
                     {
                         quoted:
@@ -1573,8 +1497,7 @@ export default {
                 from,
                 {
                     text:
-                        `✅ Pack *${query}* pronto ` +
-                        `(*${stickers.length}* figs)`
+                        `✅ Pack *${query}* pronto (*${stickers.length}* figs)`
                 },
                 {
                     quoted:
