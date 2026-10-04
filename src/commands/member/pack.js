@@ -174,43 +174,28 @@ async function findGooglePhotosAlbum(
             query
         );
 
-    for (
-        const [name, url]
-        of Object.entries(albums)
-    ) {
-        if (
-            normalizeText(name) ===
-            normalizedQuery
-        ) {
-            return {
-                name,
-                url
-            };
-        }
+    const matches =
+        Object.entries(albums).filter(
+            ([name, url]) =>
+                typeof url === "string" &&
+                url.trim() &&
+                normalizeText(name) ===
+                    normalizedQuery
+        );
+
+    if (matches.length > 1) {
+        throw new Error(
+            `Mais de um álbum do Google Fotos foi cadastrado para "${query}". Cada personagem deve ter apenas um álbum.`
+        );
     }
 
-    for (
-        const [name, url]
-        of Object.entries(albums)
-    ) {
-        const normalizedName =
-            normalizeText(
-                name
-            );
+    if (matches.length === 1) {
+        const [name, url] = matches[0];
 
-        if (
-            normalizedName.includes(
-                normalizedQuery
-            ) ||
-            normalizedQuery.includes(
-                normalizedName
-            )
-        ) {
-            return {
-                name,
-                url
-            };
-        }
+        return {
+            name,
+            url
+        };
     }
 
     return null;
