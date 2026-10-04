@@ -7,6 +7,13 @@ import { randomUUID } from "crypto";
 
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
+import {
+    SECURITY_RESPONSE,
+    validatePackRequest,
+    buildPackProfile,
+    filterPackCandidates,
+    validateCandidateSet
+} from "../../security/packSecurity.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -178,7 +185,10 @@ async function searchNekosBest(query) {
                     artistName: item.artist_name,
                     sourceUrl: item.source_url,
                     width: item.dimensions?.width,
-                    height: item.dimensions?.height
+                    height: item.dimensions?.height,
+                    title: item.title,
+                    description: item.description,
+                    tags: item.tags
                 });
             }
         } catch (err) {
@@ -367,7 +377,17 @@ async function searchSafebooru(
                         ),
 
                     id:
-                        post.id
+                        post.id,
+
+                    title:
+                        post.title,
+
+                    tags:
+                        typeof post.tags === "string"
+                            ? post.tags.split(/\s+/).filter(Boolean)
+                            : Array.isArray(post.tags)
+                                ? post.tags
+                                : []
                 });
 
                 if (
@@ -614,64 +634,55 @@ async function extractPinImage(
     pinUrl
 ) {
     try {
-        const html =
-            await fetchPinterest(
-                pinUrl
+        const html = await fetchPinterest(pinUrl);
+
+        function getMeta(name) {
+            const a = new RegExp(
+                '<meta[^>]+(?:property|name)=["\\']' +
+                name +
+                '["\\'][^>]+content=["\\']([^"\\']+)["\\']',
+                "i"
             );
 
-        const ogMatch =
-            html.match(
-                /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i
-            ) ||
-            html.match(
-                /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i
+            const b = new RegExp(
+                '<meta[^>]+content=["\\']([^"\\']+)["\\'][^>]+(?:property|name)=["\\']' +
+                name +
+                '["\\']',
+                "i"
             );
 
-        if (
-            ogMatch?.[1]
-        ) {
-            return ogMatch[1]
-                .replace(
-                    /&amp;/g,
-                    "&"
-                )
-                .replace(
-                    /\\u002F/g,
-                    "/"
-                )
-                .replace(
-                    /\\\//g,
-                    "/"
-                );
+            return (
+                html.match(a)?.[1] ||
+                html.match(b)?.[1] ||
+                ""
+            )
+                .replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
         }
 
-        const pinimgRegex =
-            /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi;
-
-        const matches =
+        const imageUrl =
+            getMeta("og:image") ||
             html.match(
-                pinimgRegex
-            );
+                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
+            )?.[0]
+                ?.replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
 
-        if (
-            matches?.length
-        ) {
-            return matches[0]
-                .replace(
-                    /&amp;/g,
-                    "&"
-                )
-                .replace(
-                    /\\u002F/g,
-                    "/"
-                )
-                .replace(
-                    /\\\//g,
-                    "/"
-                );
-        }
+        if (!imageUrl) return null;
 
-        return null;
+        return {
+            url: imageUrl,
+            title:
+                getMeta("og:title") ||
+                getMeta("twitter:title"),
+            description:
+                getMeta("og:description") ||
+                getMeta("description") ||
+                getMeta("twitter:description"),
+            pinUrl
+        };
     } catch {
         return null;
     }
@@ -701,17 +712,14 @@ async function resolvePinterestImages(
                     pinUrl
                 );
 
-            if (
-                imgUrl
-            ) {
+            if (imgUrl?.url) {
                 images.push({
-                    url:
-                        imgUrl,
-
-                    source:
-                        "pinterest",
-                    animated:
-                        looksAnimatedUrl(imgUrl)
+                    url: imgUrl.url,
+                    source: "pinterest",
+                    animated: looksAnimatedUrl(imgUrl.url),
+                    title: imgUrl.title,
+                    description: imgUrl.description,
+                    pinUrl: imgUrl.pinUrl
                 });
             }
 
@@ -959,13 +967,16 @@ async function searchWikimediaCommons(
 }
 
 async function buscarTodasFontes(query) {
+    const profile = buildPackProfile(query);
     const seen = new Set();
     const candidates = [];
 
     function addAll(list) {
         for (const item of list) {
             if (!item?.url || seen.has(item.url)) continue;
+
             seen.add(item.url);
+
             candidates.push({
                 ...item,
                 animated:
@@ -975,45 +986,123 @@ async function buscarTodasFontes(query) {
         }
     }
 
-    addAll(await searchGooglePhotos(query));
-    console.log(`📦 Após Google Fotos: ${candidates.length} candidatos`);
+    function logQuality(source) {
+        const validation =
+            validateCandidateSet(
+                candidates,
+                profile
+            );
 
-    if (candidates.length < TOTAL_STICKERS) {
-        const pins = await searchPinterest(query);
-        addAll(await resolvePinterestImages(
-            pins,
-            Math.max(TOTAL_STICKERS - candidates.length + 40, 40)
-        ));
-        console.log(`📦 Após Pinterest: ${candidates.length} candidatos`);
+        console.log(
+            `🧠 ${source}: ${validation.good}/${validation.total} candidatos compatíveis (${Math.round(validation.ratio * 100)}%)`
+        );
+    }
+
+    addAll(await searchGooglePhotos(query));
+    logQuality("Google Fotos");
+
+    if (candidates.length < TOTAL_STICKERS * 2) {
+        const pins = await searchPinterest(
+            profile.expectedTokens.length
+                ? `${query} ${profile.expectedTokens.join(" ")}`
+                : query
+        );
+
+        addAll(
+            await resolvePinterestImages(
+                pins,
+                Math.max(TOTAL_STICKERS * 2, 80)
+            )
+        );
+
+        logQuality("Pinterest");
     }
 
     addAll(await searchNekosBest(query));
-    console.log(`📦 Após NekosBest: ${candidates.length} candidatos`);
+    logQuality("NekosBest");
 
-    const animatedCount = candidates.filter(item => item.animated).length;
+    const animatedCount =
+        candidates.filter(item => item.animated).length;
+
     if (animatedCount < TARGET_ANIMATED) {
-        addAll(await searchOtakuGifs(
-            query,
-            Math.max(TARGET_ANIMATED - animatedCount, 10)
-        ));
-        console.log(`📦 Após OtakuGIFs: ${candidates.length} candidatos`);
+        addAll(
+            await searchOtakuGifs(
+                query,
+                Math.max(
+                    TARGET_ANIMATED - animatedCount,
+                    10
+                )
+            )
+        );
+
+        logQuality("OtakuGIFs");
     }
 
-    if (candidates.length < TOTAL_STICKERS) {
-        const falta = TOTAL_STICKERS - candidates.length + 60;
-        addAll(await searchSafebooru(query, Math.max(falta, 80)));
-        console.log(`📦 Após Safebooru: ${candidates.length} candidatos`);
+    if (candidates.length < TOTAL_STICKERS * 2) {
+        const falta =
+            TOTAL_STICKERS - candidates.length + 60;
+
+        addAll(
+            await searchSafebooru(
+                query,
+                Math.max(falta, 80)
+            )
+        );
+
+        logQuality("Safebooru");
     }
 
-    if (candidates.length < TOTAL_STICKERS && shouldUseWikimedia(query)) {
-        addAll(await searchWikimediaCommons(query, MAX_WIKIMEDIA));
-        console.log(`📦 Após Wikimedia Commons: ${candidates.length} candidatos`);
+    if (
+        candidates.length < TOTAL_STICKERS * 2 &&
+        shouldUseWikimedia(query)
+    ) {
+        addAll(
+            await searchWikimediaCommons(
+                query,
+                MAX_WIKIMEDIA
+            )
+        );
+
+        logQuality("Wikimedia");
     } else if (!shouldUseWikimedia(query)) {
-        console.log(`🌐 Wikimedia ignorado para "${query}" (consulta não permitida)`);
+        console.log(
+            `🌐 Wikimedia ignorado para "${query}" (consulta não permitida)`
+        );
     }
 
-    const animated = shuffle(candidates.filter(item => item.animated));
-    const staticImages = shuffle(candidates.filter(item => !item.animated));
+    const validation =
+        validateCandidateSet(
+            candidates,
+            profile
+        );
+
+    console.log(
+        `🧠 Validação final: ${validation.good}/${validation.total} candidatos confiáveis`
+    );
+
+    if (!validation.accepted) {
+        return [];
+    }
+
+    const scored =
+        filterPackCandidates(
+            candidates,
+            profile
+        );
+
+    const animated =
+        shuffle(
+            scored.filter(
+                item => item.animated
+            )
+        );
+
+    const staticImages =
+        shuffle(
+            scored.filter(
+                item => !item.animated
+            )
+        );
 
     const selected = [
         ...animated.slice(0, TARGET_ANIMATED),
@@ -1021,10 +1110,16 @@ async function buscarTodasFontes(query) {
     ];
 
     if (selected.length < TOTAL_STICKERS) {
-        const selectedUrls = new Set(selected.map(item => item.url));
+        const selectedUrls =
+            new Set(
+                selected.map(
+                    item => item.url
+                )
+            );
 
-        for (const item of shuffle(candidates)) {
+        for (const item of shuffle(scored)) {
             if (selected.length >= TOTAL_STICKERS) break;
+
             if (!selectedUrls.has(item.url)) {
                 selected.push(item);
                 selectedUrls.add(item.url);
@@ -1032,10 +1127,14 @@ async function buscarTodasFontes(query) {
         }
     }
 
-    const finalCandidates = shuffle(selected).slice(0, TOTAL_STICKERS);
+    const finalCandidates =
+        shuffle(selected).slice(
+            0,
+            TOTAL_STICKERS
+        );
 
     console.log(
-        `📦 Seleção final: ${finalCandidates.filter(item => item.animated).length} animados + ${finalCandidates.filter(item => !item.animated).length} estáticos`
+        `📦 Seleção final: ${finalCandidates.length} válidos | ${finalCandidates.filter(item => item.animated).length} animados + ${finalCandidates.filter(item => !item.animated).length} estáticos`
     );
 
     return finalCandidates;
@@ -1355,6 +1454,26 @@ export default {
             return;
         }
 
+        const security = validatePackRequest(query);
+
+        if (security.blocked) {
+            console.log(
+                `🛡️ .pack bloqueado: ${security.reason}`
+            );
+
+            await sock.sendMessage(
+                from,
+                {
+                    text: SECURITY_RESPONSE
+                },
+                {
+                    quoted: msg
+                }
+            );
+
+            return;
+        }
+
         await sock.sendMessage(
             from,
             {
@@ -1390,7 +1509,7 @@ export default {
                     from,
                     {
                         text:
-                            `❌ Não achei imagens pra *${query}*.`
+                            `❌ Não achei imagens confiáveis pra *${query}*. O filtro descartou resultados que não correspondiam ao pedido.`
                     },
                     {
                         quoted:
