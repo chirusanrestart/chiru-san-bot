@@ -34,15 +34,19 @@ export default {
             quoted?.videoMessage ||
             msg.message?.videoMessage;
 
+        const sticker =
+            quoted?.stickerMessage ||
+            msg.message?.stickerMessage;
 
 
-        if (!image && !video) {
+
+        if (!image && !video && !sticker) {
 
             await sock.sendMessage(
                 jid,
                 {
                     text:
-                    "❌ Envie uma imagem ou vídeo com .s"
+                    "❌ Envie ou responda uma imagem, vídeo ou figurinha com .s"
                 }
             );
 
@@ -68,11 +72,17 @@ export default {
 
 
         const type =
-            video ? "video" : "image";
+            video || (sticker && sticker.isAnimated) ? "video" : "image";
 
 
         const ext =
-            video ? "mp4" : "jpg";
+            video ? "mp4" : sticker ? "webp" : "jpg";
+
+        const source =
+            video || image || sticker;
+
+        const downloadType =
+            sticker ? "sticker" : video ? "video" : "image";
 
 
         const input =
