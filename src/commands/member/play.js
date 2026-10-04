@@ -1,4 +1,5 @@
 import Downloader from "../../services/downloader.js";
+import { promises as fs } from "node:fs";
 
 export default {
 
@@ -60,6 +61,8 @@ export default {
         }
 
 
+        let downloadedFile = null;
+
         try {
 
             await sock.sendMessage(jid, {
@@ -76,6 +79,8 @@ export default {
                     type
                 }
             );
+
+            downloadedFile = result.file;
 
 
             if (type === "audio") {
@@ -113,14 +118,14 @@ export default {
 
             console.error(err);
 
-
             await sock.sendMessage(jid, {
-
-                text:
-                    `❌ Erro: ${err.message}`
-
+                text: `❌ Erro: ${err.message}`
             });
 
+        } finally {
+            if (downloadedFile) {
+                await fs.unlink(downloadedFile).catch(() => {});
+            }
         }
 
     }
