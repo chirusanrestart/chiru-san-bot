@@ -3,3 +3,8 @@ auth/
 downloads/
 temp/
 logs/
+.env
+.env.*
+!.env.example
+data/google-session.json
+src/data/memory.json
