@@ -6,7 +6,7 @@ import { promisify } from "util";
 import { randomUUID } from "crypto";
 
 import { sendStickerPack } from "../../services/stickerPack.js";
-import { fetchImageUrls } from "@marcus5914/google-photos-album-image-url-fetch";
+import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -30,11 +30,6 @@ const MAX_DELAY = 200;
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
 const MAX_STICKER_SIZE = 1 * 1024 * 1024;
-
-const GOOGLE_PHOTOS_FILE = path.resolve(
-    process.cwd(),
-    "google-photos-albums.json"
-);
 
 const WIKIMEDIA_API =
     "https://commons.wikimedia.org/w/api.php";
@@ -128,155 +123,17 @@ function shouldUseWikimedia(query) {
     return safeTerms.includes(normalized);
 }
 
-async function loadGooglePhotosAlbums() {
-    try {
-        const content =
-            await fs.readFile(
-                GOOGLE_PHOTOS_FILE,
-                "utf8"
-            );
-
-        const data =
-            JSON.parse(
-                content
-            );
-
-        if (
-            !data ||
-            typeof data !== "object" ||
-            Array.isArray(data)
-        ) {
-            return {};
-        }
-
-        return data;
-    } catch (err) {
-        if (
-            err.code !== "ENOENT"
-        ) {
-            console.log(
-                `⚠️ Falha ao carregar álbuns: ${err.message}`
-            );
-        }
-
-        return {};
-    }
-}
-
-async function findGooglePhotosAlbum(
-    query
-) {
-    const albums =
-        await loadGooglePhotosAlbums();
-
-    const normalizedQuery =
-        normalizeText(
-            query
-        );
-
-    const matches =
-        Object.entries(albums).filter(
-            ([name, url]) =>
-                typeof url === "string" &&
-                url.trim() &&
-                normalizeText(name) ===
-                    normalizedQuery
-        );
-
-    if (matches.length > 1) {
-        throw new Error(
-            `Mais de um álbum do Google Fotos foi cadastrado para "${query}". Cada personagem deve ter apenas um álbum.`
-        );
-    }
-
-    if (matches.length === 1) {
-        const [name, url] = matches[0];
-
-        return {
-            name,
-            url
-        };
-    }
-
-    return null;
-}
-
 async function searchGooglePhotos(
     query
 ) {
-    const album =
-        await findGooglePhotosAlbum(
-            query
-        );
-
-    if (!album) {
-        console.log(
-            `📸 Google Fotos: nenhum álbum para "${query}"`
-        );
-        return [];
-    }
-
-    console.log(
-        `📸 Google Fotos: álbum → ${album.name}`
-    );
-
     try {
-        const items =
-            await fetchImageUrls(
-                album.url
-            );
-
-        if (
-            !items?.length
-        ) {
-            console.log(
-                "⚠️ Google Fotos: álbum vazio"
-            );
-            return [];
-        }
-
-        const images =
-            items
-                .filter(
-                    item =>
-                        item &&
-                        item.url &&
-                        !item.isVideo
-                )
-                .map(
-                    item => {
-                        let url =
-                            item.url;
-
-                        if (
-                            item.width &&
-                            item.height &&
-                            !url.includes("=")
-                        ) {
-                            url =
-                                `${url}=w${item.width}-h${item.height}`;
-                        }
-
-                        return {
-                            url,
-                            source:
-                                "google-photos",
-                            animated:
-                                looksAnimatedUrl(url)
-                        };
-                    }
-                );
-
-        console.log(
-            `📸 Google Fotos: ${images.length} imagens`
-        );
-
-        return shuffle(
-            images
+        return await searchMasterGooglePhotos(
+            query
         );
     } catch (err) {
         console.log(
-            `⚠️ Google Fotos falhou: ${err.message}`
+            "⚠️ Google Fotos mestre falhou: " +
+            err.message
         );
         return [];
     }
