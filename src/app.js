@@ -83,6 +83,14 @@ const randomDelay =
             201
         ) + 500;
 
+async function hidePresence(sock) {
+    try {
+        await sock.sendPresenceUpdate("unavailable");
+    } catch (error) {
+        console.error("⚠️ Falha ao ocultar presença:", error?.message || error);
+    }
+}
+
 async function flushAutoSticker(
     sock,
     jid
@@ -472,11 +480,13 @@ async function startBot() {
                 if (
                     isGroup
                 ) {
-
-                    await createAutoSticker(
+                    // Não bloqueia comandos enquanto o auto-sticker trabalha.
+                    createAutoSticker(
                         sock,
                         msg
-                    );
+                    ).catch(error => {
+                        console.error("❌ Erro auto-sticker:", error);
+                    });
                 }
 
                 
@@ -488,7 +498,9 @@ async function startBot() {
                 
 
                 try {
+                    await hidePresence(sock);
                     await commandHandler.handle(msg);
+                    await hidePresence(sock);
                 } catch (error) {
                     console.error(
                         "❌ Erro executando comando:",
@@ -522,6 +534,9 @@ async function startBot() {
                 console.log(
                     "🟢 Bot conectado!"
                 );
+
+                // Já entra conectado sem marcar online e força presença offline.
+                await hidePresence(sock);
             }
 
             if (
