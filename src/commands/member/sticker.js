@@ -108,8 +108,8 @@ export default {
 
             const media =
                 await downloadMedia(
-                    video || image,
-                    type
+                    source,
+                    downloadType
                 );
 
 
