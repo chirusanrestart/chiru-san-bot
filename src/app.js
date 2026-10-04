@@ -51,6 +51,21 @@ const autoStickerTimers =
 
 let reconnectTimer = null;
 
+function scheduleReconnect(delay = 3000) {
+    if (reconnectTimer) return;
+
+    reconnectTimer = setTimeout(async () => {
+        reconnectTimer = null;
+
+        try {
+            await startBot();
+        } catch (error) {
+            console.error("❌ Falha ao reconectar:", error);
+            scheduleReconnect(5000);
+        }
+    }, delay);
+}
+
 const sleep =
     ms =>
         new Promise(
@@ -535,22 +550,11 @@ async function startBot() {
                     return;
                 }
 
-                if (!reconnectTimer) {
-                    console.log(
-                        "🔄 Reconectando em 3 segundos..."
-                    );
+                console.log(
+                    "🔄 Agendando reconexão..."
+                );
 
-                    reconnectTimer = setTimeout(() => {
-                        reconnectTimer = null;
-
-                        startBot().catch(error => {
-                            console.error(
-                                "❌ Falha ao reconectar:",
-                                error
-                            );
-                        });
-                    }, 3000);
-                }
+                scheduleReconnect(3000);
             }
         }
     );
@@ -598,4 +602,5 @@ async function startBot() {
 
 startBot().catch(error => {
     console.error("❌ Falha ao iniciar o bot:", error);
+    scheduleReconnect(5000);
 });
