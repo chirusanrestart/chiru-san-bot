@@ -1331,7 +1331,7 @@ async function convertToSticker(
         ];
 
         if (animated) {
-            args.push("-loop", "0", "-t", "6");
+            args.push("-loop", "0", "-t", "15");
         }
 
         args.push(outputPath);
