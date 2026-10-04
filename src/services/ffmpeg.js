@@ -1,6 +1,6 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import { unlink } from "node:fs/promises";
+import { unlink, stat } from "node:fs/promises";
 
 const execAsync = promisify(exec);
 
@@ -186,26 +186,70 @@ export async function runFFmpegSticker(
                 `🧪 FFmpeg Sticker: ${method}`
             );
 
-            const command = buildFFmpegCommand(
-                input,
-                output,
-                type,
-                method
-            );
+            const profiles = type === "video"
+                ? [
+                    { duration: 10, fps: 10, quality: 70 },
+                    { duration: 8, fps: 8, quality: 60 },
+                    { duration: 6, fps: 6, quality: 50 },
+                    { duration: 4, fps: 5, quality: 40 }
+                ]
+                : [null];
 
-            if (process.env.FFMPEG_DEBUG === "1") {
-                console.log(`🔧 ${command}`);
+            let lastError = null;
+
+            for (const profile of profiles) {
+                try {
+                    await removeOutput(output);
+
+                    const command = buildFFmpegCommand(
+                        input,
+                        output,
+                        type,
+                        method,
+                        profile
+                    );
+
+                    if (process.env.FFMPEG_DEBUG === "1") {
+                        console.log(`🔧 ${command}`);
+                    }
+
+                    await execAsync(command);
+
+                    if (type === "video") {
+                        const info = await stat(output);
+
+                        // WhatsApp costuma limitar figurinhas animadas a cerca de 500 KB.
+                        if (info.size > 500 * 1024) {
+                            console.warn(
+                                `⚠️ Figurinha animada grande demais: ${Math.round(info.size / 1024)} KB; tentando comprimir mais`
+                            );
+                            continue;
+                        }
+                    }
+
+                    stickerBackend = method;
+
+                    console.log(
+                        `✅ Sticker criado usando: ${method}`
+                    );
+
+                    return output;
+                } catch (error) {
+                    lastError = error;
+                    if (process.env.FFMPEG_DEBUG === "1") {
+                        console.log(
+                            error?.stderr ||
+                            error?.stdout ||
+                            error?.message ||
+                            ""
+                        );
+                    }
+                }
             }
 
-            await execAsync(command);
-
-            stickerBackend = method;
-
-            console.log(
-                `✅ Sticker criado usando: ${method}`
+            throw lastError || new Error(
+                "Não foi possível gerar uma figurinha dentro do limite de tamanho"
             );
-
-            return output;
         } catch (error) {
             console.warn(
                 `⚠️ ${method} falhou`
@@ -385,7 +429,8 @@ function buildFFmpegCommand(
     input,
     output,
     type,
-    method
+    method,
+    profile = null
 ) {
     let hwInit = "";
     let filter = "";
@@ -399,7 +444,7 @@ function buildFFmpegCommand(
             filter =
                 "format=rgba," +
                 "hwupload," +
-                "fps=10," +
+                `fps=${profile?.fps || 10},` +
                 "hwdownload," +
                 "format=rgba";
         } else {
@@ -431,7 +476,7 @@ function buildFFmpegCommand(
     }
 
     else if (method === "mediacodec") {
-        filter = "fps=10";
+        filter = `fps=${profile?.fps || 10}`;
     }
 
     else if (method === "cpu") {
@@ -440,16 +485,20 @@ function buildFFmpegCommand(
 
     // Preenche todo o quadro 512x512 sem barras.
     // Mantém a proporção e recorta apenas o excesso.
+    if (type === "video" && method !== "vulkan" && method !== "mediacodec") {
+        filter += `,fps=${profile?.fps || 10}`;
+    }
+
     filter += ",scale=512:512:force_original_aspect_ratio=increase,crop=512:512";
 
     return (
         `${FFMPEG} -y ${hwInit} ` +
         `-i ${shellPath(input)} ` +
-        `${type === "video" ? "-t 20 " : ""}` +
+        `${type === "video" ? `-t ${profile?.duration || 10} ` : ""}` +
         `-vf "${filter}" ` +
         `-c:v libwebp ` +
         `-loop 0 ` +
-        `-quality 80 ` +
+        `-quality ${profile?.quality || 80} ` +
         `-compression_level 6 ` +
         `-preset picture ` +
         `-an ` +
