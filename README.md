@@ -6,6 +6,7 @@ Bot de WhatsApp feito em Node.js usando Baileys.
 
 - Node.js
 - FFmpeg
+- `yt-dlp` (com suporte a download e pós-processamento)
 - Uma conta do WhatsApp
 
 ## Instalação
@@ -15,6 +16,8 @@ git clone https://github.com/chirusanrestart/chiru-san-bot.git
 cd chiru-san-bot
 npm install
 ```
+
+Copie `.env.example` para `.env` e preencha as chaves que você usa (`GROQ_API_KEY` e `TAVILY_API_KEY`). Não publique o arquivo `.env`.
 
 Configure as variáveis de ambiente necessárias e depois inicie:
 
