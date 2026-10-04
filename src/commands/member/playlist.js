@@ -90,7 +90,9 @@ export default {
 
           let mimetype = "application/octet-stream";
 
-          if (ext === ".webm") {
+          if (ext === ".mp3") {
+            mimetype = "audio/mpeg";
+          } else if (ext === ".webm") {
             mimetype = "audio/webm";
           } else if (ext === ".m4a") {
             mimetype = "audio/mp4";
