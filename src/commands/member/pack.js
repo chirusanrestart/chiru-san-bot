@@ -168,7 +168,7 @@ async function download(url, file) {
 }
 
 async function convert(input, output, animated) {
-    const filter = "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000";
+    const filter = "scale=512:512";
     const encode = async (quality, fps) => {
         const vf = animated ? `fps=${fps},${filter}` : filter;
         const args = ["-y", "-i", input, "-vf", vf, "-an", "-c:v", "libwebp", "-quality", String(quality), "-compression_level", "4"];
