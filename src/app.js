@@ -50,20 +50,36 @@ const autoStickerTimers =
     new Map();
 
 let reconnectTimer = null;
+let reconnectAttempts = 0;
+
+// Nunca deixe uma rejeição global derrubar o processo silenciosamente.
+process.on("unhandledRejection", error => {
+    console.error("❌ Promise rejeitada sem tratamento:", error);
+});
+
+process.on("uncaughtException", error => {
+    console.error("💥 Exceção não capturada:", error);
+    console.error("🔄 Encerrando para o PM2 reiniciar o bot com estado limpo...");
+    setTimeout(() => process.exit(1), 250);
+});
 
 function scheduleReconnect(delay = 3000) {
     if (reconnectTimer) return;
 
+    const safeDelay = Math.min(Math.max(delay, 3000), 30000);
+
     reconnectTimer = setTimeout(async () => {
         reconnectTimer = null;
+        reconnectAttempts++;
 
         try {
             await startBot();
+            reconnectAttempts = 0;
         } catch (error) {
             console.error("❌ Falha ao reconectar:", error);
-            scheduleReconnect(5000);
+            scheduleReconnect(Math.min(3000 * Math.max(reconnectAttempts, 1), 30000));
         }
-    }, delay);
+    }, safeDelay);
 }
 
 const sleep =
@@ -527,6 +543,7 @@ async function startBot() {
                     clearTimeout(reconnectTimer);
                     reconnectTimer = null;
                 }
+                reconnectAttempts = 0;
 
                 console.log(
                     "🟢 Bot conectado!"
@@ -540,6 +557,7 @@ async function startBot() {
                 connection ===
                 "close"
             ) {
+                try {
 
                 const status =
                     lastDisconnect
@@ -567,6 +585,10 @@ async function startBot() {
                 );
 
                 scheduleReconnect(3000);
+                } catch (error) {
+                    console.error("❌ Erro tratando desconexão:", error);
+                    scheduleReconnect(5000);
+                }
             }
         }
     );
