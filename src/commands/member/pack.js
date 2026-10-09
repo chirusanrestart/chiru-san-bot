@@ -21,59 +21,6 @@ async function googlePhotos(query) {
     catch (e) { console.log("⚠️ Google Fotos:", e.message); return []; }
 }
 
-async function nekosBest(query) {
-    const out = [];
-    for (const type of [1, 2]) {
-        try {
-            const url = "https://nekos.best/api/v2/search?" +
-                new URLSearchParams({ query, type: String(type), amount: "20" });
-            const res = await fetch(url);
-            if (!res.ok) continue;
-            const data = await res.json();
-            for (const x of data.results || [])
-                if (x.url) out.push({ url: x.url, source: "nekosbest", animated: type === 2 || isAnimated(x.url) });
-        } catch (e) { console.log("⚠️ NekosBest:", e.message); }
-    }
-    return shuffle(out);
-}
-
-async function otakuGifs(query) {
-    try {
-        const res = await fetch("https://api.otakugifs.xyz/gif/allreactions");
-        if (!res.ok) return [];
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : data.reactions || data.data || [];
-        const clean = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s/g, "");
-        const found = list.find(x => clean(typeof x === "string" ? x : x.name) === clean(query));
-        if (!found) return [];
-        const reaction = typeof found === "string" ? found : found.name;
-        const out = [];
-        for (let i = 0; i < 20; i++) {
-            const r = await fetch("https://api.otakugifs.xyz/gif?reaction=" + encodeURIComponent(reaction));
-            if (r.ok) {
-                const x = await r.json();
-                if (x.url) out.push({ url: x.url, source: "otakugifs", animated: true });
-            }
-            await sleep(100);
-        }
-        return shuffle(out);
-    } catch (e) { console.log("⚠️ OtakuGIFs:", e.message); return []; }
-}
-
-async function safebooru(query) {
-    try {
-        const tag = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/\s+/g, "_");
-        const url = "https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=120&tags=" + encodeURIComponent(tag);
-        const res = await fetch(url);
-        if (!res.ok) return [];
-        const data = await res.json();
-        return shuffle((Array.isArray(data) ? data : []).filter(x => x.directory && x.image).map(x => {
-            const u = `https://safebooru.org/images/${x.directory}/${x.image}`;
-            return { url: u, source: "safebooru", animated: isAnimated(u) };
-        }));
-    } catch (e) { console.log("⚠️ Safebooru:", e.message); return []; }
-}
-
 async function pinterestSearch(query) {
     const pins = new Set();
     const headers = { "User-Agent": "Mozilla/5.0", Accept: "text/html" };
@@ -142,9 +89,6 @@ async function findImages(query) {
 
     add(await googlePhotos(query));
     if (all.length < TOTAL * 2) add(await pinterestSearch(query));
-    add(await nekosBest(query));
-    if (all.filter(x => x.animated).length < 30) add(await otakuGifs(query));
-    if (all.length < TOTAL * 2) add(await safebooru(query));
 
     const selected = [
         ...shuffle(all.filter(x => x.animated)).slice(0, 30),
