@@ -12,6 +12,10 @@ const TOTAL = 60;
 const CONCURRENCY = 3;
 const MAX_IMAGE = 12 * 1024 * 1024;
 const MAX_STICKER = 1024 * 1024;
+const MAX_CANDIDATES = 180;
+const MAX_SEARCH_PAGES = 5;
+const MIN_DELAY = 100;
+const MAX_DELAY = 200;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shuffle = a => [...a].sort(() => Math.random() - 0.5);
 const isAnimated = url => /\.gif(?:[?#]|$)/i.test(String(url || ""));
@@ -21,60 +25,328 @@ async function googlePhotos(query) {
     catch (e) { console.log("⚠️ Google Fotos:", e.message); return []; }
 }
 
-async function pinterestSearch(query) {
-    const pins = new Set();
-    const headers = { "User-Agent": "Mozilla/5.0", Accept: "text/html" };
+async function fetchPinterest(
+    url
+) {
+    const response =
+        await fetch(
+            url,
+            {
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 (Linux; Android 10) " +
+                        "AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) " +
+                        "Chrome/151.0.0.0 " +
+                        "Mobile Safari/537.36",
 
-    const searchPage = async page => {
-        const url = "https://www.pinterest.com/search/pins/?q=" + encodeURIComponent(query) + (page > 1 ? "&page=" + page : "");
-        const res = await fetch(url, { headers });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.text();
-    };
+                    Accept:
+                        "text/html,application/xhtml+xml," +
+                        "application/xml;q=0.9,*/*;q=0.8",
 
-    for (let page = 1; page <= 5 && pins.size < 180; page++) {
-        try {
-            const html = await searchPage(page);
-            for (const re of [
-                /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)/gi,
-                /["']\/pin\/(\d+)/gi,
-                /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi
-            ]) {
-                let m;
-                while ((m = re.exec(html))) pins.add("https://www.pinterest.com/pin/" + m[1] + "/");
+                    "Accept-Language":
+                        "pt-BR,pt;q=0.9,en;q=0.8"
+                }
             }
-        } catch (e) { console.log("⚠️ Pinterest:", e.message); break; }
-        await sleep(100);
+        );
+
+    if (
+        !response.ok
+    ) {
+        throw new Error(
+            "HTTP " + response.status
+        );
     }
 
-    const list = [...pins];
-    const out = [];
-    let i = 0;
+    return response.text();
+}
 
-    async function worker() {
-        while (i < list.length && out.length < 120) {
-            const pin = list[i++];
-            try {
-                const res = await fetch(pin, { headers });
-                if (!res.ok) continue;
-                const html = await res.text();
-                const match =
-                    html.match(/<meta[^>]+(?:property|name)=["']og:image["'][^>]+content=["']([^"']+)/i) ||
-                    html.match(/https?:\/\/i\.pinimg\.com\/[^"'\s]+/i);
-                const imageUrl = match?.[1] || match?.[0];
-                if (imageUrl) out.push({
-                    url: imageUrl.replace(/&amp;/g, "&").replace(/\\u002F/g, "/").replace(/\\\//g, "/"),
-                    source: "pinterest",
-                    animated: isAnimated(match[1])
-                });
-            } catch {}
-            await sleep(100);
+function extractPinUrls(
+    html
+) {
+    const pins =
+        new Set();
+
+    const absoluteRegex =
+        /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)[^"'\\]*/gi;
+
+    let match;
+
+    while (
+        (match =
+            absoluteRegex.exec(
+                html
+            ))
+    ) {
+        pins.add(
+            "https://www.pinterest.com/pin/" + match[1] + "/"
+        );
+    }
+
+    const relativeRegex =
+        /["'\\]\/pin\/(\d+)\/?[^"'\\]*/gi;
+
+    while (
+        (match =
+            relativeRegex.exec(
+                html
+            ))
+    ) {
+        pins.add(
+            "https://www.pinterest.com/pin/" + match[1] + "/"
+        );
+    }
+
+    const idRegex =
+        /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi;
+
+    while (
+        (match =
+            idRegex.exec(
+                html
+            ))
+    ) {
+        pins.add(
+            "https://www.pinterest.com/pin/" + match[1] + "/"
+        );
+    }
+
+    return [
+        ...pins
+    ];
+}
+
+async function searchPinterestPage(
+    query,
+    page = 1
+) {
+    const encoded =
+        encodeURIComponent(
+            query
+        );
+
+    let url =
+        `https://www.pinterest.com/search/pins/?q=${encoded}`;
+
+    if (
+        page > 1
+    ) {
+        url +=
+            `&page=${page}`;
+    }
+
+    console.log(
+        `🔎 Pinterest página ${page}: ${query}`
+    );
+
+    const html =
+        await fetchPinterest(
+            url
+        );
+
+    return extractPinUrls(
+        html
+    );
+}
+
+async function searchPinterest(
+    query
+) {
+    const allPins =
+        new Set();
+
+    for (
+        let page = 1;
+        page <= MAX_SEARCH_PAGES;
+        page++
+    ) {
+        try {
+            const pins =
+                await searchPinterestPage(
+                    query,
+                    page
+                );
+
+            console.log(
+                `📌 Página ${page}: ${pins.length} pins`
+            );
+
+            const before =
+                allPins.size;
+
+            for (
+                const pin of pins
+            ) {
+                allPins.add(
+                    pin
+                );
+
+                if (
+                    allPins.size >=
+                    MAX_CANDIDATES
+                ) {
+                    break;
+                }
+            }
+
+            if (
+                allPins.size ===
+                before
+            ) {
+                break;
+            }
+
+            if (
+                allPins.size >=
+                MAX_CANDIDATES
+            ) {
+                break;
+            }
+
+            await sleep(
+                randomDelay(
+                    MIN_DELAY,
+                    MAX_DELAY
+                )
+            );
+        } catch (err) {
+            console.log(
+                `⚠️ Erro na página ${page}: ${err.message}`
+            );
         }
     }
 
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-    return out;
+    return [
+        ...allPins
+    ].slice(
+        0,
+        MAX_CANDIDATES
+    );
 }
+
+async function extractPinImage(
+    pinUrl
+) {
+    try {
+        const html = await fetchPinterest(pinUrl);
+
+        function getMeta(name) {
+            const a = new RegExp(
+                "<meta[^>]+(?:property|name)=[\\\"']" +
+                name +
+                "[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']",
+                "i"
+            );
+
+            const b = new RegExp(
+                "<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+(?:property|name)=[\\\"']" +
+                name +
+                "[\\\"']",
+                "i"
+            );
+
+            return (
+                html.match(a)?.[1] ||
+                html.match(b)?.[1] ||
+                ""
+            )
+                .replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
+        }
+
+        const imageUrl =
+            getMeta("og:image") ||
+            html.match(
+                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
+            )?.[0]
+                ?.replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
+
+        if (!imageUrl) return null;
+
+        return {
+            url: imageUrl,
+            title:
+                getMeta("og:title") ||
+                getMeta("twitter:title"),
+            description:
+                getMeta("og:description") ||
+                getMeta("description") ||
+                getMeta("twitter:description"),
+            pinUrl
+        };
+    } catch {
+        return null;
+    }
+}
+
+async function resolvePinterestImages(
+    pinUrls,
+    needed
+) {
+    const images = [];
+
+    let i = 0;
+
+    async function worker() {
+        while (
+            images.length < needed &&
+            i < pinUrls.length
+        ) {
+            const current =
+                i++;
+
+            const pinUrl =
+                pinUrls[current];
+
+            const imgUrl =
+                await extractPinImage(
+                    pinUrl
+                );
+
+            if (imgUrl?.url) {
+                images.push({
+                    url: imgUrl.url,
+                    source: "pinterest",
+                    animated: isAnimated(imgUrl.url),
+                    title: imgUrl.title,
+                    description: imgUrl.description,
+                    pinUrl: imgUrl.pinUrl
+                });
+            }
+
+            await sleep(
+                randomDelay(
+                    MIN_DELAY,
+                    MAX_DELAY
+                )
+            );
+        }
+    }
+
+    const workers =
+        Array.from(
+            {
+                length:
+                    CONCURRENCY
+            },
+            () =>
+                worker()
+        );
+
+    await Promise.all(
+        workers
+    );
+
+    console.log(
+        `📌 Pinterest resolvido: ${images.length} imagens`
+    );
+
+    return images;
+}
+
 
 async function findImages(query) {
     const all = [];
@@ -89,7 +361,10 @@ async function findImages(query) {
     };
 
     add(await googlePhotos(query));
-    if (all.length < TOTAL * 2) add(await pinterestSearch(query));
+    if (all.length < TOTAL * 2) {
+        const pins = await searchPinterest(query);
+        add(await resolvePinterestImages(pins, Math.max(TOTAL * 2, 80)));
+    }
 
     const selected = [
         ...shuffle(all.filter(x => x.animated)).slice(0, 30),
