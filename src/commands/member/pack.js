@@ -61,8 +61,9 @@ async function pinterestSearch(query) {
                 const match =
                     html.match(/<meta[^>]+(?:property|name)=["']og:image["'][^>]+content=["']([^"']+)/i) ||
                     html.match(/https?:\/\/i\.pinimg\.com\/[^"'\s]+/i);
-                if (match?.[1]) out.push({
-                    url: match[1].replace(/&amp;/g, "&").replace(/\\u002F/g, "/").replace(/\\\//g, "/"),
+                const imageUrl = match?.[1] || match?.[0];
+                if (imageUrl) out.push({
+                    url: imageUrl.replace(/&amp;/g, "&").replace(/\\u002F/g, "/").replace(/\\\//g, "/"),
                     source: "pinterest",
                     animated: isAnimated(match[1])
                 });
