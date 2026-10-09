@@ -17,6 +17,7 @@ const MAX_SEARCH_PAGES = 5;
 const MIN_DELAY = 100;
 const MAX_DELAY = 200;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const shuffle = a => [...a].sort(() => Math.random() - 0.5);
 const isAnimated = url => /\.gif(?:[?#]|$)/i.test(String(url || ""));
 
