@@ -6,6 +6,7 @@ import { promisify } from "util";
 import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
+import webp from "node-webpmux";
 
 const run = promisify(execFile);
 const TOTAL = 60;
@@ -405,7 +406,36 @@ async function convert(input, output, animated) {
     }
 }
 
-async function makeStickers(items, dir) {
+function createStickerExif(packname, author) {
+    const json = Buffer.from(JSON.stringify({
+        "sticker-pack-id": "chiru-san-bot",
+        "sticker-pack-name": packname,
+        "sticker-pack-publisher": author,
+        emojis: ["🌸"]
+    }), "utf-8");
+
+    const exifAttr = Buffer.from([
+        0x49, 0x49, 0x2a, 0x00,
+        0x08, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0x41, 0x57,
+        0x07, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x16, 0x00,
+        0x00, 0x00
+    ]);
+
+    const exif = Buffer.concat([exifAttr, json]);
+    exif.writeUIntLE(json.length, 14, 4);
+    return exif;
+}
+
+async function addStickerMetadata(file, packname, author) {
+    const img = new webp.Image();
+    await img.load(file);
+    img.exif = createStickerExif(packname, author);
+    await img.save(file);
+}
+
+async function makeStickers(items, dir, packname, author) {
     const out = [];
     let index = 0;
 
@@ -419,6 +449,7 @@ async function makeStickers(items, dir) {
             try {
                 await download(item.url, input);
                 await convert(input, output, item.animated);
+                await addStickerMetadata(output, packname, author);
                 const buf = await fs.readFile(output);
                 if (buf.length <= MAX_STICKER) {
                     out.push(buf);
@@ -459,13 +490,15 @@ export default {
             if (!candidates.length)
                 return sock.sendMessage(from, { text: `❌ Não achei imagens pra *${query}*.` }, { quoted: msg });
 
-            const stickers = await makeStickers(candidates, dir);
+            const requester = String(msg.pushName || msg.verifiedBizName || "usuário").trim();
+            const author = `Chiru-san Bot • ${requester}`;
+            const stickers = await makeStickers(candidates, dir, query, author);
             if (stickers.length < 5)
                 return sock.sendMessage(from, { text: `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.` }, { quoted: msg });
 
             await sendStickerPack(sock, from, stickers, {
                 name: query,
-                publisher: "Chiru-san Bot",
+                publisher: author,
                 description: `🌸 ${query}`
             });
 
