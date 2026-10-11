@@ -408,7 +408,7 @@ async function convert(input, output, animated) {
 
 function createStickerExif(packname, author) {
     const json = Buffer.from(JSON.stringify({
-        "sticker-pack-id": "chiru-san-bot",
+        "sticker-pack-id": "chiru san bot",
         "sticker-pack-name": packname,
         "sticker-pack-publisher": author,
         emojis: ["🌸"]
@@ -491,7 +491,7 @@ export default {
                 return sock.sendMessage(from, { text: `❌ Não achei imagens pra *${query}*.` }, { quoted: msg });
 
             const requester = String(msg.pushName || msg.verifiedBizName || "usuário").trim();
-            const author = `Chiru-san Bot • ${requester}`;
+            const author = `Chiru san bot • ${requester}`;
             const stickers = await makeStickers(candidates, dir, query, author);
             if (stickers.length < 5)
                 return sock.sendMessage(from, { text: `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.` }, { quoted: msg });
