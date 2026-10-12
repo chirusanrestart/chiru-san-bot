@@ -92,7 +92,31 @@ const MESSAGE_CONCURRENCY = Math.max(
 const incomingMessages = [];
 let activeMessageTasks = 0;
 
+function isRelevantMessage(msg) {
+    const message = msg.message;
+    if (!message) return false;
+
+    const text =
+        message.conversation ||
+        message.extendedTextMessage?.text ||
+        message.imageMessage?.caption ||
+        message.videoMessage?.caption ||
+        "";
+
+    // Comandos precisam ser processados em qualquer conversa.
+    if (text.trimStart().startsWith(".")) return true;
+
+    // Auto-sticker só atua em mídia de grupos; mensagens comuns não entram na fila.
+    const jid = msg.key?.remoteJid;
+    return Boolean(
+        jid?.endsWith("@g.us") &&
+        (message.imageMessage || message.videoMessage)
+    );
+}
+
 function scheduleMessage(sock, commandHandler, msg) {
+    if (!isRelevantMessage(msg)) return;
+
     incomingMessages.push({ sock, commandHandler, msg });
     drainIncomingMessages();
 }
@@ -491,7 +515,6 @@ async function startBot() {
         ({ messages }) => {
             for (const msg of messages) {
                 if (!msg.message) continue;
-                msg.commandHandler = commandHandler;
                 scheduleMessage(sock, commandHandler, msg);
             }
         }
