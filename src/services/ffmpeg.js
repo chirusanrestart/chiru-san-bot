@@ -12,6 +12,7 @@ const execAsync = (command, options = {}) =>
 const FFMPEG = "ffmpeg";
 
 let vulkanAvailable = null;
+let vulkanTestPromise = null;
 let openclDevice = null;
 let mediacodecAvailable = null;
 
@@ -44,37 +45,40 @@ async function removeOutput(output) {
     } catch {}
 }
 
-async function testVulkan() {
+function testVulkan() {
     if (vulkanAvailable !== null) {
+        return Promise.resolve(vulkanAvailable);
+    }
+
+    // Single-flight: vários workers do mesmo pack compartilham um único teste.
+    if (vulkanTestPromise) {
+        return vulkanTestPromise;
+    }
+
+    vulkanTestPromise = (async () => {
+        try {
+            await execAsync(
+                `${FFMPEG} -hide_banner -loglevel verbose ` +
+                `-init_hw_device vulkan=test -filter_hw_device test ` +
+                `-f lavfi -i color=c=red:s=64x64 ` +
+                `-vf "format=rgba,hwupload,scale_vulkan=512:512,hwdownload,format=rgba" ` +
+                `-frames:v 1 -f null -`
+            );
+
+            console.log("🟣 Vulkan + scale_vulkan + RGBA funcionando");
+            vulkanAvailable = true;
+        } catch (error) {
+            console.log("⚠️ Pipeline Vulkan falhou; será usado fallback");
+            console.error(
+                String(error?.stderr || error?.stdout || error?.message || "Erro Vulkan desconhecido").trim()
+            );
+            vulkanAvailable = false;
+        }
+
         return vulkanAvailable;
-    }
+    })();
 
-    // Testa o pipeline real usado nas figurinhas, não apenas a inicialização
-    // do dispositivo. Isso evita marcar Vulkan como disponível e depois cair
-    // silenciosamente para CPU quando scale_vulkan/hwdownload falha.
-    try {
-        await execAsync(
-            `${FFMPEG} -hide_banner -loglevel error ` +
-            `-init_hw_device vulkan=test -filter_hw_device test ` +
-            `-f lavfi -i color=c=red:s=64x64 ` +
-            `-vf "format=rgba,hwupload,scale_vulkan=512:512,hwdownload,format=rgba" ` +
-            `-frames:v 1 -f null -`
-        );
-
-        console.log("🟣 Vulkan + scale_vulkan + RGBA funcionando");
-        vulkanAvailable = true;
-    } catch (error) {
-        console.log("⚠️ Pipeline Vulkan falhou; será usado fallback");
-
-        // Mostra a causa do fallback para facilitar o diagnóstico no Termux.
-        console.error(
-            String(error?.stderr || error?.stdout || error?.message || "Erro Vulkan desconhecido").trim()
-        );
-
-        vulkanAvailable = false;
-    }
-
-    return vulkanAvailable;
+    return vulkanTestPromise;
 }
 
 async function testOpenCL() {
@@ -492,8 +496,7 @@ function buildFFmpegCommand(
     if (method !== "vulkan") {
         filter = [
             filter,
-            "scale=512:512:force_original_aspect_ratio=increase",
-            "crop=512:512"
+            "scale=512:512"
         ].filter(Boolean).join(",");
     }
 
