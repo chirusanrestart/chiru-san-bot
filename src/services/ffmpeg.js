@@ -49,24 +49,27 @@ async function testVulkan() {
         return vulkanAvailable;
     }
 
+    // Testa o pipeline real usado nas figurinhas, não apenas a inicialização
+    // do dispositivo. Isso evita marcar Vulkan como disponível e depois cair
+    // silenciosamente para CPU quando scale_vulkan/hwdownload falha.
     try {
         await execAsync(
             `${FFMPEG} -hide_banner -loglevel error ` +
-            `-init_hw_device vulkan=test ` +
-            `-f lavfi -i color=s=16x16 ` +
-            `-frames:v 1 ` +
-            `-f null -`
+            `-init_hw_device vulkan=test -filter_hw_device test ` +
+            `-f lavfi -i color=c=red:s=64x64 ` +
+            `-vf "format=rgba,hwupload,scale_vulkan=512:512,hwdownload,format=rgba" ` +
+            `-frames:v 1 -f null -`
         );
 
-        console.log("🟣 Vulkan funcionando");
-
+        console.log("🟣 Vulkan + scale_vulkan + RGBA funcionando");
         vulkanAvailable = true;
     } catch (error) {
-        console.log("⚠️ Vulkan indisponível");
+        console.log("⚠️ Pipeline Vulkan falhou; será usado fallback");
 
-        if (process.env.FFMPEG_DEBUG === "1") {
-            console.log(error?.stderr || "");
-        }
+        // Mostra a causa do fallback para facilitar o diagnóstico no Termux.
+        console.error(
+            String(error?.stderr || error?.stdout || error?.message || "Erro Vulkan desconhecido").trim()
+        );
 
         vulkanAvailable = false;
     }
