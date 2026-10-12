@@ -476,42 +476,76 @@ export default {
         const query = (args || []).join(" ").trim();
         const from = msg.key.remoteJid;
 
-        if (!query)
-            return sock.sendMessage(from, { text: "Use: *.pack nome do personagem*" }, { quoted: msg });
-
-        await sock.sendMessage(from, {
-            text: `🔎 Montando pack de *${query}* (até ${TOTAL} figs)...`
-        }, { quoted: msg });
-
-        const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
-
-        try {
-            const candidates = await findImages(query);
-            if (!candidates.length)
-                return sock.sendMessage(from, { text: `❌ Não achei imagens pra *${query}*.` }, { quoted: msg });
-
-            const requester = String(msg.pushName || msg.verifiedBizName || "usuário").trim();
-            const author = `Chiru san bot • ${requester}`;
-            const stickers = await makeStickers(candidates, dir, query, author);
-            if (stickers.length < 5)
-                return sock.sendMessage(from, { text: `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.` }, { quoted: msg });
-
-            await sendStickerPack(sock, from, stickers, {
-                name: query,
-                publisher: author,
-                description: `🌸 ${query}`
-            });
-
-            await sock.sendMessage(from, {
-                text: `✅ Pack *${query}* pronto (*${stickers.length}* figs)`
-            }, { quoted: msg });
-        } catch (e) {
-            console.error("pack error:", e);
-            await sock.sendMessage(from, {
-                text: `❌ Erro ao montar o pack: ${e.message}`
-            }, { quoted: msg });
-        } finally {
-            await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+        if (!query) {
+            return sock.sendMessage(
+                from,
+                { text: "Use: *.pack nome do personagem*" },
+                { quoted: msg }
+            );
         }
+
+        const requester = String(
+            msg.pushName || msg.verifiedBizName || "usuário"
+        ).trim();
+
+        return enqueuePack(async ({ id }) => {
+            const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
+
+            try {
+                await sock.sendMessage(from, {
+                    text: `🔎 Começando o pack de *${query}* (até ${TOTAL} figs)...`
+                }, { quoted: msg });
+
+                console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
+
+                const candidates = await findImages(query);
+                if (!candidates.length) {
+                    await sock.sendMessage(from, {
+                        text: `❌ Não achei imagens pra *${query}*.`
+                    }, { quoted: msg });
+                    return;
+                }
+
+                const author = `Chiru san bot • ${requester}`;
+                const stickers = await makeStickers(candidates, dir, query, author);
+
+                if (stickers.length < 5) {
+                    await sock.sendMessage(from, {
+                        text: `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.`
+                    }, { quoted: msg });
+                    return;
+                }
+
+                await sendStickerPack(sock, from, stickers, {
+                    name: query,
+                    publisher: author,
+                    description: `🌸 ${query}`
+                });
+
+                await sock.sendMessage(from, {
+                    text: `✅ Pack *${query}* pronto (*${stickers.length}* figs)`
+                }, { quoted: msg });
+
+                console.log(`✅ [pack ${id}] Concluído "${query}" (${stickers.length} stickers)`);
+            } catch (e) {
+                console.error(`❌ [pack ${id}] Erro em "${query}":`, e);
+
+                try {
+                    await sock.sendMessage(from, {
+                        text: `❌ Erro ao montar o pack *${query}*: ${e.message || "erro desconhecido"}`
+                    }, { quoted: msg });
+                } catch (sendError) {
+                    console.error(`❌ [pack ${id}] Também falhou ao avisar o usuário:`, sendError);
+                }
+            } finally {
+                await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+            }
+        }, {
+            onQueued: ({ id, position }) => sock.sendMessage(from, {
+                text: position === 1
+                    ? `📥 Pack *${query}* entrou na fila e será iniciado em breve. (ID: ${id})`
+                    : `📥 Pack *${query}* entrou na fila na posição *${position}*. (ID: ${id})`
+            }, { quoted: msg })
+        });
     }
 };
