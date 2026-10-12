@@ -489,9 +489,11 @@ export default {
         ).trim();
 
         return enqueuePack(async ({ id }) => {
-            const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
+            let dir;
 
             try {
+                dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
+
                 await sock.sendMessage(from, {
                     text: `🔎 Começando o pack de *${query}* (até ${TOTAL} figs)...`
                 }, { quoted: msg });
@@ -537,8 +539,12 @@ export default {
                 } catch (sendError) {
                     console.error(`❌ [pack ${id}] Também falhou ao avisar o usuário:`, sendError);
                 }
+
+                throw e;
             } finally {
-                await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+                if (dir) {
+                    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+                }
             }
         }, {
             onQueued: ({ id, position }) => sock.sendMessage(from, {
