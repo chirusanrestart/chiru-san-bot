@@ -437,16 +437,18 @@ function buildFFmpegCommand(
                 `fps=${profile?.fps || 10},` +
                 "format=rgba," +
                 "hwupload," +
-                "scale_vulkan=512:512," +
+                "scale_vulkan=w='if(gte(iw,ih),512*iw/ih,512)':h='if(gte(iw,ih),512,512*ih/iw)'," +
                 "hwdownload," +
-                "format=rgba";
+                "format=rgba," +
+                "crop=512:512";
         } else {
             filter =
                 "format=rgba," +
                 "hwupload," +
-                "scale_vulkan=512:512," +
+                "scale_vulkan=w='if(gte(iw,ih),512*iw/ih,512)':h='if(gte(iw,ih),512,512*ih/iw)'," +
                 "hwdownload," +
-                "format=rgba";
+                "format=rgba," +
+                "crop=512:512";
         }
     }
 
