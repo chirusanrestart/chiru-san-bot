@@ -31,8 +31,8 @@ export async function detectAcceleration({ force = false } = {}) {
             await runFFmpeg([
                 "-hide_banner",
                 "-loglevel", "error",
-                "-init_hw_device", "vulkan=vk",
-                "-filter_hw_device", "vk",
+                "-init_hw_device", "vulkan",
+                "-filter_hw_device", "vulkan",
                 "-f", "lavfi",
                 "-i", "color=c=red:s=64x64",
                 "-vf", "format=rgba,hwupload,scale_vulkan=512:512,hwdownload,format=rgba",
