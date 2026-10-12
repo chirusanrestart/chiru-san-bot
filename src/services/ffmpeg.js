@@ -56,7 +56,7 @@ function imageScaleFilter(method) {
     if (method === "vulkan") {
         return "format=rgba,hwupload,scale_vulkan=512:512,hwdownload,format=rgba";
     }
-    return "scale=512:512";
+    return "scale=512x512";
 }
 
 function buildStickerArgs(input, output, type, method, profile, decoder = null) {
