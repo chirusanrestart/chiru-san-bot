@@ -8,6 +8,7 @@ import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
 import webp from "node-webpmux";
+import { runFFmpegSticker } from "../../services/ffmpeg.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
@@ -391,19 +392,21 @@ async function download(url, file) {
 }
 
 async function convert(input, output, animated) {
-    const filter = "scale=512:512";
     const encode = async (quality, fps) => {
-        const vf = animated ? `fps=${fps},${filter}` : filter;
-        const args = ["-y", "-i", input, "-vf", vf, "-an", "-c:v", "libwebp", "-quality", String(quality), "-compression_level", "4"];
-        if (animated) args.push("-loop", "0", "-t", "15");
-        args.push(output);
-        await run("ffmpeg", args);
+        await runFFmpegSticker(input, output, animated ? "video" : "image", {
+            quality,
+            fps,
+            duration: 15
+        });
     };
 
     await encode(animated ? 70 : 80, animated ? 12 : 1);
     if ((await fs.stat(output)).size > MAX_STICKER) {
+        await fs.unlink(output).catch(() => {});
         await encode(animated ? 45 : 55, animated ? 8 : 1);
-        if ((await fs.stat(output)).size > MAX_STICKER) throw new Error("sticker maior que 1 MB");
+        if ((await fs.stat(output)).size > MAX_STICKER) {
+            throw new Error("sticker maior que 1 MB");
+        }
     }
 }
 
