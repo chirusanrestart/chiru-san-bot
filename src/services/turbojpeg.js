@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
+import { constants } from "node:fs";
 import { promisify } from "node:util";
 import path from "node:path";
-import { access, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { access, mkdtemp, open, rm, stat } from "node:fs/promises";
 import os from "node:os";
 
 const execFileAsync = promisify(execFile);
@@ -11,7 +12,7 @@ const CWEBP = process.env.CWEBP_BIN || "cwebp";
 
 async function isExecutable(file) {
     try {
-        await access(file);
+        await access(file, constants.X_OK);
         return true;
     } catch {
         return false;
@@ -33,7 +34,19 @@ function isJpeg(buffer) {
 export async function tryTurboJpegSticker(input, output, quality = 80) {
     if (!(await isExecutable(helperPath))) return false;
 
-    const header = await readFile(input).then(b => b.subarray(0, 3));
+    let header;
+    try {
+        const handle = await open(input, "r");
+        try {
+            header = Buffer.alloc(3);
+            const { bytesRead } = await handle.read(header, 0, 3, 0);
+            header = header.subarray(0, bytesRead);
+        } finally {
+            await handle.close();
+        }
+    } catch {
+        return false;
+    }
     if (!isJpeg(header)) return false;
 
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "chiru-turbojpeg-"));
