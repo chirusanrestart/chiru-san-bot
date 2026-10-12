@@ -356,7 +356,7 @@ function buildFFmpegCommand(
     }
 
     // Preenche todo o quadro 512x512 sem barras.
-    // Mantém a proporção e recorta apenas o excesso.
+    // Usa escala exata de 512x512, sem aspect ratio.
     if (type === "video" && method !== "vulkan" && method !== "mediacodec") {
         filter = [
             filter,
@@ -396,7 +396,6 @@ export function getFFmpegAccelerationState() {
 
 export function resetFFmpegAccelerationCache() {
     vulkanAvailable = null;
-    mediacodecAvailable = null;
     resetAccelerationCache();
 
     stickerBackend = null;
