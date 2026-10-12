@@ -44,8 +44,8 @@ function extractImageUrls(html) {
 
     // Google Images commonly embeds original URLs as murl/ou fields.
     const patterns = [
-        /"(?:murl|ou)"\\s*:\\s*"((?:https?:\\/\\/|https?:\/\/)[^"\\\\]+)"/gi,
-        /\\["(https?:\\/\\/[^"\\]+)",\\s*\\d{2,5},\\s*\\d{2,5}\\]/gi,
+        /"(?:murl|ou)"\\s*:\\s*"(https?:\\/\\/[^"]+)"/gi,
+        /\\["(https?:\\/\\/[^"\\\\]+)",\\s*\\d{2,5},\\s*\\d{2,5}\\]/gi,
         /https?:\\/\\/[^"'\\s<>\\\\]+\\.(?:jpe?g|png|webp|gif|avif|bmp)(?:\\?[^"'\\s<>\\\\]*)?/gi
     ];
 
