@@ -166,17 +166,9 @@ export async function runFFmpegSticker(
 
     const methods = await getStickerMethods(type);
 
-    const orderedMethods = [];
-
-    if (stickerBackend && methods.includes(stickerBackend)) {
-        orderedMethods.push(stickerBackend);
-    }
-
-    for (const method of methods) {
-        if (!orderedMethods.includes(method)) {
-            orderedMethods.push(method);
-        }
-    }
+    // Sempre tenta Vulkan primeiro em cada conversão.
+    // Um sucesso anterior da CPU não deve desativar futuras tentativas de GPU.
+    const orderedMethods = [...methods];
 
     for (const method of orderedMethods) {
         try {
