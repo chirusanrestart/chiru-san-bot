@@ -1,4 +1,5 @@
 import { runFFmpegSticker } from "./ffmpeg.js";
+import { runCwebpSticker } from "./webpEncoder.js";
 import webp from "node-webpmux";
 
 
@@ -61,11 +62,18 @@ export async function createSticker(
 ) {
 
 
-    await runFFmpegSticker(
-        input,
-        output,
-        type
-    );
+    if (type === "image") {
+        await runCwebpSticker(
+            input,
+            output
+        );
+    } else {
+        await runFFmpegSticker(
+            input,
+            output,
+            type
+        );
+    }
 
 
 
