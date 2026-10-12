@@ -477,8 +477,6 @@ function buildFFmpegCommand(
         filter = "";
     }
 
-    // Preenche todo o quadro 512x512 sem barras.
-    // Mantém a proporção e recorta apenas o excesso.
     if (type === "video" && method !== "vulkan" && method !== "mediacodec") {
         filter = [
             filter,
@@ -486,11 +484,12 @@ function buildFFmpegCommand(
         ].filter(Boolean).join(",");
     }
 
+    // O pedido é redimensionar diretamente para 512x512, sem aspect ratio
+    // automático nem crop adicional. Vulkan usa o filtro equivalente na GPU.
     if (method !== "vulkan") {
         filter = [
             filter,
-            "scale=512:512:force_original_aspect_ratio=increase",
-            "crop=512:512"
+            "scale=512:512"
         ].filter(Boolean).join(",");
     }
 
