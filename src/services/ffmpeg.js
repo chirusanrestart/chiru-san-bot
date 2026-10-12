@@ -133,14 +133,8 @@ async function getStickerMethods(type) {
         methods.push("vulkan");
     }
 
-    if (await testOpenCL()) {
-        methods.push("opencl");
-    }
-
-    if (type === "video" && await testMediaCodec()) {
-        methods.push("mediacodec");
-    }
-
+    // O FFmpeg normalmente não oferece encoder WebP via MediaCodec.
+    // Tenta Vulkan para filtros e sempre mantém CPU como fallback.
     methods.push("cpu");
 
     return methods;
@@ -165,7 +159,8 @@ async function getHDMethods() {
 export async function runFFmpegSticker(
     input,
     output,
-    type = "image"
+    type = "image",
+    options = {}
 ) {
     type = normalizeType(type);
 
@@ -193,12 +188,12 @@ export async function runFFmpegSticker(
 
             const profiles = type === "video"
                 ? [
-                    { duration: 10, fps: 10, quality: 70 },
-                    { duration: 8, fps: 8, quality: 60 },
+                    { duration: options.duration || 10, fps: options.fps || 10, quality: options.quality || 70 },
+                    { duration: Math.min(options.duration || 8, 8), fps: 8, quality: 60 },
                     { duration: 6, fps: 6, quality: 50 },
                     { duration: 4, fps: 5, quality: 40 }
                 ]
-                : [null];
+                : [{ quality: options.quality || 80 }];
 
             let lastError = null;
 
@@ -447,15 +442,17 @@ function buildFFmpegCommand(
 
         if (type === "video") {
             filter =
+                `fps=${profile?.fps || 10},` +
                 "format=rgba," +
                 "hwupload," +
-                `fps=${profile?.fps || 10},` +
+                "scale_vulkan=512:512," +
                 "hwdownload," +
                 "format=rgba";
         } else {
             filter =
                 "format=rgba," +
                 "hwupload," +
+                "scale_vulkan=512:512," +
                 "hwdownload," +
                 "format=rgba";
         }
@@ -497,11 +494,13 @@ function buildFFmpegCommand(
         ].filter(Boolean).join(",");
     }
 
-    filter = [
-        filter,
-        "scale=512:512:force_original_aspect_ratio=increase",
-        "crop=512:512"
-    ].filter(Boolean).join(",");
+    if (method !== "vulkan") {
+        filter = [
+            filter,
+            "scale=512:512:force_original_aspect_ratio=increase",
+            "crop=512:512"
+        ].filter(Boolean).join(",");
+    }
 
     return (
         `${FFMPEG} -y ${hwInit} ` +
