@@ -14,8 +14,6 @@ const FFMPEG = "ffmpeg";
 
 let vulkanAvailable = null;
 let vulkanTestPromise = null;
-let mediacodecAvailable = null;
-
 let stickerBackend = null;
 let hdBackend = null;
 
@@ -50,28 +48,6 @@ async function testVulkan() {
     } finally {
         vulkanTestPromise = null;
     }
-}
-
-async function testMediaCodec() {
-    if (mediacodecAvailable !== null) {
-        return mediacodecAvailable;
-    }
-
-    try {
-        await execAsync(
-            `${FFMPEG} -hide_banner -encoders | grep mediacodec`
-        );
-
-        console.log("📱 MediaCodec disponível");
-
-        mediacodecAvailable = true;
-    } catch {
-        console.log("⚠️ MediaCodec indisponível");
-
-        mediacodecAvailable = false;
-    }
-
-    return mediacodecAvailable;
 }
 
 async function getStickerMethods(type) {
@@ -313,6 +289,7 @@ function buildHDCommand(
         filter =
             "format=rgba," +
             "hwupload," +
+            "scale_vulkan=512:512," +
             "hwdownload," +
             "format=rgba," +
             enhancement +
@@ -321,6 +298,7 @@ function buildHDCommand(
 
     else {
         filter =
+            "scale=512:512," +
             enhancement +
             ",unsharp=5:5:1.0:5:5:0.0";
     }
@@ -411,7 +389,6 @@ function buildFFmpegCommand(
 export function getFFmpegAccelerationState() {
     return {
         vulkanAvailable,
-        mediacodecAvailable,
         stickerBackend,
         hdBackend
     };
