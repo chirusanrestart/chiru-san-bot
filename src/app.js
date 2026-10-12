@@ -82,22 +82,54 @@ function scheduleReconnect(delay = 3000) {
     }, safeDelay);
 }
 
-const sleep =
-    ms =>
-        new Promise(
-            resolve =>
-                setTimeout(
-                    resolve,
-                    ms
-                )
-        );
+// A thread principal agenda mensagens e limita concorrência;
+// não espera um atraso artificial entre cada mensagem recebida.
+const MESSAGE_CONCURRENCY = Math.max(
+    1,
+    Math.min(4, Number.parseInt(process.env.MESSAGE_CONCURRENCY || "3", 10) || 3)
+);
 
-const randomDelay =
-    () =>
-        Math.floor(
-            Math.random() *
-            201
-        ) + 500;
+const incomingMessages = [];
+let activeMessageTasks = 0;
+
+function scheduleMessage(sock, commandHandler, msg) {
+    incomingMessages.push({ sock, commandHandler, msg });
+    drainIncomingMessages();
+}
+
+function drainIncomingMessages() {
+    while (activeMessageTasks < MESSAGE_CONCURRENCY && incomingMessages.length > 0) {
+        const task = incomingMessages.shift();
+        activeMessageTasks++;
+
+        Promise.resolve()
+            .then(async () => {
+                const { sock, commandHandler, msg } = task;
+                const jid = msg.key.remoteJid;
+
+                if (jid?.endsWith("@g.us")) {
+                    createAutoSticker(sock, msg).catch(error => {
+                        console.error("❌ Erro auto-sticker:", error);
+                    });
+                }
+
+                try {
+                    await hidePresence(sock);
+                    await commandHandler.handle(msg);
+                    await hidePresence(sock);
+                } catch (error) {
+                    console.error("❌ Erro executando comando:", error);
+                }
+            })
+            .catch(error => {
+                console.error("❌ Erro processando mensagem:", error);
+            })
+            .finally(() => {
+                activeMessageTasks--;
+                drainIncomingMessages();
+            });
+    }
+}
 
 async function hidePresence(sock) {
     try {
@@ -456,76 +488,16 @@ async function startBot() {
 
     sock.ev.on(
         "messages.upsert",
-
-        async ({
-            messages
-        }) => {
-
-            
-
-            for (
-                const msg of messages
-            ) {
-
-                if (!msg.message) {
-                    continue;
-                }
-
-                
-
-                msg.commandHandler =
-                    commandHandler;
-
-                
-
-                const jid =
-                    msg.key.remoteJid;
-
-                
-
-                const isGroup =
-                    jid?.endsWith(
-                        "@g.us"
-                    );
-
-                
-
-                if (
-                    isGroup
-                ) {
-                    // Não bloqueia comandos enquanto o auto-sticker trabalha.
-                    createAutoSticker(
-                        sock,
-                        msg
-                    ).catch(error => {
-                        console.error("❌ Erro auto-sticker:", error);
-                    });
-                }
-
-                
-
-                await sleep(
-                    randomDelay()
-                );
-
-                
-
-                try {
-                    await hidePresence(sock);
-                    await commandHandler.handle(msg);
-                    await hidePresence(sock);
-                } catch (error) {
-                    console.error(
-                        "❌ Erro executando comando:",
-                        error
-                    );
-                }
+        ({ messages }) => {
+            for (const msg of messages) {
+                if (!msg.message) continue;
+                msg.commandHandler = commandHandler;
+                scheduleMessage(sock, commandHandler, msg);
             }
         }
     );
 
     
-
     sock.ev.on(
         "connection.update",
 
