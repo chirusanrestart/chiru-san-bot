@@ -1,6 +1,7 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { unlink, stat } from "node:fs/promises";
+import { detectAcceleration, resetAccelerationCache } from "./acceleration.js";
 
 const execCommand = promisify(exec);
 const execAsync = (command, options = {}) =>
@@ -13,21 +14,10 @@ const FFMPEG = "ffmpeg";
 
 let vulkanAvailable = null;
 let vulkanTestPromise = null;
-let openclDevice = null;
 let mediacodecAvailable = null;
 
 let stickerBackend = null;
 let hdBackend = null;
-
-const OPENCL_DEVICES = [
-    "ocl",
-    "gpu",
-    "opencl",
-    "cl",
-    "0",
-    "0.0",
-    "default"
-];
 
 function normalizeType(type) {
     return type === "video" ? "video" : "image";
@@ -45,70 +35,21 @@ async function removeOutput(output) {
     } catch {}
 }
 
-function testVulkan() {
-    if (vulkanAvailable !== null) {
-        return Promise.resolve(vulkanAvailable);
-    }
-
-    // Single-flight: vários workers do mesmo pack compartilham um único teste.
-    if (vulkanTestPromise) {
-        return vulkanTestPromise;
-    }
+async function testVulkan() {
+    if (vulkanAvailable !== null) return vulkanAvailable;
+    if (vulkanTestPromise) return vulkanTestPromise;
 
     vulkanTestPromise = (async () => {
-        try {
-            await execAsync(
-                `${FFMPEG} -hide_banner -loglevel verbose ` +
-                `-init_hw_device vulkan=test -filter_hw_device test ` +
-                `-f lavfi -i color=c=red:s=64x64 ` +
-                `-vf "format=rgba,hwupload,scale_vulkan=512:512,hwdownload,format=rgba" ` +
-                `-frames:v 1 -f null -`
-            );
-
-            console.log("🟣 Vulkan + scale_vulkan + RGBA funcionando");
-            vulkanAvailable = true;
-        } catch (error) {
-            console.log("⚠️ Pipeline Vulkan falhou; será usado fallback");
-            console.error(
-                String(error?.stderr || error?.stdout || error?.message || "Erro Vulkan desconhecido").trim()
-            );
-            vulkanAvailable = false;
-        }
-
+        const result = await detectAcceleration();
+        vulkanAvailable = result.lib === "vulkan" && result.vulkan === true;
         return vulkanAvailable;
     })();
 
-    return vulkanTestPromise;
-}
-
-async function testOpenCL() {
-    if (openclDevice !== null) {
-        return openclDevice;
+    try {
+        return await vulkanTestPromise;
+    } finally {
+        vulkanTestPromise = null;
     }
-
-    for (const name of OPENCL_DEVICES) {
-        try {
-            await execAsync(
-                `${FFMPEG} -hide_banner -loglevel error ` +
-                `-init_hw_device opencl=${name} ` +
-                `-f lavfi -i color=s=16x16 ` +
-                `-frames:v 1 ` +
-                `-f null -`
-            );
-
-            console.log(
-                `🟢 OpenCL funcionando: ${name}`
-            );
-
-            openclDevice = name;
-
-            return name;
-        } catch {}
-    }
-
-    console.log("⚠️ OpenCL indisponível");
-
-    return null;
 }
 
 async function testMediaCodec() {
@@ -136,30 +77,21 @@ async function testMediaCodec() {
 async function getStickerMethods(type) {
     const methods = [];
 
-    if (await testVulkan()) {
-        methods.push("vulkan");
-    }
+    // Backend chosen by a real Vulkan pipeline test, not by filter-name lookup.
+    if (await testVulkan()) methods.push("vulkan");
 
-    // O FFmpeg normalmente não oferece encoder WebP via MediaCodec.
-    // Tenta Vulkan para filtros e sempre mantém CPU como fallback.
+    // libwebp is the output encoder; keep CPU as the explicit fallback.
     methods.push("cpu");
-
     return methods;
 }
 
 async function getHDMethods() {
     const methods = [];
 
-    if (await testVulkan()) {
-        methods.push("vulkan");
-    }
+    if (await testVulkan()) methods.push("vulkan");
 
-    if (await testOpenCL()) {
-        methods.push("opencl");
-    }
-
+    // Do not select OpenCL merely because a filter/device name exists.
     methods.push("cpu");
-
     return methods;
 }
 
@@ -387,26 +319,6 @@ function buildHDCommand(
             ",unsharp=5:5:1.0:5:5:0.0";
     }
 
-    else if (method === "opencl") {
-        if (!openclDevice) {
-            throw new Error(
-                "OpenCL não disponível"
-            );
-        }
-
-        hwInit =
-            `-init_hw_device opencl=${openclDevice} ` +
-            `-filter_hw_device ${openclDevice}`;
-
-        filter =
-            "format=rgba," +
-            "hwupload," +
-            "unsharp_opencl," +
-            "hwdownload," +
-            "format=rgba," +
-            enhancement;
-    }
-
     else {
         filter =
             enhancement +
@@ -457,25 +369,6 @@ function buildFFmpegCommand(
         }
     }
 
-    else if (method === "opencl") {
-        if (!openclDevice) {
-            throw new Error(
-                "OpenCL não disponível"
-            );
-        }
-
-        hwInit =
-            `-init_hw_device opencl=${openclDevice} ` +
-            `-filter_hw_device ${openclDevice}`;
-
-        filter =
-            "format=rgba," +
-            "hwupload," +
-            "unsharp_opencl," +
-            "hwdownload," +
-            "format=rgba";
-    }
-
     else if (method === "mediacodec") {
         filter = `fps=${profile?.fps || 10}`;
     }
@@ -518,7 +411,6 @@ function buildFFmpegCommand(
 export function getFFmpegAccelerationState() {
     return {
         vulkanAvailable,
-        openclDevice,
         mediacodecAvailable,
         stickerBackend,
         hdBackend
@@ -527,8 +419,8 @@ export function getFFmpegAccelerationState() {
 
 export function resetFFmpegAccelerationCache() {
     vulkanAvailable = null;
-    openclDevice = null;
     mediacodecAvailable = null;
+    resetAccelerationCache();
 
     stickerBackend = null;
     hdBackend = null;
