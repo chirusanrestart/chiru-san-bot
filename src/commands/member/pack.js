@@ -9,6 +9,7 @@ import { enqueuePack } from "../../services/packQueue.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
+import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
@@ -392,6 +393,20 @@ async function download(url, file) {
 }
 
 async function convert(input, output, animated) {
+    // JPEG estático: tenta TurboJPEG para decodificar/cortar e cwebp para
+    // redimensionar/encodar. Se não estiver compilado ou falhar, usa FFmpeg.
+    if (!animated) {
+        if (await tryTurboJpegSticker(input, output, 80)) {
+            if ((await fs.stat(output)).size <= MAX_STICKER) return;
+
+            await fs.unlink(output).catch(() => {});
+            if (await tryTurboJpegSticker(input, output, 55)) {
+                if ((await fs.stat(output)).size <= MAX_STICKER) return;
+                await fs.unlink(output).catch(() => {});
+            }
+        }
+    }
+
     const encode = async (quality, fps) => {
         await runFFmpegSticker(input, output, animated ? "video" : "image", {
             quality,
