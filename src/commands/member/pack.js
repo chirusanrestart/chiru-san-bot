@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
+import { searchGoogleImagesWebfetch } from "../../services/googleImagesWebfetch.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
@@ -356,6 +357,7 @@ async function resolvePinterestImages(
 async function findImages(query) {
     const all = [];
     const seen = new Set();
+    const targetCandidates = TOTAL * 2;
 
     const add = list => {
         for (const x of list || []) {
@@ -365,10 +367,19 @@ async function findImages(query) {
         }
     };
 
+    // 1) Google Fotos: fonte prioritária já configurada nos álbuns.
     add(await googlePhotos(query));
-    if (all.length < TOTAL * 2) {
+
+    // 2) Scraper local do Pinterest: só busca o que falta para o lote.
+    if (all.length < targetCandidates) {
         const pins = await searchPinterest(query);
-        add(await resolvePinterestImages(pins, Math.max(TOTAL * 2, 80)));
+        const needed = Math.max(targetCandidates - all.length, 0);
+        add(await resolvePinterestImages(pins, needed));
+    }
+
+    // 3) Google Imagens via Webfetch: fallback externo se ainda faltarem opções.
+    if (all.length < targetCandidates) {
+        add(await searchGoogleImagesWebfetch(query, targetCandidates - all.length));
     }
 
     const selected = [
