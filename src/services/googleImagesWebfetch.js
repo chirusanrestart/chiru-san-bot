@@ -44,9 +44,9 @@ function extractImageUrls(html) {
 
     // Google Images commonly embeds original URLs as murl/ou fields.
     const patterns = [
-        /"(?:murl|ou)"\\s*:\\s*"(https?:\\/\\/[^"]+)"/gi,
-        /\\["(https?:\\/\\/[^"\\\\]+)",\\s*\\d{2,5},\\s*\\d{2,5}\\]/gi,
-        /https?:\\/\\/[^"'\\s<>\\\\]+\\.(?:jpe?g|png|webp|gif|avif|bmp)(?:\\?[^"'\\s<>\\\\]*)?/gi
+        /"(?:murl|ou)"\s*:\s*"(https?:\/\/[^"]+)"/gi,
+        /\["(https?:\/\/[^"\\]+)",\s*\d{2,5},\s*\d{2,5}\]/gi,
+        /https?:\/\/[^"'\s<>\\]+\.(?:jpe?g|png|webp|gif|avif|bmp)(?:\?[^"'\s<>\\]*)?/gi
     ];
 
     for (const pattern of patterns) {
@@ -56,12 +56,11 @@ function extractImageUrls(html) {
             const url = normalizeImageUrl(raw);
             if (!url) continue;
 
-            // Ignore obvious page links; keep direct image URLs and image-CDN URLs.
             let parsed;
             try { parsed = new URL(url); } catch { continue; }
             const path = parsed.pathname.toLowerCase();
             const host = parsed.hostname.toLowerCase();
-            const hasImageExtension = /\\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(path);
+            const hasImageExtension = /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(path);
             const imageHost = /(?:images?|img|media|photos?|cdn|static|pinimg)/i.test(host);
             if (!hasImageExtension && !imageHost) continue;
 
@@ -98,7 +97,7 @@ export async function searchGoogleImagesWebfetch(query, limit = 120) {
         const response = await fetch(apiUrl, {
             method: "GET",
             headers: {
-                Authorization: `Bearer ${apiKey}`,
+                Authorization: "Bearer " + apiKey,
                 Accept: "text/html,application/json",
                 "User-Agent": "chiru-san-bot/1.0"
             },
@@ -112,18 +111,19 @@ export async function searchGoogleImagesWebfetch(query, limit = 120) {
                 const json = JSON.parse(body);
                 detail = json.code || json.error || detail;
             } catch {}
-            console.log(`⚠️ Webfetch/Google Imagens HTTP ${response.status}: ${detail}`);
+            console.log("⚠️ Webfetch/Google Imagens HTTP " + response.status + ": " + detail);
             return [];
         }
 
-        const urls = extractImageUrls(body).slice(0, Math.max(0, Math.min(Number(limit) || 0, MAX_RESULTS)));
+        const safeLimit = Math.max(0, Math.min(Number(limit) || 0, MAX_RESULTS));
+        const urls = extractImageUrls(body).slice(0, safeLimit);
         const images = urls.map(url => ({
             url,
             source: "google-images-webfetch",
-            animated: /\\.gif(?:[?#]|$)/i.test(url)
+            animated: /\.gif(?:[?#]|$)/i.test(url)
         }));
 
-        console.log(`🌐 Webfetch/Google Imagens: ${images.length} URLs candidatas`);
+        console.log("🌐 Webfetch/Google Imagens: " + images.length + " URLs candidatas");
         return images;
     } catch (error) {
         console.log("⚠️ Webfetch/Google Imagens:", error.message);
