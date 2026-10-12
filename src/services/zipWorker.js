@@ -39,7 +39,13 @@ export async function zipStickerFiles(files) {
         });
 
         try {
-            worker.postMessage(files);
+            // Transfere os ArrayBuffers em vez de clonar todos os bytes do pack.
+            // O conteúdo de stickerFiles não é reutilizado depois da compactação.
+            const transferList = Object.values(files)
+                .map(([data]) => data?.buffer)
+                .filter(buffer => buffer instanceof ArrayBuffer);
+
+            worker.postMessage(files, transferList);
         } catch (error) {
             finish(error);
         }
