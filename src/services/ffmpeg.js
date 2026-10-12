@@ -283,8 +283,8 @@ function buildHDCommand(
 
     if (method === "vulkan") {
         hwInit =
-            "-init_hw_device vulkan=vk " +
-            "-filter_hw_device vk";
+            "-init_hw_device vulkan " +
+            "-filter_hw_device vulkan";
 
         filter =
             "format=rgba," +
@@ -326,8 +326,8 @@ function buildFFmpegCommand(
 
     if (method === "vulkan") {
         hwInit =
-            "-init_hw_device vulkan=vk " +
-            "-filter_hw_device vk";
+            "-init_hw_device vulkan " +
+            "-filter_hw_device vulkan";
 
         if (type === "video") {
             filter =
