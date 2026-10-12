@@ -92,6 +92,54 @@ const MESSAGE_CONCURRENCY = Math.max(
 const incomingMessages = [];
 let activeMessageTasks = 0;
 
+// Auto-sticker usa FFmpeg e buffers grandes. Limita jobs simultâneos
+// e a espera para que rajadas de mídia não consumam toda a RAM.
+const AUTO_STICKER_CONCURRENCY = Math.max(
+    1,
+    Math.min(2, Number.parseInt(process.env.AUTO_STICKER_CONCURRENCY || "2", 10) || 2)
+);
+const AUTO_STICKER_QUEUE_LIMIT = 20;
+const autoStickerJobs = [];
+let activeAutoStickerJobs = 0;
+
+function scheduleAutoSticker(sock, msg) {
+    const message = msg.message;
+    const jid = msg.key?.remoteJid;
+    if (!jid?.endsWith("@g.us")) return;
+    if (!message?.imageMessage && !message?.videoMessage) return;
+
+    if (
+        activeAutoStickerJobs >= AUTO_STICKER_CONCURRENCY &&
+        autoStickerJobs.length >= AUTO_STICKER_QUEUE_LIMIT
+    ) {
+        console.warn("⚠️ Fila de auto-sticker cheia; mídia ignorada para proteger a memória.");
+        return;
+    }
+
+    autoStickerJobs.push({ sock, msg });
+    drainAutoStickerJobs();
+}
+
+function drainAutoStickerJobs() {
+    while (
+        activeAutoStickerJobs < AUTO_STICKER_CONCURRENCY &&
+        autoStickerJobs.length > 0
+    ) {
+        const job = autoStickerJobs.shift();
+        activeAutoStickerJobs++;
+
+        Promise.resolve()
+            .then(() => createAutoSticker(job.sock, job.msg))
+            .catch(error => {
+                console.error("❌ Erro auto-sticker:", error);
+            })
+            .finally(() => {
+                activeAutoStickerJobs--;
+                drainAutoStickerJobs();
+            });
+    }
+}
+
 function isRelevantMessage(msg) {
     const message = msg.message;
     if (!message) return false;
@@ -132,9 +180,7 @@ function drainIncomingMessages() {
                 const jid = msg.key.remoteJid;
 
                 if (jid?.endsWith("@g.us")) {
-                    createAutoSticker(sock, msg).catch(error => {
-                        console.error("❌ Erro auto-sticker:", error);
-                    });
+                    scheduleAutoSticker(sock, msg);
                 }
 
                 try {
