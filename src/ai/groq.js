@@ -503,7 +503,7 @@ export async function askAI(
     }
 
     const memory =
-        getUserMemory(userId);
+        await getUserMemory(userId);
 
     const messages = [
 
@@ -612,7 +612,7 @@ export async function askAI(
 
                 }
 
-                saveUserMessage(
+                await saveUserMessage(
 
                     userId,
 
