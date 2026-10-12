@@ -89,14 +89,17 @@ export async function enqueuePack(task, options = {}) {
         `📥 [pack ${job.id}] Na fila, posição ${position}. ${JSON.stringify(snapshot())}`
     );
 
-    // Avisa primeiro quem pediu. Mesmo se o envio do aviso falhar, o job é mantido.
+    // Dispara o aviso antes do worker, mas não deixa um envio lento travar a fila.
     try {
-        await options.onQueued?.({ id: job.id, position });
+        const notification = options.onQueued?.({ id: job.id, position });
+        Promise.resolve(notification).catch(error => {
+            console.error(`⚠️ [pack ${job.id}] Não consegui enviar confirmação da fila:`, error);
+        });
     } catch (error) {
         console.error(`⚠️ [pack ${job.id}] Não consegui enviar confirmação da fila:`, error);
     }
 
-    // Não aguarda o processamento: o handler do WhatsApp fica livre.
+    // O job já está registrado. O worker é iniciado sem bloquear o handler do WhatsApp.
     void drainQueue();
 
     return {
