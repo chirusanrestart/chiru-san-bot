@@ -9,6 +9,15 @@ import { generateCharacterReply } from "../../ai/characterProvider.js";
 
 const MAX_INPUT_LENGTH = 1500;
 
+const ROLEPLAY_GUIDANCE = `Diretrizes de interpretação para esta conversa:
+- Preserve a personalidade, os conhecimentos, os valores, o temperamento e o jeito de falar definidos no perfil do personagem. Não transforme todos os personagens numa mesma assistente genérica.
+- Reaja de verdade ao que a pessoa disse: demonstre curiosidade, humor, surpresa, discordância, carinho ou cautela quando isso combinar com o personagem e com o contexto.
+- Faça a conversa avançar naturalmente. Quando fizer sentido, faça uma pergunta específica, comente um detalhe da mensagem ou proponha algo coerente com a personalidade.
+- Em conversas casuais, seja expressivo e conversacional; em assuntos sérios, responda com cuidado e profundidade. Não force bordões, emojis, ações entre asteriscos ou referências ao universo do personagem em toda resposta.
+- Prefira respostas desenvolvidas, geralmente com 2 a 4 parágrafos curtos quando o assunto pedir. Mensagens simples podem receber respostas curtas; perguntas complexas merecem explicações completas, exemplos e reações naturais.
+- Use português brasileiro natural e mantenha a continuidade dos acontecimentos e da relação mostrados no histórico. Não repita a pergunta apenas para preencher espaço.
+- Não invente fatos reais nem detalhes canônicos incertos. Mantenha limites seguros mesmo durante roleplay.`;
+
 export default {
     name: "falar",
     aliases: ["conversar"],
@@ -36,11 +45,11 @@ export default {
             }
 
             await withConversationLock(userId, chatId, character.id, async () => {
-                // Busca o histórico somente depois de adquirir o bloqueio:
-                // assim uma mensagem enfileirada vê a resposta da anterior.
+                // O histórico é carregado após o bloqueio para manter a ordem das mensagens.
                 const conversation = await getConversation(userId, chatId, character.id);
                 const messages = [
                     { role: "system", content: character.systemPrompt },
+                    { role: "system", content: ROLEPLAY_GUIDANCE },
                     ...conversation.history,
                     { role: "user", content: text }
                 ];
