@@ -1,10 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 const directory = path.resolve("src/data");
 const file = path.join(directory, "character-chat.json");
 const fileLock = `${file}.lock`;
+const conversationLockDirectory = path.join(directory, ".conversation-locks");
 const FILE_LOCK_STALE_MS = 60_000;
 const FILE_LOCK_TIMEOUT_MS = 30_000;
 const MAX_HISTORY_MESSAGES = 12;
@@ -87,41 +88,41 @@ async function processIsAlive(pid) {
 
 // Lock no sistema de arquivos: também coordena duas instâncias Node/PM2.
 // O lock só envolve operações curtas de leitura/gravação, nunca a chamada à IA.
-async function withFileLock(operation) {
-    await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+async function withNamedFileLock(lockPath, operation) {
+    await fs.mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 });
     const startedAt = Date.now();
 
     while (true) {
         let handle;
         try {
-            handle = await fs.open(fileLock, "wx", 0o600);
+            handle = await fs.open(lockPath, "wx", 0o600);
             await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }));
             try {
                 return await operation();
             } finally {
                 await handle.close().catch(() => {});
-                await fs.unlink(fileLock).catch(error => {
+                await fs.unlink(lockPath).catch(error => {
                     if (error.code !== "ENOENT") throw error;
                 });
             }
         } catch (error) {
             if (handle) {
                 await handle.close().catch(() => {});
-                await fs.unlink(fileLock).catch(() => {});
+                await fs.unlink(lockPath).catch(() => {});
                 throw error;
             }
             if (error.code !== "EEXIST") throw error;
 
             // Recupera um lock abandonado após encerramento/crash do processo.
             try {
-                const stat = await fs.stat(fileLock);
+                const stat = await fs.stat(lockPath);
                 if (Date.now() - stat.mtimeMs > FILE_LOCK_STALE_MS) {
                     let owner = null;
                     try {
-                        owner = JSON.parse(await fs.readFile(fileLock, "utf8"));
+                        owner = JSON.parse(await fs.readFile(lockPath, "utf8"));
                     } catch {}
                     if (!owner || !(await processIsAlive(Number(owner.pid)))) {
-                        await fs.unlink(fileLock).catch(unlinkError => {
+                        await fs.unlink(lockPath).catch(unlinkError => {
                             if (unlinkError.code !== "ENOENT") throw unlinkError;
                         });
                         continue;
@@ -138,6 +139,15 @@ async function withFileLock(operation) {
             await new Promise(resolve => setTimeout(resolve, 25));
         }
     }
+}
+
+async function withFileLock(operation) {
+    return withNamedFileLock(fileLock, operation);
+}
+
+function conversationLockPath(key) {
+    const hash = createHash("sha256").update(key).digest("hex");
+    return path.join(conversationLockDirectory, `${hash}.lock`);
 }
 
 function serialize(operation) {
@@ -168,7 +178,9 @@ export async function withConversationLock(userId, chatId, characterId, operatio
         conversationLocks.set(key, tail);
         await previous.catch(() => {});
         try {
-            return await operation();
+            // Também serializa a mesma conversa quando há mais de um processo Node/PM2.
+            // O lock é específico da conversa, então personagens diferentes continuam independentes.
+            return await withNamedFileLock(conversationLockPath(key), operation);
         } finally {
             release();
             if (conversationLocks.get(key) === tail) conversationLocks.delete(key);
