@@ -516,12 +516,8 @@ export async function askAI(
     message
 ) {
 
-    if (!groq) {
-
-        return (
-            "🌸 A IA está desativada no momento."
-        );
-
+    if (!groq && !openAIProvider) {
+        return "🌸 A IA está desativada no momento.";
     }
 
     const memory =
