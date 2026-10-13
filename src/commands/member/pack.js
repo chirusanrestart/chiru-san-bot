@@ -373,8 +373,8 @@ async function findImages(query) {
     }
 
     // Fallback externo: Webfetch/Google Imagens, somente se as fontes anteriores não bastarem.
-    if (all.length < targetCandidates) {
-        add(await searchGoogleImagesWebfetch(query, targetCandidates - all.length));
+    if (all.length < TOTAL * 2) {
+        add(await searchGoogleImagesWebfetch(query, Math.max(TOTAL * 2 - all.length, 0)));
     }
 
     const selected = [
