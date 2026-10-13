@@ -13,8 +13,8 @@ export async function generateCharacterReply(messages) {
     const response = await aiProviderManager.complete({
         model: process.env.GROQ_MODEL || DEFAULT_MODEL,
         messages,
-        temperature: 0.8,
-        max_tokens: 700,
+        temperature: 0.9,
+        max_tokens: 1200,
         reasoning_effort: "low",
     });
 
