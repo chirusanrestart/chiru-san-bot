@@ -1,5 +1,10 @@
 import { getCharacter } from "../../ai/characters.js";
-import { getSelectedCharacter, getConversation, appendTurn } from "../../ai/characterStore.js";
+import {
+    getSelectedCharacter,
+    getConversation,
+    appendTurn,
+    withConversationLock
+} from "../../ai/characterStore.js";
 import { generateCharacterReply } from "../../ai/characterProvider.js";
 
 const MAX_INPUT_LENGTH = 1500;
@@ -30,15 +35,29 @@ export default {
                 return sock.sendMessage(chatId, { text: "⚠️ A seleção salva não existe mais. Escolha um personagem com *.personagem NOME*." });
             }
 
-            const conversation = await getConversation(userId, chatId, character.id);
-            const messages = [
-                { role: "system", content: character.systemPrompt },
-                ...conversation.history,
-                { role: "user", content: text }
-            ];
-            const answer = await generateCharacterReply(messages);
-            await appendTurn(userId, chatId, character.id, conversation.conversationId, text, answer);
-            await sock.sendMessage(chatId, { text: `🎭 *${character.name}:*\n\n${answer}` });
+            await withConversationLock(userId, chatId, character.id, async () => {
+                // Busca o histórico somente depois de adquirir o bloqueio:
+                // assim uma mensagem enfileirada vê a resposta da anterior.
+                const conversation = await getConversation(userId, chatId, character.id);
+                const messages = [
+                    { role: "system", content: character.systemPrompt },
+                    ...conversation.history,
+                    { role: "user", content: text }
+                ];
+
+                const answer = await generateCharacterReply(messages);
+
+                // Só grava turnos completos. Falhas do provedor não poluem o histórico.
+                await appendTurn(
+                    userId,
+                    chatId,
+                    character.id,
+                    conversation.conversationId,
+                    text,
+                    answer
+                );
+                await sock.sendMessage(chatId, { text: `🎭 *${character.name}:*\n\n${answer}` });
+            });
         } catch (error) {
             console.error("Erro na conversa com personagem:", error?.message || error);
             const unavailable = error?.code === "AI_NOT_CONFIGURED"
