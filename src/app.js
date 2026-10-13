@@ -1,5 +1,12 @@
 import "dotenv/config";
 
+const webfetchKey = process.env.WEBFETCH_API_KEY || process.env.WEBFETCH_KEY;
+if (webfetchKey) {
+    console.log("🌐 Scraper Webfetch/Pinterest ativado!");
+} else {
+    console.log("⚠️ Scraper Webfetch/Pinterest desativado: WEBFETCH_API_KEY não configurada.");
+}
+
 import makeWASocket, {
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
