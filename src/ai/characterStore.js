@@ -4,6 +4,9 @@ import { randomUUID } from "node:crypto";
 
 const directory = path.resolve("src/data");
 const file = path.join(directory, "character-chat.json");
+const fileLock = `${file}.lock`;
+const FILE_LOCK_STALE_MS = 60_000;
+const FILE_LOCK_TIMEOUT_MS = 30_000;
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_STORED_SESSIONS = 500;
 let queue = Promise.resolve();
@@ -72,8 +75,73 @@ export async function withUserMemoryLock(userId, mode, operation) {
     }
 }
 
+async function processIsAlive(pid) {
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        return error.code === "EPERM";
+    }
+}
+
+// Lock no sistema de arquivos: também coordena duas instâncias Node/PM2.
+// O lock só envolve operações curtas de leitura/gravação, nunca a chamada à IA.
+async function withFileLock(operation) {
+    await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+    const startedAt = Date.now();
+
+    while (true) {
+        let handle;
+        try {
+            handle = await fs.open(fileLock, "wx", 0o600);
+            await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }));
+            try {
+                return await operation();
+            } finally {
+                await handle.close().catch(() => {});
+                await fs.unlink(fileLock).catch(error => {
+                    if (error.code !== "ENOENT") throw error;
+                });
+            }
+        } catch (error) {
+            if (handle) {
+                await handle.close().catch(() => {});
+                await fs.unlink(fileLock).catch(() => {});
+                throw error;
+            }
+            if (error.code !== "EEXIST") throw error;
+
+            // Recupera um lock abandonado após encerramento/crash do processo.
+            try {
+                const stat = await fs.stat(fileLock);
+                if (Date.now() - stat.mtimeMs > FILE_LOCK_STALE_MS) {
+                    let owner = null;
+                    try {
+                        owner = JSON.parse(await fs.readFile(fileLock, "utf8"));
+                    } catch {}
+                    if (!owner || !(await processIsAlive(Number(owner.pid)))) {
+                        await fs.unlink(fileLock).catch(unlinkError => {
+                            if (unlinkError.code !== "ENOENT") throw unlinkError;
+                        });
+                        continue;
+                    }
+                }
+            } catch (statError) {
+                if (statError.code === "ENOENT") continue;
+                throw statError;
+            }
+
+            if (Date.now() - startedAt >= FILE_LOCK_TIMEOUT_MS) {
+                throw new Error("Tempo esgotado aguardando o bloqueio da memória de personagens.");
+            }
+            await new Promise(resolve => setTimeout(resolve, 25));
+        }
+    }
+}
+
 function serialize(operation) {
-    const current = queue.then(operation, operation);
+    const current = queue.then(() => withFileLock(operation), () => withFileLock(operation));
     queue = current.catch(() => {});
     return current;
 }
@@ -213,7 +281,11 @@ export async function appendTurn(userId, chatId, characterId, conversationId, us
     return serialize(async () => {
         const state = await readState();
         const key = sessionKey(userId, chatId, characterId, conversationId);
-        const session = state.sessions[key] || { history: [] };
+        // Uma resposta que terminou depois de .novaconversa/.novaconversa limpar
+        // não pode recriar nem contaminar a sessão antiga.
+        if (state.activeSessions[activeKey(userId, chatId, characterId)] !== conversationId ||
+            !state.sessions[key]) return false;
+        const session = state.sessions[key];
         if (!Array.isArray(session.history)) session.history = [];
         session.history.push(
             { role: "user", content: String(userText).slice(0, 2000) },
