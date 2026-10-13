@@ -9,3 +9,9 @@ src/data/character-chat.json
 .env
 .env.*
 !.env.example
+src/data/autosticker.json
+src/data/.conversation-locks/
+src/data/character-chat.json.lock
+src/data/character-chat.json.*.tmp
+src/data/memory.json.lock
+src/data/memory.json.tmp
