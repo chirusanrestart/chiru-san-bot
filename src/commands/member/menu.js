@@ -26,12 +26,18 @@ export default {
             owner: []
         };
 
-        for (const [name, command] of commandHandler.commands) {
+        const seenCommands = new Set();
+
+        for (const command of commandHandler.commands.values()) {
+            // Aliases apontam para o mesmo objeto: o menu deve listar só o nome principal.
+            if (seenCommands.has(command.name)) continue;
+            seenCommands.add(command.name);
+
             const category = command.category || "member";
 
             if (commandsByCategory[category]) {
                 commandsByCategory[category].push({
-                    name,
+                    name: command.name,
                     description: command.description || "Sem descrição"
                 });
             }
