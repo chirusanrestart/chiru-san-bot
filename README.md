@@ -67,7 +67,7 @@ A sessão do WhatsApp é armazenada em `auth/`. A memória da IA geral fica em `
 - `.novaconversa`: inicia uma sessão nova para o personagem atual.
 - `.novaconversa limpar`: apaga o histórico de personagens do usuário em todos os chats, mantendo as seleções.
 
-Para criar um personagem, adicione um objeto a `src/ai/characters.js` com `id`, `name`, `aliases`, `description` e `systemPrompt`. Não é necessário alterar os comandos nem o armazenamento. A camada `src/ai/characterProvider.js` usa o cliente Groq já existente; para trocar de provedor, substitua essa implementação mantendo a função `generateCharacterReply(messages)`.
+Para criar um personagem, adicione um objeto a `src/ai/characters.js` com `id`, `name`, `aliases`, `description` e `systemPrompt`. Não é necessário alterar os comandos nem o armazenamento. A camada `src/ai/characterProvider.js` usa o gerenciador modular em `src/ai/providerManager.js`, com fila, limites de concorrência, timeout, tentativas e fallback entre provedores configurados. As chaves opcionais e os ajustes ficam descritos em `docs/ai-providers.md` e `.env.example`.
 
 O histórico é separado por usuário, chat, personagem e sessão. O armazenamento limita o contexto enviado à IA às últimas 12 mensagens, limita o texto de entrada e grava o arquivo com permissões restritas quando o sistema de arquivos permite.
 
