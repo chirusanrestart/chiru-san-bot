@@ -507,7 +507,7 @@ export async function askAI(
     message
 ) {
 
-    if (!groq && !openAIProvider) {
+    if (!aiProviderManager.hasAvailableProvider()) {
         return "🌸 A IA está desativada no momento.";
     }
 
