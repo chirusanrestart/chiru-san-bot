@@ -707,3 +707,28 @@ export async function askAI(
     }
 
 }
+
+
+// Interface pequena e estável para outros recursos que precisam de conversas
+// com system prompts próprios. Mantém cliente, modelo e credencial existentes.
+export async function generateChatCompletion(messages) {
+    if (!groq) {
+        const error = new Error("GROQ_API_KEY não configurada.");
+        error.code = "AI_NOT_CONFIGURED";
+        throw error;
+    }
+    if (!Array.isArray(messages) || messages.length === 0) {
+        throw new TypeError("A lista de mensagens para a IA está vazia.");
+    }
+
+    const response = await groq.chat.completions.create({
+        model: MODEL,
+        messages,
+        temperature: 0.8,
+        max_tokens: 700,
+        reasoning_effort: "low"
+    });
+    const answer = response.choices?.[0]?.message?.content?.trim();
+    if (!answer) throw new Error("A IA retornou uma resposta vazia.");
+    return answer;
+}
