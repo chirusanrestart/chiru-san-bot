@@ -1,3 +1,5 @@
+import { registerConfiguredProviders } from "./providers/openaiCompatible.js";
+
 const DEFAULTS = {
     concurrency: 2,
     maxQueue: 100,
@@ -6,6 +8,12 @@ const DEFAULTS = {
     baseDelayMs: 500,
     maxDelayMs: 8000,
 };
+
+const DEFAULT_PROVIDER_ORDER = [
+    "groq", "gemini", "cerebras", "mistral", "openrouter",
+    "huggingface", "sambanova", "nvidia", "deepinfra",
+    "fireworks", "together", "openai",
+];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -37,6 +45,8 @@ export function classifyProviderError(error) {
 }
 
 export function createAIProviderManager(options = {}) {
+    const configuredOrder = (process.env.AI_PROVIDER_ORDER || DEFAULT_PROVIDER_ORDER.join(","))
+        .split(",").map(name => name.trim()).filter(Boolean);
     const config = {
         concurrency: options.concurrency ?? envInt("AI_CONCURRENCY", DEFAULTS.concurrency, 1, 32),
         maxQueue: options.maxQueue ?? envInt("AI_QUEUE_MAX", DEFAULTS.maxQueue, 1, 10000),
@@ -44,7 +54,7 @@ export function createAIProviderManager(options = {}) {
         retries: options.retries ?? envInt("AI_RETRIES", DEFAULTS.retries, 0, 5),
         baseDelayMs: options.baseDelayMs ?? envInt("AI_RETRY_BASE_MS", DEFAULTS.baseDelayMs, 50, 60000),
         maxDelayMs: options.maxDelayMs ?? envInt("AI_RETRY_MAX_MS", DEFAULTS.maxDelayMs, 100, 120000),
-        providerOrder: options.providerOrder ?? (process.env.AI_PROVIDER_ORDER || "groq,openai").split(",").map(x => x.trim()).filter(Boolean),
+        providerOrder: options.providerOrder ?? configuredOrder,
     };
 
     const providers = new Map();
@@ -91,15 +101,17 @@ export function createAIProviderManager(options = {}) {
 
     async function run(job) {
         const startedAt = Date.now();
-        const order = job.callOptions.providerOrder || config.providerOrder;
+        const order = [...new Set(job.callOptions.providerOrder || config.providerOrder)];
         let lastError;
+        let attemptedProviderCount = 0;
 
         try {
-            for (let index = 0; index < order.length; index++) {
-                const name = order[index];
+            for (const name of order) {
                 const provider = providers.get(name);
                 if (!provider?.enabled) continue;
-                if (index > 0) metrics.fallbacks++;
+
+                if (attemptedProviderCount > 0) metrics.fallbacks++;
+                attemptedProviderCount++;
 
                 const pm = providerMetrics(name);
                 let attempt = 0;
@@ -107,7 +119,11 @@ export function createAIProviderManager(options = {}) {
                     attempt++;
                     pm.requests++;
                     const controller = new AbortController();
-                    const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+                    let timedOut = false;
+                    const timeout = setTimeout(() => {
+                        timedOut = true;
+                        controller.abort();
+                    }, config.timeoutMs);
                     const externalSignal = job.callOptions.signal;
                     const abortExternal = () => controller.abort();
                     if (externalSignal) {
@@ -125,7 +141,11 @@ export function createAIProviderManager(options = {}) {
                             })),
                             new Promise((_, reject) => {
                                 controller.signal.addEventListener("abort", () => {
-                                    reject(Object.assign(new Error("AI provider timed out"), { name: "TimeoutError", code: "AI_TIMEOUT" }));
+                                    const error = Object.assign(
+                                        new Error(timedOut ? "AI provider timed out" : "AI request was aborted"),
+                                        { name: timedOut ? "TimeoutError" : "AbortError", code: timedOut ? "AI_TIMEOUT" : "AI_ABORTED" },
+                                    );
+                                    reject(error);
                                 }, { once: true });
                             }),
                         ]);
@@ -141,17 +161,23 @@ export function createAIProviderManager(options = {}) {
                         if (classified.kind === "timeout") metrics.timedOut++;
                         if (classified.kind === "rate_limit") metrics.rateLimited++;
 
+                        // A caller cancellation should never start retries or another provider.
+                        if (error?.code === "AI_ABORTED" || externalSignal?.aborted) break;
                         if (!classified.retryable || attempt > config.retries) break;
                         metrics.retries++;
-                        const retryAfter = Number(error?.headers?.["retry-after"] ?? error?.response?.headers?.["retry-after"]);
+                        const retryAfterRaw = error?.headers?.["retry-after"] ?? error?.response?.headers?.["retry-after"];
+                        const retryAfter = Number(retryAfterRaw);
                         const exponential = Math.min(config.maxDelayMs, config.baseDelayMs * (2 ** (attempt - 1)));
-                        await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, config.maxDelayMs) : exponential);
+                        await sleep(Number.isFinite(retryAfter) && retryAfter > 0
+                            ? Math.min(retryAfter * 1000, config.maxDelayMs)
+                            : exponential);
                     } finally {
                         clearTimeout(timeout);
                         externalSignal?.removeEventListener("abort", abortExternal);
                     }
                 }
 
+                if (lastError?.code === "AI_ABORTED" || job.callOptions.signal?.aborted) break;
                 // Do not send invalid requests or credentials to another provider.
                 if (lastError && !classifyProviderError(lastError).retryable) break;
             }
@@ -173,7 +199,12 @@ export function createAIProviderManager(options = {}) {
         };
     }
 
-    return { registerProvider, complete: enqueue, getMetrics };
+    function hasAvailableProvider() {
+        return config.providerOrder.some(name => providers.get(name)?.enabled);
+    }
+
+    return { registerProvider, complete: enqueue, getMetrics, hasAvailableProvider };
 }
 
 export const aiProviderManager = createAIProviderManager();
+registerConfiguredProviders(aiProviderManager);
