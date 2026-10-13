@@ -66,7 +66,6 @@ export default {
             "🧩 *Serviços*",
             `• IA Groq: ${serviceStatus(["GROQ_API_KEY"])}`,
             `• Pesquisa web Tavily: ${serviceStatus(["TAVILY_API_KEY"])}`,
-            `• Scraping Webfetch: ${serviceStatus(["WEBFETCH_API_KEY", "WEBFETCH_KEY"])}`,
             "",
             "ℹ️ *Nota:* 'Configurado' confirma apenas a presença da variável, não que a API esteja respondendo. Chaves e dados privados não são exibidos."
         ];
