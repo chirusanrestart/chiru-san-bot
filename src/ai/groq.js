@@ -1,5 +1,7 @@
 import Groq from "groq-sdk";
 import axios from "axios";
+import { aiProviderManager } from "./providerManager.js";
+import { createOpenAIProvider } from "./providers/openai.js";
 
 import personality from "./personality.js";
 
@@ -56,6 +58,17 @@ if (
         "⚠️ IA desativada: GROQ_API_KEY não configurada."
     );
 
+}
+
+if (groq) {
+    aiProviderManager.registerProvider("groq", (request, { signal } = {}) =>
+        groq.chat.completions.create(request, { signal })
+    );
+}
+
+const openAIProvider = createOpenAIProvider();
+if (openAIProvider) {
+    aiProviderManager.registerProvider("openai", openAIProvider);
 }
 
 if (
@@ -581,13 +594,7 @@ export async function askAI(
 
             }
 
-            const response =
-                await groq
-                    .chat
-                    .completions
-                    .create(
-                        request
-                    );
+            const response = await aiProviderManager.complete(request);
 
             const choice =
                 response.choices?.[0];
