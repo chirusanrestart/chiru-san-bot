@@ -29,12 +29,26 @@ export default {
       return;
     }
 
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch {}
+
+    const allowedHosts = new Set([
+      "youtube.com",
+      "www.youtube.com",
+      "music.youtube.com",
+      "m.youtube.com"
+    ]);
+
     if (
-      !url.includes("youtube.com/playlist") &&
-      !url.includes("music.youtube.com/playlist")
+      !parsedUrl ||
+      !["http:", "https:"].includes(parsedUrl.protocol) ||
+      !allowedHosts.has(parsedUrl.hostname.toLowerCase()) ||
+      parsedUrl.pathname !== "/playlist"
     ) {
       await sock.sendMessage(jid, {
-        text: "❌ Esse link não parece ser uma playlist do YouTube."
+        text: "❌ Envie um link válido de playlist do YouTube."
       });
       return;
     }
