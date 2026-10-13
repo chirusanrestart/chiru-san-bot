@@ -165,7 +165,8 @@ async function getHDMethods() {
 export async function runFFmpegSticker(
     input,
     output,
-    type = "image"
+    type = "image",
+    options = {}
 ) {
     type = normalizeType(type);
 
@@ -191,14 +192,49 @@ export async function runFFmpegSticker(
                 `🧪 FFmpeg Sticker: ${method}`
             );
 
+            const defaultVideoProfiles = [
+                { duration: 10, fps: 10, quality: 70 },
+                { duration: 8, fps: 8, quality: 60 },
+                { duration: 6, fps: 6, quality: 50 },
+                { duration: 4, fps: 5, quality: 40 }
+            ];
+
+            const hasOptions = options && Object.keys(options).length > 0;
+            const clamp = (value, fallback, min, max) => {
+                const number = Number(value);
+                return Number.isFinite(number)
+                    ? Math.min(max, Math.max(min, Math.round(number)))
+                    : fallback;
+            };
+
+            const requestedProfile = type === "video"
+                ? {
+                    // WhatsApp animated stickers are kept at or below 10 seconds.
+                    duration: clamp(options.duration, 10, 1, 10),
+                    fps: clamp(options.fps, 10, 1, 30),
+                    quality: clamp(options.quality, 70, 1, 100)
+                }
+                : {
+                    quality: clamp(options.quality, 80, 1, 100)
+                };
+
             const profiles = type === "video"
-                ? [
-                    { duration: 10, fps: 10, quality: 70 },
-                    { duration: 8, fps: 8, quality: 60 },
-                    { duration: 6, fps: 6, quality: 50 },
-                    { duration: 4, fps: 5, quality: 40 }
-                ]
-                : [null];
+                ? hasOptions
+                    ? [
+                        requestedProfile,
+                        ...defaultVideoProfiles.filter(profile =>
+                            profile.duration <= requestedProfile.duration &&
+                            profile.fps <= requestedProfile.fps &&
+                            profile.quality <= requestedProfile.quality &&
+                            (profile.duration !== requestedProfile.duration ||
+                                profile.fps !== requestedProfile.fps ||
+                                profile.quality !== requestedProfile.quality)
+                        )
+                    ]
+                    : defaultVideoProfiles
+                : hasOptions
+                    ? [requestedProfile]
+                    : [null];
 
             let lastError = null;
 
