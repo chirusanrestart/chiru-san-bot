@@ -14,7 +14,7 @@ export function createOpenAIProvider({
                 Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ ...request, model }),
+            body: JSON.stringify(({ reasoning_effort, ...compatibleRequest }) => ({ ...compatibleRequest, model })(request)),
         });
 
         if (!response.ok) {
