@@ -7,6 +7,7 @@ export function createOpenAIProvider({
     if (!apiKey?.trim()) return null;
 
     return async function openAICompletion(request, { signal } = {}) {
+        const { reasoning_effort: _reasoningEffort, ...compatibleRequest } = request;
         const response = await fetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
             method: "POST",
             signal,
@@ -14,7 +15,7 @@ export function createOpenAIProvider({
                 Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(({ reasoning_effort, ...compatibleRequest }) => ({ ...compatibleRequest, model })(request)),
+            body: JSON.stringify({ ...compatibleRequest, model }),
         });
 
         if (!response.ok) {
