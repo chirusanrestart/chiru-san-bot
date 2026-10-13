@@ -10,7 +10,7 @@ import {
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { zipSync } from "fflate";
+import { zipStickerFiles } from "./zipWorker.js";
 
 import { proto } from "@whiskeysockets/baileys/WAProto/index.js";
 
@@ -572,12 +572,7 @@ export async function createStickerPack(
 
     
 
-    const zipBuffer =
-        Buffer.from(
-            zipSync(
-                stickerFiles
-            )
-        );
+    const zipBuffer = await zipStickerFiles(stickerFiles);
 
     
 
