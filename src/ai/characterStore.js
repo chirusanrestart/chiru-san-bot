@@ -6,6 +6,7 @@ const directory = path.resolve("src/data");
 const file = path.join(directory, "character-chat.json");
 const MAX_HISTORY_MESSAGES = 12;
 let queue = Promise.resolve();
+const conversationLocks = new Map();
 
 function serialize(operation) {
     const current = queue.then(operation, operation);
@@ -21,6 +22,29 @@ function activeKey(userId, chatId, characterId) {
 }
 function sessionKey(userId, chatId, characterId, conversationId) {
     return JSON.stringify([userId, chatId, characterId, conversationId]);
+}
+
+// Garante que mensagens rápidas do mesmo usuário/chat/personagem sejam
+// respondidas em sequência, sempre usando o histórico atualizado.
+export async function withConversationLock(userId, chatId, characterId, operation) {
+    const key = activeKey(userId, chatId, characterId);
+    const previous = conversationLocks.get(key) || Promise.resolve();
+    let release;
+    const current = new Promise(resolve => {
+        release = resolve;
+    });
+    const tail = previous.catch(() => {}).then(() => current);
+    conversationLocks.set(key, tail);
+
+    await previous.catch(() => {});
+    try {
+        return await operation();
+    } finally {
+        release();
+        if (conversationLocks.get(key) === tail) {
+            conversationLocks.delete(key);
+        }
+    }
 }
 
 async function readState() {
