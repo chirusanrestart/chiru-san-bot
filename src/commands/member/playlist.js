@@ -45,7 +45,8 @@ export default {
       !parsedUrl ||
       !["http:", "https:"].includes(parsedUrl.protocol) ||
       !allowedHosts.has(parsedUrl.hostname.toLowerCase()) ||
-      parsedUrl.pathname !== "/playlist"
+      parsedUrl.pathname.replace(/\/+$/, "") !== "/playlist" ||
+      !parsedUrl.searchParams.has("list")
     ) {
       await sock.sendMessage(jid, {
         text: "❌ Envie um link válido de playlist do YouTube."
