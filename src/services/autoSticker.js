@@ -27,13 +27,16 @@ async function loadConfig() {
 
 async function saveConfig(config) {
 
+    await fs.mkdir("./src/data", { recursive: true, mode: 0o700 });
+
     await fs.writeFile(
         file,
         JSON.stringify(
             config,
             null,
             4
-        )
+        ),
+        { mode: 0o600 }
     );
 
 }
