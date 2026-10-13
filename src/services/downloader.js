@@ -17,6 +17,19 @@ export default class Downloader {
 
       const type = options.type || "video";
 
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        reject(new Error("URL inválida. Envie um link completo com http:// ou https://."));
+        return;
+      }
+
+      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+        reject(new Error("Por segurança, o download aceita apenas URLs HTTP ou HTTPS."));
+        return;
+      }
+
       const output = path.join(
         DOWNLOAD_DIR,
         `${randomUUID()}-%(title)s.%(ext)s`
@@ -83,7 +96,8 @@ export default class Downloader {
 
       }
 
-      args.push(url);
+      // Impede que uma URL iniciada por hífen seja interpretada como opção do yt-dlp.
+      args.push("--", url);
 
       const yt = spawn(
         "yt-dlp",
