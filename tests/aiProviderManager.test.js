@@ -51,7 +51,7 @@ test("fails clearly when no provider is available", async () => {
     assert.equal(manager.getMetrics().failed, 1);
 });
 
-test("does not fallback on invalid credentials", async () => {
+test("falls back to a separately configured provider when primary credentials are invalid", async () => {
     const manager = createAIProviderManager({ ...fast });
     let backupCalls = 0;
     manager.registerProvider("primary", async () => {
@@ -59,7 +59,7 @@ test("does not fallback on invalid credentials", async () => {
         error.status = 401;
         throw error;
     });
-    manager.registerProvider("backup", async () => { backupCalls++; return "bad"; });
-    await assert.rejects(manager.complete({}), /unauthorized/);
-    assert.equal(backupCalls, 0);
+    manager.registerProvider("backup", async () => { backupCalls++; return "backup-ok"; });
+    assert.equal(await manager.complete({}), "backup-ok");
+    assert.equal(backupCalls, 1);
 });
