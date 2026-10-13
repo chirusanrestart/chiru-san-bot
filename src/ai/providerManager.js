@@ -178,8 +178,10 @@ export function createAIProviderManager(options = {}) {
                 }
 
                 if (lastError?.code === "AI_ABORTED" || job.callOptions.signal?.aborted) break;
-                // Do not send invalid requests or credentials to another provider.
-                if (lastError && !classifyProviderError(lastError).retryable) break;
+                // Do not retry invalid credentials against the same provider. An auth failure
+                // may fall through to another provider, which uses its own independently configured key.
+                const lastClassification = lastError ? classifyProviderError(lastError) : null;
+                if (lastClassification && !lastClassification.retryable && lastClassification.kind !== "auth") break;
             }
             metrics.failed++;
             if (lastError) throw lastError;
