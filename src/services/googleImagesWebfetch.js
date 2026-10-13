@@ -8,6 +8,7 @@ function decodeEscapes(value) {
         .replace(/\\u0026/gi, "&")
         .replace(/\\u003c/gi, "<")
         .replace(/\\u003e/gi, ">")
+        .replace(/\\u002f/gi, "/")
         .replace(/\\\//g, "/")
         .replace(/&amp;/gi, "&")
         .replace(/\\x3d/gi, "=")
@@ -16,21 +17,17 @@ function decodeEscapes(value) {
 
 function normalizeImageUrl(value) {
     try {
-        const cleaned = decodeEscapes(value).replace(/\\u002[fF]/g, "/").trim();
+        const cleaned = decodeEscapes(value).trim().replace(/^["']|["']$/g, "");
         const url = new URL(cleaned);
         if (!["http:", "https:"].includes(url.protocol)) return null;
 
         const host = url.hostname.toLowerCase();
         if (
-            host === "google.com" ||
-            host.endsWith(".google.com") ||
-            host.endsWith(".googleusercontent.com") ||
-            host.endsWith(".gstatic.com") ||
-            host.endsWith(".googleapis.com") ||
-            host === "youtube.com" ||
-            host.endsWith(".youtube.com")
+            host !== "i.pinimg.com" &&
+            !host.endsWith(".pinimg.com")
         ) return null;
 
+        if (!/\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(url.pathname)) return null;
         url.hash = "";
         return url.href;
     } catch {
@@ -38,62 +35,61 @@ function normalizeImageUrl(value) {
     }
 }
 
-function extractImageUrls(html) {
+function extractPinterestImageUrls(html) {
     const source = decodeEscapes(html);
     const found = new Set();
 
-    // Google Images commonly embeds original URLs as murl/ou fields.
+    // Pinterest embeds image URLs in rendered HTML and JSON payloads.
     const patterns = [
-        /"(?:murl|ou)"\s*:\s*"(https?:\/\/[^"]+)"/gi,
-        /\["(https?:\/\/[^"\\]+)",\s*\d{2,5},\s*\d{2,5}\]/gi,
-        /https?:\/\/[^"'\s<>\\]+\.(?:jpe?g|png|webp|gif|avif|bmp)(?:\?[^"'\s<>\\]*)?/gi
+        /https?:\/\/i\.pinimg\.com\/[^"'\s<>\\]+/gi,
+        /https?:\\\/\\\/i\.pinimg\.com\\\/[^"'\s<>]+/gi,
+        /["'](?:url|image|src)["']\s*:\s*["'](https?:[^"']*pinimg\.com[^"']+)["']/gi
     ];
 
     for (const pattern of patterns) {
         let match;
         while ((match = pattern.exec(source))) {
-            const raw = match[1] || match[0];
+            const raw = (match[1] || match[0])
+                .replace(/\\u002f/gi, "/")
+                .replace(/\\\//g, "/")
+                .replace(/\\u003d/gi, "=")
+                .replace(/&amp;/gi, "&")
+                .replace(/[),;]+$/g, "");
+
             const url = normalizeImageUrl(raw);
             if (!url) continue;
-
-            let parsed;
-            try { parsed = new URL(url); } catch { continue; }
-            const path = parsed.pathname.toLowerCase();
-            const host = parsed.hostname.toLowerCase();
-            const hasImageExtension = /\.(?:jpe?g|png|webp|gif|avif|bmp)$/i.test(path);
-            const imageHost = /(?:images?|img|media|photos?|cdn|static|pinimg)/i.test(host);
-            if (!hasImageExtension && !imageHost) continue;
 
             found.add(url);
             if (found.size >= MAX_RESULTS) return [...found];
         }
     }
 
-    return [...found];
+    // Prefer original-size images when present, but keep other Pinterest image sizes
+    // as a fallback so the cloud source can still fill gaps.
+    const urls = [...found];
+    const originals = urls.filter(url => new URL(url).pathname.includes("/originals/"));
+    return originals.length >= 10 ? originals : urls;
 }
 
-export async function searchGoogleImagesWebfetch(query, limit = 120) {
+export async function searchPinterestWebfetch(query, limit = 120) {
     const apiKey = process.env.WEBFETCH_API_KEY || process.env.WEBFETCH_KEY;
     if (!apiKey) {
-        console.log("ℹ️ Google Imagens/Webfetch: WEBFETCH_API_KEY não configurada; pulando fonte externa.");
+        console.log("ℹ️ Pinterest/Webfetch: WEBFETCH_API_KEY não configurada; pulando fonte da nuvem.");
         return [];
     }
 
-    const searchUrl = new URL("https://www.google.com/search");
-    searchUrl.searchParams.set("tbm", "isch");
-    searchUrl.searchParams.set("hl", "en");
-    searchUrl.searchParams.set("safe", "active");
+    const searchUrl = new URL("https://www.pinterest.com/search/pins/");
     searchUrl.searchParams.set("q", String(query || "").trim());
 
     const apiUrl = new URL(API_ENDPOINT);
     apiUrl.searchParams.set("url", searchUrl.href);
-    apiUrl.searchParams.set("render_js", "false");
-    apiUrl.searchParams.set("return_page_source", "true");
+    apiUrl.searchParams.set("mode", "auto");
+    apiUrl.searchParams.set("max_cost", "25");
     apiUrl.searchParams.set("timeout", String(REQUEST_TIMEOUT_MS));
-    apiUrl.searchParams.set("tag", "chiru-san-pack-google-images");
+    apiUrl.searchParams.set("tag", "chiru-san-pack-pinterest");
 
     try {
-        console.log("🌐 Webfetch/Google Imagens:", query);
+        console.log("🌐 Webfetch/Pinterest:", query);
         const response = await fetch(apiUrl, {
             method: "GET",
             headers: {
@@ -111,22 +107,22 @@ export async function searchGoogleImagesWebfetch(query, limit = 120) {
                 const json = JSON.parse(body);
                 detail = json.code || json.error || detail;
             } catch {}
-            console.log("⚠️ Webfetch/Google Imagens HTTP " + response.status + ": " + detail);
+            console.log("⚠️ Webfetch/Pinterest HTTP " + response.status + ": " + detail);
             return [];
         }
 
         const safeLimit = Math.max(0, Math.min(Number(limit) || 0, MAX_RESULTS));
-        const urls = extractImageUrls(body).slice(0, safeLimit);
+        const urls = extractPinterestImageUrls(body).slice(0, safeLimit);
         const images = urls.map(url => ({
             url,
-            source: "google-images-webfetch",
+            source: "pinterest-webfetch",
             animated: /\.gif(?:[?#]|$)/i.test(url)
         }));
 
-        console.log("🌐 Webfetch/Google Imagens: " + images.length + " URLs candidatas");
+        console.log("🌐 Webfetch/Pinterest: " + images.length + " URLs candidatas");
         return images;
     } catch (error) {
-        console.log("⚠️ Webfetch/Google Imagens:", error.message);
+        console.log("⚠️ Webfetch/Pinterest:", error.message);
         return [];
     }
 }
