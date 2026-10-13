@@ -5,3 +5,4 @@ temp/
 logs/
 data/google-session.json
 src/data/memory.json
+src/data/character-chat.json
