@@ -65,7 +65,8 @@ async function getFilename(url) {
             method: "HEAD",
             headers: {
                 "User-Agent": "Chiru-san-Bot/1.0"
-            }
+            },
+            signal: AbortSignal.timeout(10000)
         });
 
         let filename =
@@ -80,7 +81,8 @@ async function getFilename(url) {
                 headers: {
                     "User-Agent": "Chiru-san-Bot/1.0",
                     Range: "bytes=0-0"
-                }
+                },
+                signal: AbortSignal.timeout(10000)
             });
 
             filename =
