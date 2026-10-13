@@ -42,6 +42,7 @@ Exemplos:
 
 ## Recursos
 
+- 🎭 Conversas com personagens configuráveis, histórico isolado por usuário/chat/personagem e persistência local
 - 🤖 Comandos para WhatsApp
 - 🧠 IA
 - 🎨 Criação e envio de figurinhas
