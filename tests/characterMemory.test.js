@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { historyLimit, withConversationLock } from "../src/ai/characterStore.js";
+import {
+    historyLimit,
+    withConversationLock,
+    withUserMemoryLock
+} from "../src/ai/characterStore.js";
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -33,7 +37,7 @@ test("allows separate characters to process independently", async () => {
     let peak = 0;
 
     await Promise.all(["furina", "miku"].map(characterId =>
-        withConversationLock("user-a", "chat-a", characterId, async () => {
+        withConversationLock("user-b", "chat-a", characterId, async () => {
             active++;
             peak = Math.max(peak, active);
             await delay(10);
@@ -42,6 +46,48 @@ test("allows separate characters to process independently", async () => {
     ));
 
     assert.equal(peak, 2);
+});
+
+test("memory reset waits for active turns and blocks later turns until done", async () => {
+    const order = [];
+    let releaseTurn;
+    const turnGate = new Promise(resolve => { releaseTurn = resolve; });
+
+    const turn = withUserMemoryLock("user-reset", "read", async () => {
+        order.push("turn-start");
+        await turnGate;
+        order.push("turn-end");
+    });
+
+    await delay(0);
+    const reset = withUserMemoryLock("user-reset", "write", async () => {
+        order.push("reset");
+    });
+    const laterTurn = withUserMemoryLock("user-reset", "read", async () => {
+        order.push("later-turn");
+    });
+
+    await delay(5);
+    assert.deepEqual(order, ["turn-start"]);
+    releaseTurn();
+    await Promise.all([turn, reset, laterTurn]);
+
+    assert.deepEqual(order, ["turn-start", "turn-end", "reset", "later-turn"]);
+});
+
+test("releases conversation locks after an operation fails", async () => {
+    await assert.rejects(
+        withConversationLock("user-c", "chat-a", "furina", async () => {
+            throw new Error("expected test failure");
+        }),
+        /expected test failure/
+    );
+
+    let completed = false;
+    await withConversationLock("user-c", "chat-a", "furina", async () => {
+        completed = true;
+    });
+    assert.equal(completed, true);
 });
 
 test("keeps the recent context bounded", () => {
