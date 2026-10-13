@@ -8,7 +8,7 @@ As chaves ficam apenas no `.env` local do Termux. Não compartilhe esse arquivo 
 
 | Provedor | Variável da chave | Variável do modelo |
 | --- | --- | --- |
-| Groq (existente) | `GROQ_API_KEY` | `GROQ_MODEL` (opcional; o padrão atual permanece) |
+| Groq (existente) | `GROQ_API_KEY` | modelo definido pela integração atual |
 | Gemini | `GEMINI_API_KEY` | `GEMINI_MODEL` |
 | Cerebras | `CEREBRAS_API_KEY` | `CEREBRAS_MODEL` |
 | Mistral | `MISTRAL_API_KEY` | `MISTRAL_MODEL` |
