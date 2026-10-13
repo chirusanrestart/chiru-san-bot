@@ -51,8 +51,23 @@ export async function withConversationLock(userId, chatId, characterId, operatio
 // Evita que o arquivo de memória cresça sem limite. Conversas antigas
 // não têm comando de restauração, então as sessões mais velhas são podadas.
 function pruneSessions(state) {
+    const activeSessionKeys = new Set();
+    for (const [key, conversationId] of Object.entries(state.activeSessions)) {
+        try {
+            const [userId, chatId, characterId] = JSON.parse(key);
+            activeSessionKeys.add(sessionKey(userId, chatId, characterId, conversationId));
+        } catch {
+            delete state.activeSessions[key];
+        }
+    }
+
     const entries = Object.entries(state.sessions)
-        .sort((a, b) => (Number(b[1]?.updatedAt) || 0) - (Number(a[1]?.updatedAt) || 0));
+        .sort((a, b) => {
+            const aActive = activeSessionKeys.has(a[0]) ? 1 : 0;
+            const bActive = activeSessionKeys.has(b[0]) ? 1 : 0;
+            if (aActive !== bActive) return bActive - aActive;
+            return (Number(b[1]?.updatedAt) || 0) - (Number(a[1]?.updatedAt) || 0);
+        });
 
     if (entries.length > MAX_STORED_SESSIONS) {
         for (const [key] of entries.slice(MAX_STORED_SESSIONS)) {
