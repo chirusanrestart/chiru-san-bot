@@ -202,7 +202,20 @@ export default {
                 ));
             }
 
-            items.push(checkEnv(["GROQ_API_KEY"], "Chave da IA Groq", true));
+            items.push(checkEnv([
+                "GROQ_API_KEY",
+                "OPENAI_API_KEY",
+                "GEMINI_API_KEY",
+                "CEREBRAS_API_KEY",
+                "MISTRAL_API_KEY",
+                "OPENROUTER_API_KEY",
+                "HF_TOKEN",
+                "SAMBANOVA_API_KEY",
+                "NVIDIA_API_KEY",
+                "DEEPINFRA_API_KEY",
+                "FIREWORKS_API_KEY",
+                "TOGETHER_API_KEY"
+            ], "Chave de IA (ao menos um provedor)", true));
             items.push(checkEnv(["TAVILY_API_KEY"], "Chave da pesquisa Tavily"));
             items.push(checkEnv(
                 ["WEBFETCH_API_KEY", "WEBFETCH_KEY", "SCRAPER_API_KEY"],
