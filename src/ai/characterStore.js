@@ -8,6 +8,69 @@ const MAX_HISTORY_MESSAGES = 12;
 const MAX_STORED_SESSIONS = 500;
 let queue = Promise.resolve();
 const conversationLocks = new Map();
+const userMemoryLocks = new Map();
+
+function lockState(userId) {
+    let state = userMemoryLocks.get(userId);
+    if (!state) {
+        state = { readers: 0, writer: false, queue: [] };
+        userMemoryLocks.set(userId, state);
+    }
+    return state;
+}
+
+function releaseFor(userId, state, mode) {
+    let done = false;
+    return () => {
+        if (done) return;
+        done = true;
+        if (mode === "write") state.writer = false;
+        else state.readers--;
+        drain(userId, state);
+        if (!state.readers && !state.writer && !state.queue.length &&
+            userMemoryLocks.get(userId) === state) userMemoryLocks.delete(userId);
+    };
+}
+
+function drain(userId, state) {
+    if (state.writer || state.readers || !state.queue.length) return;
+    if (state.queue[0].mode === "write") {
+        state.writer = true;
+        state.queue.shift().resolve(releaseFor(userId, state, "write"));
+        return;
+    }
+    while (state.queue.length && state.queue[0].mode === "read") {
+        state.readers++;
+        state.queue.shift().resolve(releaseFor(userId, state, "read"));
+    }
+}
+
+async function acquire(userId, mode) {
+    const state = lockState(userId);
+    if (mode === "read" && !state.writer &&
+        !state.queue.some(item => item.mode === "write")) {
+        state.readers++;
+        return releaseFor(userId, state, "read");
+    }
+    if (mode === "write" && !state.writer && !state.readers && !state.queue.length) {
+        state.writer = true;
+        return releaseFor(userId, state, "write");
+    }
+    return new Promise(resolve => {
+        state.queue.push({ mode, resolve });
+        drain(userId, state);
+    });
+}
+
+export async function withUserMemoryLock(userId, mode, operation) {
+    if (mode !== "read" && mode !== "write") throw new TypeError("Invalid memory lock mode");
+    const release = await acquire(userId, mode);
+    try {
+        return await operation();
+    } finally {
+        release();
+    }
+}
 
 function serialize(operation) {
     const current = queue.then(operation, operation);
@@ -28,24 +91,21 @@ function sessionKey(userId, chatId, characterId, conversationId) {
 // Garante que mensagens rápidas do mesmo usuário/chat/personagem sejam
 // respondidas em sequência, sempre usando o histórico atualizado.
 export async function withConversationLock(userId, chatId, characterId, operation) {
-    const key = activeKey(userId, chatId, characterId);
-    const previous = conversationLocks.get(key) || Promise.resolve();
-    let release;
-    const current = new Promise(resolve => {
-        release = resolve;
-    });
-    const tail = previous.catch(() => {}).then(() => current);
-    conversationLocks.set(key, tail);
-
-    await previous.catch(() => {});
-    try {
-        return await operation();
-    } finally {
-        release();
-        if (conversationLocks.get(key) === tail) {
-            conversationLocks.delete(key);
+    return withUserMemoryLock(userId, "read", async () => {
+        const key = activeKey(userId, chatId, characterId);
+        const previous = conversationLocks.get(key) || Promise.resolve();
+        let release;
+        const current = new Promise(resolve => { release = resolve; });
+        const tail = previous.catch(() => {}).then(() => current);
+        conversationLocks.set(key, tail);
+        await previous.catch(() => {});
+        try {
+            return await operation();
+        } finally {
+            release();
+            if (conversationLocks.get(key) === tail) conversationLocks.delete(key);
         }
-    }
+    });
 }
 
 // Evita que o arquivo de memória cresça sem limite. Conversas antigas
