@@ -35,6 +35,8 @@ export default class CommandHandler {
                     continue;
                 }
 
+                // Preserve explicit categories; otherwise use the folder the command came from.
+                cmd.category = cmd.category || folder;
                 this.commands.set(cmd.name, cmd);
 
                 for (const alias of cmd.aliases || []) {
