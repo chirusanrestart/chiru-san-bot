@@ -28,6 +28,15 @@ const apiKey =
 const tavilyApiKey =
     process.env.TAVILY_API_KEY;
 
+const webfetchApiKey =
+    process.env.WEBFETCH_API_KEY || process.env.WEBFETCH_KEY;
+
+if (webfetchApiKey && webfetchApiKey.trim().length > 0) {
+    console.log("🌐 Scraper Webfetch ativado!");
+} else {
+    console.log("⚠️ Scraper Webfetch desativado: WEBFETCH_API_KEY não configurada.");
+}
+
 if (
     apiKey &&
     apiKey.trim().length > 0
