@@ -57,7 +57,7 @@ O código principal fica em `src/`, com comandos e serviços separados por funç
 
 A sessão do WhatsApp é armazenada em `auth/`. A memória da IA geral fica em `src/data/memory.json`; o histórico de personagens fica em `src/data/character-chat.json`. Esses arquivos são locais e ignorados pelo Git.
 
-**Privacidade:** a sessão do WhatsApp, cookies, credenciais e arquivos de memória/conversas continuam fora do Git. O `.env` é uma exceção intencional deste projeto e permanece versionado.
+**Privacidade:** a sessão do WhatsApp, cookies, credenciais e arquivos de memória/conversas ficam fora do Git. O `.env` também é ignorado pelo Git e deve permanecer apenas no ambiente local. Nunca versione chaves de API; se alguma chave real já foi publicada, revogue-a e gere outra.
 
 ## Conversas com personagens
 
