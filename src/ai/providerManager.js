@@ -182,7 +182,10 @@ export function createAIProviderManager(options = {}) {
                 if (lastError && !classifyProviderError(lastError).retryable) break;
             }
             metrics.failed++;
-            throw lastError || new Error("No configured AI provider is available.");
+            if (lastError) throw lastError;
+            const error = new Error("No configured AI provider is available.");
+            error.code = "AI_NOT_CONFIGURED";
+            throw error;
         } finally {
             metrics.totalLatencyMs += Date.now() - startedAt;
         }
