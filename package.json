@@ -7,7 +7,7 @@
     "start": "node src/app.js",
     "build:turbojpeg": "bash scripts/build-turbojpeg.sh",
     "test:ai": "node --test tests/aiProviderManager.test.js tests/openAICompatibleProvider.test.js",
-    "test:memory": "node --test tests/characterMemory.test.js"
+    "test:memory": "node --test tests/characterMemory.test.js tests/characterStore.test.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
