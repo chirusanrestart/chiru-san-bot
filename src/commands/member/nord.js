@@ -11,6 +11,9 @@ export default {
     description: "Aplica estilo Nord em imagens",
 
     async execute(sock, msg) {
+        let input;
+        let output;
+
         try {
             const quoted =
                 msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -47,11 +50,13 @@ export default {
             );
 
             const id = crypto.randomBytes(5).toString("hex");
+            input = `./temp/${id}.jpg`;
+            output = `./temp/${id}-nord.jpg`;
 
-            const input = `./temp/${id}.jpg`;
-            const output = `./temp/${id}-nord.jpg`;
-
+            // .nord também deve funcionar antes de qualquer comando criar ./temp.
+            await fs.mkdir("./temp", { recursive: true });
             await fs.writeFile(input, buffer);
+
             await execAsync(
                 `ffmpeg -y -i "${input}" -vf "eq=contrast=1.15:brightness=0.03:saturation=0.82,colorbalance=rs=-0.08:gs=0.04:bs=0.28,curves=blue='0/0 0.45/0.55 0.75/0.82 1/1',unsharp=5:5:0.4" "${output}"`
             );
@@ -66,10 +71,6 @@ export default {
                 },
                 { quoted: msg }
             );
-
-            await fs.unlink(input).catch(() => {});
-            await fs.unlink(output).catch(() => {});
-
         } catch (err) {
             console.error("Erro no nord:", err);
 
@@ -80,6 +81,9 @@ export default {
                 },
                 { quoted: msg }
             );
+        } finally {
+            if (input) await fs.unlink(input).catch(() => {});
+            if (output) await fs.unlink(output).catch(() => {});
         }
     }
 };
