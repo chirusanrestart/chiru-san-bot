@@ -17,7 +17,7 @@ cd chiru-san-bot
 npm install
 ```
 
-O arquivo `.env` já faz parte do repositório e contém as configurações usadas pelo bot. Se precisar alterar as chaves, edite `.env` e faça commit. Depois inicie:
+Configure suas chaves localmente no arquivo `.env` e nunca publique chaves reais no Git. Depois inicie:
 
 ```bash
 npm start
@@ -55,9 +55,23 @@ Exemplos:
 
 O código principal fica em `src/`, com comandos e serviços separados por função.
 
-A sessão do WhatsApp é armazenada em `auth/`. A memória da IA é criada localmente em `src/data/memory.json` quando necessária.
+A sessão do WhatsApp é armazenada em `auth/`. A memória da IA geral fica em `src/data/memory.json`; o histórico de personagens fica em `src/data/character-chat.json`. Esses arquivos são locais e ignorados pelo Git.
 
 **Privacidade:** a sessão do WhatsApp, cookies, credenciais e arquivos de memória/conversas continuam fora do Git. O `.env` é uma exceção intencional deste projeto e permanece versionado.
+
+## Conversas com personagens
+
+- `.personagens`: lista os personagens configurados em `src/ai/characters.js`.
+- `.personagem NOME`: seleciona um personagem pelo nome, ID ou alias.
+- `.falar MENSAGEM` (alias `.conversar`): conversa com o personagem selecionado.
+- `.novaconversa`: inicia uma sessão nova para o personagem atual.
+- `.novaconversa limpar`: apaga o histórico de personagens do usuário em todos os chats, mantendo as seleções.
+
+Para criar um personagem, adicione um objeto a `src/ai/characters.js` com `id`, `name`, `aliases`, `description` e `systemPrompt`. Não é necessário alterar os comandos nem o armazenamento. A camada `src/ai/characterProvider.js` usa o cliente Groq já existente; para trocar de provedor, substitua essa implementação mantendo a função `generateCharacterReply(messages)`.
+
+O histórico é separado por usuário, chat, personagem e sessão. O armazenamento limita o contexto enviado à IA às últimas 12 mensagens, limita o texto de entrada e grava o arquivo com permissões restritas quando o sistema de arquivos permite.
+
+Teste o isolamento com `node --test tests/characterStore.test.js`.
 
 ## Observação
 
