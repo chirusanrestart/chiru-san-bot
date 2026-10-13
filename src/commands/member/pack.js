@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
-import { searchPinterestWebfetch } from "../../services/googleImagesWebfetch.js";
+import { searchPinterestWebfetch } from "../../services/pinterestWebfetch.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
