@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/app.js",
     "build:turbojpeg": "bash scripts/build-turbojpeg.sh",
-    "test:ai": "node --test tests/aiProviderManager.test.js"
+    "test:ai": "node --test tests/aiProviderManager.test.js tests/openAICompatibleProvider.test.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
