@@ -51,6 +51,8 @@ const autoStickerTimers =
 
 let reconnectTimer = null;
 let reconnectAttempts = 0;
+let activeSocket = null;
+let startPromise = null;
 
 // Nunca deixe uma rejeição global derrubar o processo silenciosamente.
 process.on("unhandledRejection", error => {
@@ -63,10 +65,14 @@ process.on("uncaughtException", error => {
     setTimeout(() => process.exit(1), 250);
 });
 
-function scheduleReconnect(delay = 3000) {
+function scheduleReconnect(delay) {
+    // Apenas um temporizador de reconexão pode existir por vez.
     if (reconnectTimer) return;
 
-    const safeDelay = Math.min(Math.max(delay, 3000), 30000);
+    const exponentialDelay = Math.min(3000 * (2 ** reconnectAttempts), 30000);
+    const safeDelay = Math.min(Math.max(delay ?? exponentialDelay, 3000), 30000);
+
+    console.log(`⏳ Nova tentativa de conexão em ${Math.ceil(safeDelay / 1000)}s...`);
 
     reconnectTimer = setTimeout(async () => {
         reconnectTimer = null;
@@ -74,10 +80,11 @@ function scheduleReconnect(delay = 3000) {
 
         try {
             await startBot();
-            reconnectAttempts = 0;
+            // Não zerar tentativas aqui: startBot só significa que o socket
+            // foi criado. O contador é zerado apenas após "connection: open".
         } catch (error) {
             console.error("❌ Falha ao reconectar:", error);
-            scheduleReconnect(Math.min(3000 * Math.max(reconnectAttempts, 1), 30000));
+            scheduleReconnect();
         }
     }, safeDelay);
 }
@@ -527,7 +534,7 @@ async function createAutoSticker(
     }
 }
 
-async function startBot() {
+async function startBotInternal() {
 
     const {
         state,
@@ -558,6 +565,9 @@ async function startBot() {
                         "error"
                 })
         });
+
+    // Guarda o socket atual para ignorar eventos atrasados de conexões antigas.
+    activeSocket = sock;
 
     const commandHandler =
         new CommandHandler(
@@ -592,6 +602,8 @@ async function startBot() {
             lastDisconnect
         }) => {
 
+            if (sock !== activeSocket) return;
+
             if (
                 connection ===
                 "open"
@@ -615,6 +627,9 @@ async function startBot() {
                 connection ===
                 "close"
             ) {
+                // Invalida este socket antes de agendar a próxima tentativa.
+                if (sock === activeSocket) activeSocket = null;
+
                 try {
 
                 const status =
@@ -632,6 +647,10 @@ async function startBot() {
                 if (
                     status === DisconnectReason.loggedOut
                 ) {
+                    if (reconnectTimer) {
+                        clearTimeout(reconnectTimer);
+                        reconnectTimer = null;
+                    }
                     console.log(
                         "❌ Sessão encerrada. Faça o pareamento novamente."
                     );
@@ -689,6 +708,20 @@ async function startBot() {
                 rl.close();
             }
         );
+    }
+}
+
+// Impede duas inicializações simultâneas, por exemplo se o início e uma
+// desconexão acontecerem quase ao mesmo tempo.
+async function startBot() {
+    if (startPromise) return startPromise;
+
+    startPromise = startBotInternal();
+
+    try {
+        return await startPromise;
+    } finally {
+        startPromise = null;
     }
 }
 
