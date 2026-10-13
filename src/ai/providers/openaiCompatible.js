@@ -114,7 +114,7 @@ export function createOpenAICompatibleProvider({
         }
 
         // These fields are not consistently accepted by OpenAI-compatible APIs.
-        const { reasoning_effort: _reasoningEffort, ...compatibleRequest } = request || {};
+        const { reasoning_effort: _reasoningEffort, parallel_tool_calls: _parallelToolCalls, ...compatibleRequest } = request || {};
         const response = await fetchImpl(endpoint, {
             method: "POST",
             signal,
