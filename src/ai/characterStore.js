@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 const directory = path.resolve("src/data");
 const file = path.join(directory, "character-chat.json");
 const MAX_HISTORY_MESSAGES = 12;
+const MAX_STORED_SESSIONS = 500;
 let queue = Promise.resolve();
 const conversationLocks = new Map();
 
@@ -43,6 +44,31 @@ export async function withConversationLock(userId, chatId, characterId, operatio
         release();
         if (conversationLocks.get(key) === tail) {
             conversationLocks.delete(key);
+        }
+    }
+}
+
+// Evita que o arquivo de memória cresça sem limite. Conversas antigas
+// não têm comando de restauração, então as sessões mais velhas são podadas.
+function pruneSessions(state) {
+    const entries = Object.entries(state.sessions)
+        .sort((a, b) => (Number(b[1]?.updatedAt) || 0) - (Number(a[1]?.updatedAt) || 0));
+
+    if (entries.length > MAX_STORED_SESSIONS) {
+        for (const [key] of entries.slice(MAX_STORED_SESSIONS)) {
+            delete state.sessions[key];
+        }
+    }
+
+    // Remove referências para sessões que foram podadas ou apagadas.
+    for (const [key, conversationId] of Object.entries(state.activeSessions)) {
+        try {
+            const [userId, chatId, characterId] = JSON.parse(key);
+            if (!state.sessions[sessionKey(userId, chatId, characterId, conversationId)]) {
+                delete state.activeSessions[key];
+            }
+        } catch {
+            delete state.activeSessions[key];
         }
     }
 }
@@ -94,12 +120,13 @@ export async function getConversation(userId, chatId, characterId) {
         const state = await readState();
         const key = activeKey(userId, chatId, characterId);
         let conversationId = state.activeSessions[key];
-        if (!conversationId) {
+        if (!conversationId || !state.sessions[sessionKey(userId, chatId, characterId, conversationId)]) {
             conversationId = randomUUID();
             state.activeSessions[key] = conversationId;
             state.sessions[sessionKey(userId, chatId, characterId, conversationId)] = {
                 history: [], updatedAt: Date.now()
             };
+            pruneSessions(state);
             await writeState(state);
         }
         const session = state.sessions[sessionKey(userId, chatId, characterId, conversationId)];
@@ -120,6 +147,7 @@ export async function appendTurn(userId, chatId, characterId, conversationId, us
         session.history = session.history.slice(-MAX_HISTORY_MESSAGES);
         session.updatedAt = Date.now();
         state.sessions[key] = session;
+        pruneSessions(state);
         await writeState(state);
     });
 }
@@ -132,6 +160,7 @@ export async function startNewConversation(userId, chatId, characterId) {
         state.sessions[sessionKey(userId, chatId, characterId, id)] = {
             history: [], updatedAt: Date.now()
         };
+        pruneSessions(state);
         await writeState(state);
     });
 }
