@@ -70,7 +70,7 @@ function scheduleReconnect(delay) {
     if (reconnectTimer) return;
 
     const exponentialDelay = Math.min(3000 * (2 ** reconnectAttempts), 30000);
-    const safeDelay = Math.min(Math.max(delay ?? exponentialDelay, 3000), 30000);
+    const safeDelay = Math.min(Math.max(delay ?? 0, exponentialDelay, 3000), 30000);
 
     console.log(`⏳ Nova tentativa de conexão em ${Math.ceil(safeDelay / 1000)}s...`);
 
