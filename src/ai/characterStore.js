@@ -88,7 +88,7 @@ async function processIsAlive(pid) {
 
 // Lock no sistema de arquivos: também coordena duas instâncias Node/PM2.
 // O lock só envolve operações curtas de leitura/gravação, nunca a chamada à IA.
-async function withNamedFileLock(lockPath, operation) {
+async function withNamedFileLock(lockPath, operation, timeoutMs = FILE_LOCK_TIMEOUT_MS) {
     await fs.mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 });
     const startedAt = Date.now();
 
@@ -133,7 +133,7 @@ async function withNamedFileLock(lockPath, operation) {
                 throw statError;
             }
 
-            if (Date.now() - startedAt >= FILE_LOCK_TIMEOUT_MS) {
+            if (timeoutMs !== null && Date.now() - startedAt >= timeoutMs) {
                 throw new Error("Tempo esgotado aguardando o bloqueio da memória de personagens.");
             }
             await new Promise(resolve => setTimeout(resolve, 25));
@@ -180,7 +180,7 @@ export async function withConversationLock(userId, chatId, characterId, operatio
         try {
             // Também serializa a mesma conversa quando há mais de um processo Node/PM2.
             // O lock é específico da conversa, então personagens diferentes continuam independentes.
-            return await withNamedFileLock(conversationLockPath(key), operation);
+            return await withNamedFileLock(conversationLockPath(key), operation, null);
         } finally {
             release();
             if (conversationLocks.get(key) === tail) conversationLocks.delete(key);
