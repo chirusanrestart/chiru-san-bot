@@ -7,7 +7,6 @@ import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
-import { searchGoogleImagesWebfetch } from "../../services/googleImagesWebfetch.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
@@ -372,10 +371,6 @@ async function findImages(query) {
         add(await resolvePinterestImages(pins, Math.max(TOTAL * 2, 80)));
     }
 
-    // Fallback externo: Webfetch/Google Imagens, somente se as fontes anteriores não bastarem.
-    if (all.length < TOTAL * 2) {
-        add(await searchGoogleImagesWebfetch(query, Math.max(TOTAL * 2 - all.length, 0)));
-    }
 
     const selected = [
         ...shuffle(all.filter(x => x.animated)).slice(0, 30),
