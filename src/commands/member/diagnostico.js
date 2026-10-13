@@ -191,7 +191,16 @@ export default {
             items.push(await checkFile("package.json", "package.json"));
             items.push(await checkFile("src/app.js", "Inicializador src/app.js"));
             items.push(await checkFile("src/handlers/CommandHandler.js", "Carregador de comandos"));
-            items.push(await checkFile(".env", "Arquivo .env"));
+            try {
+                await fs.access(path.resolve(ROOT, ".env"));
+                items.push(result("ok", "Arquivo .env", "arquivo encontrado; conteúdo não é exibido"));
+            } catch {
+                items.push(result(
+                    "warn",
+                    "Arquivo .env",
+                    "não encontrado; as variáveis podem ter sido definidas no ambiente do processo"
+                ));
+            }
 
             items.push(checkEnv(["GROQ_API_KEY"], "Chave da IA Groq", true));
             items.push(checkEnv(["TAVILY_API_KEY"], "Chave da pesquisa Tavily"));
