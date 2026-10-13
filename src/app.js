@@ -114,6 +114,7 @@ const MESSAGE_CONCURRENCY = Math.max(
 );
 
 const incomingMessages = [];
+const MAX_INCOMING_QUEUE = 100;
 let activeMessageTasks = 0;
 
 // Auto-sticker usa FFmpeg e buffers grandes. Limita jobs simultâneos
@@ -188,6 +189,24 @@ function isRelevantMessage(msg) {
 
 function scheduleMessage(sock, commandHandler, msg) {
     if (!isRelevantMessage(msg)) return;
+
+    if (incomingMessages.length >= MAX_INCOMING_QUEUE) {
+        console.warn("⚠️ Fila de mensagens cheia; mensagem ignorada para proteger a memória.");
+        const text =
+            msg.message?.conversation ||
+            msg.message?.extendedTextMessage?.text ||
+            msg.message?.imageMessage?.caption ||
+            msg.message?.videoMessage?.caption ||
+            "";
+        if (text.trimStart().startsWith(".")) {
+            void sock.sendMessage(msg.key.remoteJid, {
+                text: "⏳ Estou com muitas mensagens na fila agora. Tenta esse comando novamente daqui a pouquinho."
+            }).catch(error => {
+                console.warn("⚠️ Não consegui avisar sobre a fila cheia:", error?.message || error);
+            });
+        }
+        return;
+    }
 
     incomingMessages.push({ sock, commandHandler, msg });
     drainIncomingMessages();

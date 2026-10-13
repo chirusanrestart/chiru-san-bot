@@ -51,7 +51,8 @@ async function fetchPinterest(
 
                     "Accept-Language":
                         "pt-BR,pt;q=0.9,en;q=0.8"
-                }
+                },
+                signal: AbortSignal.timeout(15000)
             }
         );
 
@@ -354,75 +355,6 @@ async function resolvePinterestImages(
 
 
 
-async function searchSafebooru(query) {
-    // Só aceita posts cujas tags realmente correspondam ao personagem pedido.
-    // Se a busca falhar ou não houver correspondências, retorna [] sem afetar o scraper local.
-    const requested = String(query || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-
-    if (!requested) return [];
-
-    try {
-        const url = new URL("https://safebooru.org/index.php");
-        url.searchParams.set("page", "dapi");
-        url.searchParams.set("s", "post");
-        url.searchParams.set("q", "index");
-        url.searchParams.set("json", "1");
-        url.searchParams.set("limit", "100");
-        url.searchParams.set("tags", requested);
-
-        console.log(`🔎 Safebooru: procurando tags de "${query}"`);
-        const response = await fetch(url, {
-            headers: {
-                "User-Agent": "ChiruSanBot/1.0 (image search)",
-                "Accept": "application/json"
-            },
-            signal: AbortSignal.timeout(10000)
-        });
-
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        const data = await response.json();
-        if (!Array.isArray(data)) return [];
-
-        const terms = requested.split("_").filter(Boolean);
-        const results = [];
-
-        for (const post of data) {
-            const tags = String(post.tags || "").toLowerCase().split(/\s+/);
-            // Evita trazer personagens diferentes por coincidência de resultados.
-            const matches = tags.some(tag =>
-                tag === requested ||
-                tag.includes(requested) ||
-                (terms.length === 1 && tag.split("_").includes(terms[0])) ||
-                (terms.length > 1 && terms.every(term => tag.split("_").includes(term)))
-            );
-            if (!matches) continue;
-
-            const imageUrl = post.file_url;
-            if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) continue;
-
-            results.push({
-                url: imageUrl,
-                source: "safebooru",
-                animated: isAnimated(imageUrl),
-                title: post.tags || query,
-                description: post.tags || "",
-                safebooruId: post.id
-            });
-        }
-
-        console.log(`🖼️ Safebooru: ${results.length} resultados válidos para "${query}"`);
-        return results;
-    } catch (error) {
-        console.log("⚠️ Safebooru indisponível:", error.message);
-        return [];
-    }
-}
-
 async function findImages(query) {
     const all = [];
     const seen = new Set();
@@ -441,10 +373,6 @@ async function findImages(query) {
         add(await resolvePinterestImages(pins, Math.max(TOTAL * 2, 80)));
     }
 
-    // Safebooru é apenas complemento: se não houver resultados relevantes,
-    // mantém intactas todas as imagens já obtidas pelo scraper local.
-    add(await searchSafebooru(query));
-
     const selected = [
         ...shuffle(all.filter(x => x.animated)).slice(0, 30),
         ...shuffle(all.filter(x => !x.animated)).slice(0, 30)
@@ -459,7 +387,10 @@ async function findImages(query) {
 }
 
 async function download(url, file) {
-    const res = await fetch(url, { headers: { "User-Agent": "chiru-san-bot/1.0" } });
+    const res = await fetch(url, {
+        headers: { "User-Agent": "chiru-san-bot/1.0" },
+        signal: AbortSignal.timeout(20000)
+    });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length > MAX_IMAGE) throw new Error("imagem muito grande");

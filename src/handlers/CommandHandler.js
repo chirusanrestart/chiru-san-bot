@@ -53,14 +53,17 @@ export default class CommandHandler {
             msg.message?.imageMessage?.caption ||
             msg.message?.videoMessage?.caption;
 
-        if (!text || !text.startsWith(".")) return;
+        const normalizedText = text?.trimStart();
+        if (!normalizedText || !normalizedText.startsWith(".")) return;
 
-        const args = text.slice(1).trim().split(/\s+/);
+        const args = normalizedText.slice(1).trim().split(/\s+/);
         const commandName = args.shift();
         const command = this.commands.get(commandName);
 
         if (!command) return;
 
+        // Disponibiliza o registro de comandos para comandos como .menu.
+        msg.commandHandler = this;
         await command.execute(this.sock, msg, args);
     }
 }
