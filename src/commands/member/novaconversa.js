@@ -1,5 +1,6 @@
 import { getSelectedCharacter, startNewConversation, clearUserHistory, withUserMemoryLock } from "../../ai/characterStore.js";
 import { getCharacter } from "../../ai/characters.js";
+import { clearUserLongTermMemory } from "../../ai/characterLongTermMemory.js";
 
 export default {
     name: "novaconversa",
@@ -12,13 +13,13 @@ export default {
         try {
             if (mode === "limpar") {
                 // Espera turnos em andamento terminarem antes de apagar o histórico.
-                await withUserMemoryLock(userId, "write", () => clearUserHistory(userId));
+                await withUserMemoryLock(userId, "write", async () => {\n                    await clearUserHistory(userId);\n                    await clearUserLongTermMemory(userId);\n                });
                 return sock.sendMessage(chatId, {
-                    text: "🧹 Seu histórico de conversas com personagens foi apagado em todos os chats. Sua seleção de personagem foi mantida."
+                    text: "🧹 Seus históricos e memórias duradouras de personagens foram apagados em todos os chats. Sua seleção de personagem foi mantida."
                 });
             }
             if (mode && mode !== "nova") {
-                return sock.sendMessage(chatId, { text: "Use *.novaconversa* para começar de novo ou *.novaconversa limpar* para apagar todo seu histórico." });
+                return sock.sendMessage(chatId, { text: "Use *.novaconversa* para começar de novo ou *.novaconversa limpar* para apagar históricos e memórias duradouras." });
             }
 
             const started = await withUserMemoryLock(userId, "write", async () => {
