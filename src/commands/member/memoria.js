@@ -52,7 +52,7 @@ export default {
                     ...(durableMemory.memories.length ? ["", "*Lembranças salvas:*", ...durableMemory.memories.map(memory => `• ${memory}`)] : []),
                     "",
                     "✨ *.novaconversa* começa um contexto vazio.",
-                    "🧹 *.novaconversa limpar* apaga seus históricos de personagens."
+                    "🧹 *.novaconversa limpar* apaga históricos e memórias duradouras."
                 ].join("\n")
             });
         } catch (error) {
