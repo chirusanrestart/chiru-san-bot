@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createHash } from "node:crypto";
 
 const directory = path.resolve("src/data");
 const file = path.join(directory, "character-long-term-memory.json");
