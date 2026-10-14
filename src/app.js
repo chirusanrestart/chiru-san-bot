@@ -49,8 +49,6 @@ const autoStickerBuffers =
 const autoStickerTimers =
     new Map();
 
-let reconnectTimer = null;
-let reconnectAttempts = 0;
 let activeSocket = null;
 let startPromise = null;
 
@@ -64,30 +62,6 @@ process.on("uncaughtException", error => {
     console.error("🔄 Encerrando para o PM2 reiniciar o bot com estado limpo...");
     setTimeout(() => process.exit(1), 250);
 });
-
-function scheduleReconnect(delay) {
-    // Apenas um temporizador de reconexão pode existir por vez.
-    if (reconnectTimer) return;
-
-    const exponentialDelay = Math.min(3000 * (2 ** reconnectAttempts), 30000);
-    const safeDelay = Math.min(Math.max(delay ?? 0, exponentialDelay, 3000), 30000);
-
-    console.log(`⏳ Nova tentativa de conexão em ${Math.ceil(safeDelay / 1000)}s...`);
-
-    reconnectTimer = setTimeout(async () => {
-        reconnectTimer = null;
-        reconnectAttempts++;
-
-        try {
-            await startBot();
-            // Não zerar tentativas aqui: startBot só significa que o socket
-            // foi criado. O contador é zerado apenas após "connection: open".
-        } catch (error) {
-            console.error("❌ Falha ao reconectar:", error);
-            scheduleReconnect();
-        }
-    }, safeDelay);
-}
 
 const sleep =
     ms =>
@@ -617,12 +591,6 @@ async function startBotInternal() {
                 "open"
             ) {
 
-                if (reconnectTimer) {
-                    clearTimeout(reconnectTimer);
-                    reconnectTimer = null;
-                }
-                reconnectAttempts = 0;
-
                 console.log(
                     "🟢 Bot conectado!"
                 );
@@ -655,10 +623,6 @@ async function startBotInternal() {
                 if (
                     status === DisconnectReason.loggedOut
                 ) {
-                    if (reconnectTimer) {
-                        clearTimeout(reconnectTimer);
-                        reconnectTimer = null;
-                    }
                     console.log(
                         "❌ Sessão encerrada. Faça o pareamento novamente."
                     );
@@ -666,13 +630,14 @@ async function startBotInternal() {
                 }
 
                 console.log(
-                    "🔄 Agendando reconexão..."
+                    "🔄 Conexão encerrada; tentando reconectar imediatamente..."
                 );
 
-                scheduleReconnect(3000);
+                startBot().catch(error => {
+                    console.error("❌ Falha na reconexão imediata:", error);
+                });
                 } catch (error) {
                     console.error("❌ Erro tratando desconexão:", error);
-                    scheduleReconnect(5000);
                 }
             }
         }
@@ -735,5 +700,4 @@ async function startBot() {
 
 startBot().catch(error => {
     console.error("❌ Falha ao iniciar o bot:", error);
-    scheduleReconnect(5000);
 });
