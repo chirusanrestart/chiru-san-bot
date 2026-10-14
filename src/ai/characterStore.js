@@ -8,7 +8,8 @@ const fileLock = `${file}.lock`;
 const conversationLockDirectory = path.join(directory, ".conversation-locks");
 const FILE_LOCK_STALE_MS = 60_000;
 const FILE_LOCK_TIMEOUT_MS = 30_000;
-const MAX_HISTORY_MESSAGES = 12;
+// Mantém mais contexto por personagem sem ultrapassar indefinidamente o limite de tokens.
+const MAX_HISTORY_MESSAGES = 40;
 const MAX_STORED_SESSIONS = 500;
 let queue = Promise.resolve();
 const conversationLocks = new Map();
