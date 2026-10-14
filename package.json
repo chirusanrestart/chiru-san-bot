@@ -8,7 +8,7 @@
     "check:syntax": "node scripts/check-syntax.mjs",
     "build:turbojpeg": "bash scripts/build-turbojpeg.sh",
     "test:ai": "node --test tests/aiProviderManager.test.js tests/openAICompatibleProvider.test.js",
-    "test:memory": "node --test tests/characterMemory.test.js tests/characterStore.test.js",
+    "test:memory": "node --test tests/characterMemory.test.js tests/characterStore.test.js tests/characterLongTermMemory.test.js",
     "test:characters": "node --test tests/characters.test.js"
   },
   "dependencies": {
