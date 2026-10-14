@@ -108,9 +108,11 @@ const randomDelay =
 
 // A thread principal agenda mensagens e limita concorrência;
 // não espera um atraso artificial entre cada mensagem recebida.
+// Concorrência configurável, sem teto artificial de 4 tarefas.
+// Valor padrão alto para absorver rajadas; ajuste via MESSAGE_CONCURRENCY se necessário.
 const MESSAGE_CONCURRENCY = Math.max(
     1,
-    Math.min(4, Number.parseInt(process.env.MESSAGE_CONCURRENCY || "3", 10) || 3)
+    Number.parseInt(process.env.MESSAGE_CONCURRENCY || "32", 10) || 32
 );
 
 // Fila sem limite fixo de mensagens: tarefas são processadas gradualmente
@@ -558,8 +560,7 @@ async function startBotInternal() {
 
             version,
 
-            // Dá mais tempo para a conexão inicial em redes lentas.
-            connectTimeoutMs: 120000,
+            // Sem timeout artificial de conexão inicial: a biblioteca usa seu padrão.
 
             markOnlineOnConnect:
                 false,
