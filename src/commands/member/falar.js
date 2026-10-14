@@ -49,9 +49,14 @@ export default {
             await withConversationLock(userId, chatId, character.id, async () => {
                 // O histórico é carregado após o bloqueio para manter a ordem das mensagens.
                 const conversation = await getConversation(userId, chatId, character.id);
+                const durableMemory = await getCharacterLongTermMemory(userId, chatId, character.id);
+                const memoryPrompt = durableMemory.memories.length
+                    ? `Memórias duradouras deste usuário com este personagem (use apenas quando relevantes; não invente detalhes):\n- ${durableMemory.memories.join("\n- ")}`
+                    : "Ainda não existem memórias duradouras confirmadas para esta relação.";
                 const messages = [
                     { role: "system", content: character.systemPrompt },
                     { role: "system", content: ROLEPLAY_GUIDANCE },
+                    { role: "system", content: memoryPrompt },
                     ...conversation.history,
                     { role: "user", content: text }
                 ];
@@ -59,7 +64,7 @@ export default {
                 const answer = await generateCharacterReply(messages);
 
                 // Só grava turnos completos. Falhas do provedor não poluem o histórico.
-                await appendTurn(
+                const saved = await appendTurn(
                     userId,
                     chatId,
                     character.id,
@@ -68,6 +73,22 @@ export default {
                     answer
                 );
                 await sock.sendMessage(chatId, { text: `🎭 *${character.name}:*\n\n${answer}` });
+
+                // Envia a resposta antes de iniciar a extração para não aumentar a latência percebida.
+                if (saved !== false) {
+                    const progress = await registerCharacterTurn(userId, chatId, character.id);
+                    if (progress.shouldExtract) {
+                        const extractionHistory = [
+                            ...conversation.history,
+                            { role: "user", content: text },
+                            { role: "assistant", content: answer },
+                        ];
+                        void extractCharacterLongTermMemories({
+                            userId, chatId, character, history: extractionHistory,
+                            throughTurn: progress.turnCount,
+                        }).catch(error => console.error("Falha extraindo memória duradoura:", error?.message || error));
+                    }
+                }
             });
         } catch (error) {
             console.error("Erro na conversa com personagem:", error?.message || error);
