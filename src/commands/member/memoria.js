@@ -4,6 +4,7 @@ import {
     historyLimit
 } from "../../ai/characterStore.js";
 import { getCharacter } from "../../ai/characters.js";
+import { getCharacterLongTermMemory } from "../../ai/characterLongTermMemory.js";
 
 export default {
     name: "memoria",
