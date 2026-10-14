@@ -13,7 +13,10 @@ export default {
         try {
             if (mode === "limpar") {
                 // Espera turnos em andamento terminarem antes de apagar o histórico.
-                await withUserMemoryLock(userId, "write", async () => {\n                    await clearUserHistory(userId);\n                    await clearUserLongTermMemory(userId);\n                });
+                await withUserMemoryLock(userId, "write", async () => {
+                    await clearUserHistory(userId);
+                    await clearUserLongTermMemory(userId);
+                });
                 return sock.sendMessage(chatId, {
                     text: "🧹 Seus históricos e memórias duradouras de personagens foram apagados em todos os chats. Sua seleção de personagem foi mantida."
                 });
