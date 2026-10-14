@@ -32,7 +32,7 @@ export default {
             if (!started) {
                 return sock.sendMessage(chatId, { text: "🎭 Escolha primeiro um personagem com *.personagem NOME*." });
             }
-            await sock.sendMessage(chatId, { text: "✨ Conversa novinha iniciada! O personagem selecionado continua o mesmo, mas não usará o histórico anterior." });
+            await sock.sendMessage(chatId, { text: "✨ Conversa novinha iniciada! O personagem selecionado continua o mesmo, mas não usará o histórico anterior. As memórias duradouras são mantidas." });
         } catch (error) {
             console.error("Erro iniciando/limpando conversa:", error);
             await sock.sendMessage(chatId, { text: "💔 Não consegui alterar o histórico agora." });
