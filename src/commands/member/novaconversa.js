@@ -1,5 +1,6 @@
 import { getSelectedCharacter, startNewConversation, clearUserHistory, withUserMemoryLock } from "../../ai/characterStore.js";
 import { getCharacter } from "../../ai/characters.js";
+import { clearUserLongTermMemory } from "../../ai/characterLongTermMemory.js";
 
 export default {
     name: "novaconversa",
@@ -12,13 +13,16 @@ export default {
         try {
             if (mode === "limpar") {
                 // Espera turnos em andamento terminarem antes de apagar o histórico.
-                await withUserMemoryLock(userId, "write", () => clearUserHistory(userId));
+                await withUserMemoryLock(userId, "write", async () => {
+                    await clearUserHistory(userId);
+                    await clearUserLongTermMemory(userId);
+                });
                 return sock.sendMessage(chatId, {
-                    text: "🧹 Seu histórico de conversas com personagens foi apagado em todos os chats. Sua seleção de personagem foi mantida."
+                    text: "🧹 Seus históricos e memórias duradouras de personagens foram apagados em todos os chats. Sua seleção de personagem foi mantida."
                 });
             }
             if (mode && mode !== "nova") {
-                return sock.sendMessage(chatId, { text: "Use *.novaconversa* para começar de novo ou *.novaconversa limpar* para apagar todo seu histórico." });
+                return sock.sendMessage(chatId, { text: "Use *.novaconversa* para começar de novo ou *.novaconversa limpar* para apagar históricos e memórias duradouras." });
             }
 
             const started = await withUserMemoryLock(userId, "write", async () => {
@@ -31,7 +35,7 @@ export default {
             if (!started) {
                 return sock.sendMessage(chatId, { text: "🎭 Escolha primeiro um personagem com *.personagem NOME*." });
             }
-            await sock.sendMessage(chatId, { text: "✨ Conversa novinha iniciada! O personagem selecionado continua o mesmo, mas não usará o histórico anterior." });
+            await sock.sendMessage(chatId, { text: "✨ Conversa novinha iniciada! O personagem selecionado continua o mesmo, mas não usará o histórico anterior. As memórias duradouras são mantidas." });
         } catch (error) {
             console.error("Erro iniciando/limpando conversa:", error);
             await sock.sendMessage(chatId, { text: "💔 Não consegui alterar o histórico agora." });

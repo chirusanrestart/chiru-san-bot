@@ -4,6 +4,7 @@ import {
     historyLimit
 } from "../../ai/characterStore.js";
 import { getCharacter } from "../../ai/characters.js";
+import { getCharacterLongTermMemory } from "../../ai/characterLongTermMemory.js";
 
 export default {
     name: "memoria",
@@ -29,6 +30,7 @@ export default {
             }
 
             const conversation = await getConversation(userId, chatId, character.id);
+            const durableMemory = await getCharacterLongTermMemory(userId, chatId, character.id);
             const history = conversation.history;
             const userMessages = history.filter(item => item.role === "user").length;
             const assistantMessages = history.filter(item => item.role === "assistant").length;
@@ -41,12 +43,16 @@ export default {
                     `💬 Mensagens no contexto: *${history.length}/${historyLimit}*`,
                     `🫵 Suas mensagens: *${userMessages}*`,
                     `🤖 Respostas do personagem: *${assistantMessages}*`,
+                    `🧠 Memórias duradouras: *${durableMemory.memories.length}*`,
+                    `🔁 Turnos registrados: *${durableMemory.turnCount}*`,
                     "",
                     "💾 O histórico recente fica salvo localmente e continua após reiniciar o bot.",
                     "🔒 Cada personagem tem seu próprio contexto por usuário e chat.",
+                    "🌱 Memórias importantes são extraídas periodicamente em segundo plano.",
+                    ...(durableMemory.memories.length ? ["", "*Lembranças salvas:*", ...durableMemory.memories.map(memory => `• ${memory}`)] : []),
                     "",
                     "✨ *.novaconversa* começa um contexto vazio.",
-                    "🧹 *.novaconversa limpar* apaga seus históricos de personagens."
+                    "🧹 *.novaconversa limpar* apaga históricos e memórias duradouras."
                 ].join("\n")
             });
         } catch (error) {
