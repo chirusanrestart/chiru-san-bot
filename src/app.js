@@ -560,7 +560,9 @@ async function startBotInternal() {
 
             version,
 
-            // Sem timeout artificial de conexão inicial: a biblioteca usa seu padrão.
+            // Baileys não oferece desativação segura desse timeout; 24h evita
+            // desconexões por timeout durante inicializações/rede muito lentas.
+            connectTimeoutMs: 24 * 60 * 60 * 1000,
 
             markOnlineOnConnect:
                 false,
