@@ -83,7 +83,7 @@ export default {
                             { role: "user", content: text },
                             { role: "assistant", content: answer },
                         ];
-                        void extractCharacterLongTermMemories({
+                        await extractCharacterLongTermMemories({
                             userId, chatId, character, history: extractionHistory,
                             throughTurn: progress.turnCount,
                         }).catch(error => console.error("Falha extraindo memória duradoura:", error?.message || error));
