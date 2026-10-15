@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import { randomUUID } from "node:crypto";
 import { downloadMedia } from "../../utils/download.js";
 import { upscaleImage } from "../../services/upscale.js";
 
@@ -26,7 +24,6 @@ export default {
             return;
         }
 
-        const id = randomUUID();
         let processingMessage;
 
         try {
@@ -48,7 +45,6 @@ export default {
                 text: `❌ Não consegui redimensionar a imagem.\n${error?.message || "Tente novamente com outra imagem."}`
             }, { quoted: msg });
         } finally {
-            // Remove apenas a mensagem temporária quando a API do WhatsApp aceitar a exclusão.
             if (processingMessage?.key) {
                 await sock.sendMessage(jid, {
                     delete: processingMessage.key
