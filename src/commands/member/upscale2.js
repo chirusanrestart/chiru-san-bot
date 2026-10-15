@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { downloadMedia } from "../../utils/download.js";
 import { upscaleImage } from "../../services/upscale.js";
 
@@ -25,8 +24,10 @@ export default {
             return;
         }
 
+        let processingMessage;
+
         try {
-            await sock.sendMessage(jid, {
+            processingMessage = await sock.sendMessage(jid, {
                 text: "📐 Ajustando a imagem para as dimensões exatas..."
             });
 
@@ -43,6 +44,12 @@ export default {
             await sock.sendMessage(jid, {
                 text: `❌ Não consegui redimensionar a imagem.\n${error?.message || "Tente novamente com outra imagem."}`
             }, { quoted: msg });
+        } finally {
+            if (processingMessage?.key) {
+                await sock.sendMessage(jid, {
+                    delete: processingMessage.key
+                }).catch(() => {});
+            }
         }
     }
 };
