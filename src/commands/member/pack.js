@@ -90,19 +90,24 @@ async function fetchPinterest(
 function extractPinUrls(html) {
     const pins = new Set();
 
-    // O HTML do Pinterest costuma conter URLs escapadas como
-    // https:\/\/www.pinterest.com\/pin\/123/ ou caminhos relativos.
-    // Normaliza os escapes antes de procurar somente caminhos reais /pin/ID.
+    // O Pinterest pode devolver URLs escapadas dentro do JSON da página.
     const normalized = String(html || "")
         .replace(/\\u002F/gi, "/")
         .replace(/\\\//g, "/")
         .replace(/&amp;/g, "&");
 
-    const regex = /(?:https?:\/\/(?:[a-z]{2}\.)?(?:www\.)?pinterest\.[a-z.]+)?\/pin\/(\d+)/gi;
-    let match;
+    // Mantém os padrões amplos do scraper antigo, mas só aceita IDs
+    // que aparecem num caminho /pin/ID, nunca IDs genéricos de objetos.
+    const patterns = [
+        /https?:\/\/(?:[a-z]{2}\.)?(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)/gi,
+        /\/pin\/(\d+)/gi
+    ];
 
-    while ((match = regex.exec(normalized))) {
-        pins.add("https://www.pinterest.com/pin/" + match[1] + "/");
+    for (const regex of patterns) {
+        let match;
+        while ((match = regex.exec(normalized))) {
+            pins.add("https://www.pinterest.com/pin/" + match[1] + "/");
+        }
     }
 
     return [...pins];
