@@ -247,15 +247,15 @@ async function extractPinImage(
         }
 
         function getMeta(name) {
-            const tags = html.match(/<meta\\b[^>]*>/gi) || [];
+            const tags = html.match(/<meta\b[^>]*>/gi) || [];
 
             for (const tag of tags) {
-                const key = tag.match(/\\b(?:property|name)\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))/i);
+                const key = tag.match(/\b(?:property|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
                 const keyValue = key?.[1] ?? key?.[2] ?? key?.[3] ?? "";
 
                 if (keyValue.toLowerCase() !== name.toLowerCase()) continue;
 
-                const content = tag.match(/\\bcontent\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))/i);
+                const content = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
                 if (!content) continue;
 
                 return decodeHtml(content[1] ?? content[2] ?? content[3] ?? "");
@@ -267,10 +267,10 @@ async function extractPinImage(
         const imageUrl =
             getMeta("og:image") ||
             decodeHtml(
-                html.match(/https?:\\/\\/i\\.pinimg\\.com\\/[^"'\\s]+/gi)?.[0] || ""
+                html.match(/https?:\/\/i\.pinimg\.com\/[^"'\s]+/gi)?.[0] || ""
             );
 
-        if (!imageUrl || !/^https?:\\/\\//i.test(imageUrl)) return null;
+        if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) return null;
 
         return {
             url: imageUrl,
