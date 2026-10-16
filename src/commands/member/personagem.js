@@ -1,5 +1,6 @@
 import { findCharacter } from "../../ai/characters.js";
 import { setSelectedCharacter } from "../../ai/characterStore.js";
+import { resolveCharacterImage } from "../../ai/characterImage.js";
 
 export default {
     name: "personagem",
@@ -26,10 +27,11 @@ export default {
             await setSelectedCharacter(userId, chatId, character.id);
             const caption = `✨ Você escolheu *${character.name}*!\n${character.description}\n\nAgora pode mandar *.falar mensagem* para conversar comigo.`;
 
-            if (character.imageUrl) {
+            const imageUrl = await resolveCharacterImage(character);
+            if (imageUrl) {
                 try {
                     await sock.sendMessage(chatId, {
-                        image: { url: character.imageUrl },
+                        image: { url: imageUrl },
                         caption
                     }, { quoted: msg });
                     return;
