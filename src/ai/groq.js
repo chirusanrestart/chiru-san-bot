@@ -381,13 +381,15 @@ async function executeTool(
 }
 
 function buildMemoryMessages(
-    history
+    history,
+    detailed = false
 ) {
 
-    const recentHistory =
-        history.slice(
-            -MAX_HISTORY_MESSAGES
-        );
+    // O modo detalhado usa um contexto menor para reservar tokens à resposta
+    // e evitar que respostas longas anteriores consumam o orçamento por minuto.
+    const recentHistory = detailed
+        ? history.slice(-3)
+        : history.slice(-MAX_HISTORY_MESSAGES);
 
     const messages = [];
 
@@ -404,8 +406,9 @@ function buildMemoryMessages(
 
                 role: "user",
 
-                content:
-                    chat.user
+                content: detailed
+                    ? String(chat.user).slice(-1200)
+                    : chat.user
 
             });
 
@@ -419,8 +422,9 @@ function buildMemoryMessages(
 
                 role: "assistant",
 
-                content:
-                    chat.ai
+                content: detailed
+                    ? String(chat.ai).slice(-1800)
+                    : chat.ai
 
             });
 
@@ -521,6 +525,7 @@ A diferença é a profundidade: explique mais, sem virar um texto interminável.
 - Priorize informação útil, precisão e clareza. Não invente fatos para preencher espaço.
 - Mire normalmente em 4 a 8 parágrafos curtos, ou uma lista estruturada quando fizer mais sentido.
 - Responda no idioma e no tom do usuário.
+- Neste modo, estas orientações de profundidade substituem as regras de concisão do modo normal quando houver conflito.
 - Respeite o limite de saída: seja completa, mas pare antes de virar uma enciclopédia.
 `;
 
@@ -550,7 +555,8 @@ export async function askAI(
         },
 
         ...buildMemoryMessages(
-            memory.history
+            memory.history,
+            detailed
         ),
 
         {
