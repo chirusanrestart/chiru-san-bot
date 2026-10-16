@@ -408,9 +408,9 @@ function buildHDCommand(
 ) {
     const enhancement =
         "eq=" +
-        "contrast=1.45:" +
-        "brightness=0.03:" +
-        "saturation=1.55";
+        "contrast=1.12:" +
+        "brightness=0.01:" +
+        "saturation=1.12";
 
     let hwInit = "";
     let filter = "";
@@ -426,7 +426,7 @@ function buildHDCommand(
             "hwdownload," +
             "format=rgba," +
             enhancement +
-            ",unsharp=5:5:1.0:5:5:0.0";
+            ",unsharp=5:5:0.45:5:5:0.0";
     }
 
     else if (method === "opencl") {
