@@ -233,50 +233,7 @@ async function searchPinterest(
 async function extractPinImage(
     pinUrl
 ) {
-    // O yt-dlp extrai metadados e a imagem de cada pin encontrado pelo
-    // scraper de busca. Não usamos ytsearch: ele pesquisa no YouTube.
-    try {
-        const { stdout } = await run(
-            "yt-dlp",
-            [
-                "--dump-single-json",
-                "--skip-download",
-                "--no-warnings",
-                "--no-playlist",
-                pinUrl
-            ],
-            {
-                timeout: 30000,
-                maxBuffer: 4 * 1024 * 1024
-            }
-        );
-
-        const data = JSON.parse(stdout);
-        const thumbnails = Array.isArray(data.thumbnails)
-            ? data.thumbnails
-            : [];
-        const thumbnail = [...thumbnails].reverse().find(item =>
-            typeof item?.url === "string" &&
-            /^https?:\/\//i.test(item.url)
-        );
-        const imageUrl =
-            (typeof data.thumbnail === "string" && data.thumbnail) ||
-            thumbnail?.url;
-
-        if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
-            return {
-                url: imageUrl,
-                title: data.title || "",
-                description: data.description || "",
-                pinUrl: data.webpage_url || pinUrl,
-                source: "yt-dlp"
-            };
-        }
-    } catch (err) {
-        console.log("⚠️ yt-dlp não extraiu " + pinUrl + ": " + err.message);
-    }
-
-    // Fallback antigo para pins que o yt-dlp não consiga resolver.
+    // Extrator antigo: lê os metadados públicos da página do próprio Pinterest.
     try {
         const html = await fetchPinterest(pinUrl);
 
@@ -290,15 +247,15 @@ async function extractPinImage(
         }
 
         function getMeta(name) {
-            const tags = html.match(/<meta\b[^>]*>/gi) || [];
+            const tags = html.match(/<meta\\b[^>]*>/gi) || [];
 
             for (const tag of tags) {
-                const key = tag.match(/\b(?:property|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                const key = tag.match(/\\b(?:property|name)\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))/i);
                 const keyValue = key?.[1] ?? key?.[2] ?? key?.[3] ?? "";
 
                 if (keyValue.toLowerCase() !== name.toLowerCase()) continue;
 
-                const content = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                const content = tag.match(/\\bcontent\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))/i);
                 if (!content) continue;
 
                 return decodeHtml(content[1] ?? content[2] ?? content[3] ?? "");
@@ -310,24 +267,23 @@ async function extractPinImage(
         const imageUrl =
             getMeta("og:image") ||
             decodeHtml(
-                html.match(/https?:\/\/i\.pinimg\.com\/[^"'\s]+/gi)?.[0] || ""
+                html.match(/https?:\\/\\/i\\.pinimg\\.com\\/[^"'\\s]+/gi)?.[0] || ""
             );
 
-        if (!imageUrl) return null;
+        if (!imageUrl || !/^https?:\\/\\//i.test(imageUrl)) return null;
 
         return {
             url: imageUrl,
-            title:
-                getMeta("og:title") ||
-                getMeta("twitter:title"),
+            title: getMeta("og:title") || getMeta("twitter:title"),
             description:
                 getMeta("og:description") ||
                 getMeta("description") ||
                 getMeta("twitter:description"),
             pinUrl,
-            source: "pinterest-fallback"
+            source: "pinterest"
         };
-    } catch {
+    } catch (err) {
+        console.log("⚠️ Pinterest não extraiu " + pinUrl + ": " + err.message);
         return null;
     }
 }
