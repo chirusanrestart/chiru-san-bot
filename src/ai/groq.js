@@ -589,7 +589,7 @@ export async function askAI(
                     0.8,
 
                 max_tokens:
-                    detailed ? 1200 : 700,
+                    detailed ? 4000 : 700,
 
                 reasoning_effort:
                     "low"
