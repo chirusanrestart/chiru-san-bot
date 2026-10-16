@@ -1,6 +1,5 @@
 import { downloadMedia } from "./download.js";
 import { runFFmpegHD } from "../services/ffmpeg.js";
-import { runFFmpegHDVariant } from "../services/hd-variants.js";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
@@ -29,8 +28,7 @@ export async function executeHDVariant(sock, msg, variant = "balanced") {
         await fs.mkdir("./temp", { recursive: true });
         const media = await downloadMedia(image, "image");
         await fs.writeFile(input, media);
-        if (profile.mode === "legacy") await runFFmpegHD(input, output);
-        else await runFFmpegHDVariant(input, output, profile.mode);
+        await runFFmpegHD(input, output, profile.mode);
         const result = await fs.readFile(output);
         await sock.sendMessage(jid, { image: result, caption: `${profile.emoji} ${profile.label} • imagem realçada` });
     } catch (error) {
