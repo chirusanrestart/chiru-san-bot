@@ -56,12 +56,32 @@ async function fetchPinterest(
             }
         );
 
-    if (
-        !response.ok
-    ) {
-        throw new Error(
-            "HTTP " + response.status
-        );
+    if (!response.ok) {
+        // Pinterest às vezes responde 404/403 em um host, embora a página
+        // ainda esteja acessível pelo domínio alternativo.
+        const parsed = new URL(url);
+        const alternateHosts = parsed.hostname === "www.pinterest.com"
+            ? ["pinterest.com"]
+            : parsed.hostname === "pinterest.com"
+                ? ["www.pinterest.com"]
+                : [];
+
+        for (const host of alternateHosts) {
+            const alternate = new URL(url);
+            alternate.hostname = host;
+            const retry = await fetch(alternate, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
+                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+                },
+                redirect: "follow",
+                signal: AbortSignal.timeout(15000)
+            });
+            if (retry.ok) return retry.text();
+        }
+
+        throw new Error("HTTP " + response.status);
     }
 
     return response.text();
@@ -145,14 +165,25 @@ async function searchPinterestPage(
         `🔎 Pinterest página ${page}: ${query}`
     );
 
-    const html =
-        await fetchPinterest(
-            url
-        );
+    // Mantém a busca antiga e tenta endpoints alternativos quando o
+    // endpoint clássico retorna 404/403 ou uma página sem pins.
+    const searchUrls = [
+        url,
+        `https://pinterest.com/search/pins/?q=${encoded}`,
+        `https://www.pinterest.com/search/?q=${encoded}`
+    ];
 
-    return extractPinUrls(
-        html
-    );
+    for (const searchUrl of searchUrls) {
+        try {
+            const html = await fetchPinterest(searchUrl);
+            const pins = extractPinUrls(html);
+            if (pins.length) return pins;
+        } catch (err) {
+            console.log(`⚠️ Busca Pinterest falhou (${searchUrl}): ${err.message}`);
+        }
+    }
+
+    return [];
 }
 
 async function searchPinterest(
@@ -386,13 +417,70 @@ async function findImages(query) {
     return shuffle(selected).slice(0, TOTAL);
 }
 
-async function download(url, file) {
+async function downloadWithYtDlp(pinUrl, file) {
+    if (!pinUrl) throw new Error("pin sem URL de origem");
+
+    const executable = path.join(process.cwd(), "yt-dlp");
+    const outputTemplate = file + ".%(ext)s";
+
+    await run(executable, [
+        "--no-warnings",
+        "--no-playlist",
+        "--no-part",
+        "--no-overwrites",
+        "-o", outputTemplate,
+        pinUrl
+    ], { timeout: 45000, maxBuffer: 4 * 1024 * 1024 });
+
+    const dir = path.dirname(file);
+    const prefix = path.basename(file) + ".";
+    const entries = await fs.readdir(dir);
+    const downloaded = entries
+        .filter(name => name.startsWith(prefix))
+        .map(name => path.join(dir, name));
+
+    if (!downloaded.length) throw new Error("yt-dlp não gerou arquivo");
+    const source = downloaded[0];
+    const stat = await fs.stat(source);
+    if (!stat.isFile() || stat.size === 0) throw new Error("yt-dlp gerou arquivo vazio");
+    if (stat.size > MAX_IMAGE) {
+        await fs.unlink(source).catch(() => {});
+        throw new Error("imagem muito grande");
+    }
+
+    await fs.rename(source, file);
+    for (const extra of downloaded.slice(1)) await fs.unlink(extra).catch(() => {});
+}
+
+async function download(url, file, pinUrl) {
+    // Primeiro tenta o extrator do Pinterest do yt-dlp. Se o pin não tiver
+    // suporte, estiver bloqueado ou falhar, usa o link direto da imagem.
+    if (pinUrl) {
+        try {
+            await downloadWithYtDlp(pinUrl, file);
+            return;
+        } catch (e) {
+            console.log("⚠️ yt-dlp Pinterest; tentando imagem direta:", e.message);
+            await fs.unlink(file).catch(() => {});
+            const dir = path.dirname(file);
+            const prefix = path.basename(file) + ".";
+            for (const name of await fs.readdir(dir)) {
+                if (name.startsWith(prefix)) await fs.unlink(path.join(dir, name)).catch(() => {});
+            }
+        }
+    }
+
     const res = await fetch(url, {
-        headers: { "User-Agent": "chiru-san-bot/1.0" },
+        headers: {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/151.0.0.0 Mobile Safari/537.36",
+            Referer: "https://www.pinterest.com/"
+        },
+        redirect: "follow",
         signal: AbortSignal.timeout(20000)
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0) throw new Error("imagem vazia");
     if (buf.length > MAX_IMAGE) throw new Error("imagem muito grande");
     await fs.writeFile(file, buf);
 }
@@ -471,7 +559,7 @@ async function makeStickers(items, dir, packname, author) {
             const output = path.join(dir, id + ".webp");
 
             try {
-                await download(item.url, input);
+                await download(item.url, input, item.pinUrl);
                 await convert(input, output, item.animated);
                 await addStickerMetadata(output, packname, author);
                 const buf = await fs.readFile(output);
