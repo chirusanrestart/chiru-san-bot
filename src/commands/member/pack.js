@@ -233,21 +233,65 @@ async function searchPinterest(
 async function extractPinImage(
     pinUrl
 ) {
+    // O yt-dlp extrai metadados e a imagem de cada pin encontrado pelo
+    // scraper de busca. Não usamos ytsearch: ele pesquisa no YouTube.
+    try {
+        const { stdout } = await run(
+            "yt-dlp",
+            [
+                "--dump-single-json",
+                "--skip-download",
+                "--no-warnings",
+                "--no-playlist",
+                pinUrl
+            ],
+            {
+                timeout: 30000,
+                maxBuffer: 4 * 1024 * 1024
+            }
+        );
+
+        const data = JSON.parse(stdout);
+        const thumbnails = Array.isArray(data.thumbnails)
+            ? data.thumbnails
+            : [];
+        const thumbnail = [...thumbnails].reverse().find(item =>
+            typeof item?.url === "string" &&
+            /^https?:\/\//i.test(item.url)
+        );
+        const imageUrl =
+            (typeof data.thumbnail === "string" && data.thumbnail) ||
+            thumbnail?.url;
+
+        if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+            return {
+                url: imageUrl,
+                title: data.title || "",
+                description: data.description || "",
+                pinUrl: data.webpage_url || pinUrl,
+                source: "yt-dlp"
+            };
+        }
+    } catch (err) {
+        console.log("⚠️ yt-dlp não extraiu " + pinUrl + ": " + err.message);
+    }
+
+    // Fallback antigo para pins que o yt-dlp não consiga resolver.
     try {
         const html = await fetchPinterest(pinUrl);
 
         function getMeta(name) {
             const a = new RegExp(
-                "<meta[^>]+(?:property|name)=[\\\"']" +
+                "<meta[^>]+(?:property|name)=[\\\\\"']" +
                 name +
-                "[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']",
+                "[\\\\\"'][^>]+content=[\\\\\"']([^\\\\\"']+)[\\\\\"']",
                 "i"
             );
 
             const b = new RegExp(
-                "<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+(?:property|name)=[\\\"']" +
+                "<meta[^>]+content=[\\\\\"']([^\\\\\"']+)[\\\\\"'][^>]+(?:property|name)=[\\\\\"']" +
                 name +
-                "[\\\"']",
+                "[\\\\\"']",
                 "i"
             );
 
@@ -281,7 +325,8 @@ async function extractPinImage(
                 getMeta("og:description") ||
                 getMeta("description") ||
                 getMeta("twitter:description"),
-            pinUrl
+            pinUrl,
+            source: "pinterest-fallback"
         };
     } catch {
         return null;
