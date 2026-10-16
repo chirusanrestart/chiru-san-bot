@@ -280,39 +280,38 @@ async function extractPinImage(
     try {
         const html = await fetchPinterest(pinUrl);
 
-        function getMeta(name) {
-            const a = new RegExp(
-                "<meta[^>]+(?:property|name)=[\\\\\"']" +
-                name +
-                "[\\\\\"'][^>]+content=[\\\\\"']([^\\\\\"']+)[\\\\\"']",
-                "i"
-            );
-
-            const b = new RegExp(
-                "<meta[^>]+content=[\\\\\"']([^\\\\\"']+)[\\\\\"'][^>]+(?:property|name)=[\\\\\"']" +
-                name +
-                "[\\\\\"']",
-                "i"
-            );
-
-            return (
-                html.match(a)?.[1] ||
-                html.match(b)?.[1] ||
-                ""
-            )
+        function decodeHtml(value) {
+            return String(value || "")
                 .replace(/&amp;/g, "&")
-                .replace(/\\u002F/g, "/")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;|&#x27;/gi, "'")
+                .replace(/\\u002F/gi, "/")
                 .replace(/\\\//g, "/");
+        }
+
+        function getMeta(name) {
+            const tags = html.match(/<meta\b[^>]*>/gi) || [];
+
+            for (const tag of tags) {
+                const key = tag.match(/\b(?:property|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                const keyValue = key?.[1] ?? key?.[2] ?? key?.[3] ?? "";
+
+                if (keyValue.toLowerCase() !== name.toLowerCase()) continue;
+
+                const content = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+                if (!content) continue;
+
+                return decodeHtml(content[1] ?? content[2] ?? content[3] ?? "");
+            }
+
+            return "";
         }
 
         const imageUrl =
             getMeta("og:image") ||
-            html.match(
-                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
-            )?.[0]
-                ?.replace(/&amp;/g, "&")
-                .replace(/\\u002F/g, "/")
-                .replace(/\\\//g, "/");
+            decodeHtml(
+                html.match(/https?:\/\/i\.pinimg\.com\/[^"'\s]+/gi)?.[0] || ""
+            );
 
         if (!imageUrl) return null;
 
