@@ -8,7 +8,7 @@ export async function executeHDVariant(sock, msg, variant = "balanced") {
     const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
     const image = quoted?.imageMessage || msg.message?.imageMessage;
     const profiles = {
-        balanced: { label: "HD equilibrado", emoji: "🌈✨", mode: "legacy" },
+        balanced: { label: "HD equilibrado", emoji: "🌈✨", mode: "balanced" },
         anime: { label: "HD Anime", emoji: "🎨", mode: "anime" },
         sharp: { label: "HD Nitidez", emoji: "🔎", mode: "sharp" },
         vivid: { label: "HD Cores", emoji: "🌈", mode: "vivid" },
