@@ -32,8 +32,8 @@ async function saveDiskCache(characterId, imageUrl) {
         const cache = await loadDiskCache();
         cache[characterId] = imageUrl;
         await mkdir(path.dirname(cachePath), { recursive: true });
-        const temporaryPath = \`\${cachePath}.tmp\`;
-        await writeFile(temporaryPath, JSON.stringify(cache, null, 2) + "\\n", "utf8");
+        const temporaryPath = cachePath + ".tmp";
+        await writeFile(temporaryPath, JSON.stringify(cache, null, 2) + "\n", "utf8");
         await rename(temporaryPath, cachePath);
         diskCachePromise = Promise.resolve(cache);
     } catch (error) {
@@ -57,9 +57,9 @@ async function fetchJson(url, timeoutMs = 7000) {
 }
 
 async function fromJikan(character) {
-    const searchName = String(character.name || "").replace(/\\s*\\([^)]*\\)\\s*/g, " ").trim();
+    const searchName = String(character.name || "").replace(/\s*\([^)]*\)\s*/g, " ").trim();
     const query = encodeURIComponent(searchName);
-    const result = await fetchJson(\`https://api.jikan.moe/v4/characters?q=\${query}&limit=5\`);
+    const result = await fetchJson("https://api.jikan.moe/v4/characters?q=" + query + "&limit=5");
     const wanted = normalize(searchName);
     const entries = result?.data || [];
     const match = entries.find(item => normalize(item.name) === wanted);
@@ -67,8 +67,9 @@ async function fromJikan(character) {
 }
 
 async function fromCommons(character) {
-    const query = encodeURIComponent(\`filetype:bitmap "\${character.name}"\`);
-    const url = \`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=\${query}&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=600&format=json\`;
+    const query = encodeURIComponent('filetype:bitmap "' + character.name + '"');
+    const url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" +
+        query + "&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=600&format=json";
     const result = await fetchJson(url);
     const pages = Object.values(result?.query?.pages || {});
     const wanted = normalize(character.name);
@@ -94,7 +95,7 @@ export async function resolveCharacterImage(character) {
 
     const promise = (async () => {
         const stored = (await loadDiskCache())[character.id];
-        if (typeof stored === "string" && /^https?:\\/\\//i.test(stored)) return stored;
+        if (typeof stored === "string" && /^https?:\/\//i.test(stored)) return stored;
 
         let image = null;
         try {
