@@ -155,7 +155,7 @@ async function searchPinterestPage(
     );
 }
 
-async function searchPinterest(
+async function searchPinterestLegacy(
     query
 ) {
     const allPins =
@@ -174,7 +174,7 @@ async function searchPinterest(
                 );
 
             console.log(
-                `📌 Página ${page}: ${pins.length} pins`
+                `📌 Pinterest legado página ${page}: ${pins.length} pins`
             );
 
             const before =
@@ -197,14 +197,8 @@ async function searchPinterest(
 
             if (
                 allPins.size ===
-                before
-            ) {
-                break;
-            }
-
-            if (
-                allPins.size >=
-                MAX_CANDIDATES
+                before ||
+                allPins.size >= MAX_CANDIDATES
             ) {
                 break;
             }
@@ -217,7 +211,7 @@ async function searchPinterest(
             );
         } catch (err) {
             console.log(
-                `⚠️ Erro na página ${page}: ${err.message}`
+                `⚠️ Erro na página Pinterest legada ${page}: ${err.message}`
             );
         }
     }
@@ -228,6 +222,96 @@ async function searchPinterest(
         0,
         MAX_CANDIDATES
     );
+}
+
+async function searchPinterestDLP(
+    query
+) {
+    // pinterest-dl consulta a API do Pinterest e retorna metadados em JSON.
+    // Sem --output, não baixa arquivos: o bot continua controlando downloads,
+    // limites de tamanho e conversão via FFmpeg/TurboJPEG.
+    const { stdout } = await run(
+        "pinterest-dl",
+        [
+            "search",
+            query,
+            "-n",
+            String(MAX_CANDIDATES),
+            "--json"
+        ],
+        {
+            timeout: 45000,
+            maxBuffer: 8 * 1024 * 1024
+        }
+    );
+
+    const payload = JSON.parse(stdout);
+    const results = Array.isArray(payload.results)
+        ? payload.results
+        : [];
+
+    const images = [];
+    const seen = new Set();
+
+    for (const result of results) {
+        for (const item of (Array.isArray(result.items) ? result.items : [])) {
+            const url =
+                item?.src ||
+                item?.url ||
+                item?.image_url ||
+                item?.original_url;
+
+            if (
+                typeof url !== "string" ||
+                !/^https?:\/\//i.test(url) ||
+                seen.has(url)
+            ) {
+                continue;
+            }
+
+            seen.add(url);
+            images.push({
+                url,
+                source: "pinterest-dl",
+                animated: isAnimated(url),
+                title: item.title || item.alt || item.description || "",
+                description: item.alt || item.description || "",
+                pinUrl: item.url && /pinterest\./i.test(item.url)
+                    ? item.url
+                    : ""
+            });
+
+            if (images.length >= MAX_CANDIDATES) break;
+        }
+
+        if (images.length >= MAX_CANDIDATES) break;
+    }
+
+    console.log(
+        `📌 pinterest-dl encontrou ${images.length} imagens para "${query}"`
+    );
+
+    return images;
+}
+
+async function searchPinterest(
+    query
+) {
+    try {
+        const images = await searchPinterestDLP(query);
+        if (images.length) return images;
+
+        console.log(
+            "⚠️ pinterest-dl não retornou imagens; tentando o extrator antigo."
+        );
+    } catch (err) {
+        console.log(
+            `⚠️ pinterest-dl indisponível ou falhou: ${err.message}. Tentando o extrator antigo.`
+        );
+    }
+
+    const pins = await searchPinterestLegacy(query);
+    return resolvePinterestImages(pins, Math.max(TOTAL * 2, 80));
 }
 
 async function extractPinImage(
@@ -369,8 +453,7 @@ async function findImages(query) {
 
     add(await googlePhotos(query));
     if (all.length < TOTAL * 2) {
-        const pins = await searchPinterest(query);
-        add(await resolvePinterestImages(pins, Math.max(TOTAL * 2, 80)));
+        add(await searchPinterest(query));
     }
 
     const selected = [
