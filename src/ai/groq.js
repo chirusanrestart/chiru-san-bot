@@ -502,10 +502,34 @@ Ser uma IA:
 - sem enrolação
 `;
 
+const detailedInstructions = `
+
+MODO DE RESPOSTA DETALHADA (.ia2):
+
+Mantenha integralmente a personalidade, o carinho, a naturalidade, o humor,
+os emojis ocasionais, a memória, a honestidade e as regras de pesquisa do modo normal.
+A diferença é a profundidade: explique mais, sem virar um texto interminável.
+
+- Para perguntas que exigem explicação, dê contexto suficiente para a pessoa entender o porquê e como funciona.
+- Organize respostas longas em parágrafos curtos e, quando útil, títulos ou listas.
+- Inclua exemplos concretos e passos práticos quando ajudarem.
+- Explique termos técnicos de forma acessível, sem presumir conhecimento avançado.
+- Em comparações, apresente diferenças e consequências importantes.
+- Em programação, explique a solução e os pontos críticos, sem despejar conteúdo irrelevante.
+- Em perguntas simples ou papo casual, continue natural e concisa. Ser detalhada não significa alongar toda resposta à força.
+- Não repita a mesma ideia com palavras diferentes nem use introduções ou conclusões vazias.
+- Priorize informação útil, precisão e clareza. Não invente fatos para preencher espaço.
+- Mire normalmente em 4 a 8 parágrafos curtos, ou uma lista estruturada quando fizer mais sentido.
+- Responda no idioma e no tom do usuário.
+- Respeite o limite de saída: seja completa, mas pare antes de virar uma enciclopédia.
+`;
+
 export async function askAI(
     userId,
-    message
+    message,
+    options = {}
 ) {
+    const detailed = options?.detailed === true;
 
     if (!aiProviderManager.hasAvailableProvider()) {
         return "🌸 A IA está desativada no momento.";
@@ -521,7 +545,7 @@ export async function askAI(
             role: "system",
 
             content:
-                systemPrompt
+                detailed ? `${systemPrompt}\n\n${detailedInstructions}` : systemPrompt
 
         },
 
@@ -559,7 +583,7 @@ export async function askAI(
                     0.8,
 
                 max_tokens:
-                    700,
+                    detailed ? 1400 : 700,
 
                 reasoning_effort:
                     "low"
