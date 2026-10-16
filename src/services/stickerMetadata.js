@@ -58,12 +58,15 @@ export async function editStickerMetadata(sock, msg, changes) {
         return;
     }
 
-    const packname = String(changes.packname ?? "").trim();
-    const author = String(changes.author ?? "").trim();
-
-    if (!packname || !author) {
+    if (changes.packname !== undefined && !String(changes.packname).trim()) {
         await sock.sendMessage(jid, {
-            text: "❌ O nome do pacote e o autor não podem ficar vazios."
+            text: "❌ O nome do pacote não pode ficar vazio."
+        }, { quoted: msg });
+        return;
+    }
+    if (changes.author !== undefined && !String(changes.author).trim()) {
+        await sock.sendMessage(jid, {
+            text: "❌ O autor não pode ficar vazio."
         }, { quoted: msg });
         return;
     }
@@ -80,6 +83,13 @@ export async function editStickerMetadata(sock, msg, changes) {
         await image.load(input);
 
         const previous = readExistingMetadata(image.exif);
+        const packname = changes.packname !== undefined
+            ? String(changes.packname).trim()
+            : String(previous["sticker-pack-name"] || "chiru san bot").trim();
+        const author = changes.author !== undefined
+            ? String(changes.author).trim()
+            : String(previous["sticker-pack-publisher"] || "Usuário").trim();
+
         image.exif = createExif(packname, author, previous);
         await image.save(output);
 
