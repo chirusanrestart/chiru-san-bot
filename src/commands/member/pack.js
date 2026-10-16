@@ -96,8 +96,8 @@ function extractPinUrls(
     // Campos genéricos "id"/"pinId" também podem ser IDs de boards,
     // usuários ou outros objetos, e geravam links inventados/inválidos.
     const patterns = [
-        /https?:\\/\\/(?:[a-z]{2}\\.)?(?:www\\.)?pinterest\\.[a-z.]+\\/pin\\/(\\d+)(?:[/?#"'\\\\]|$)/gi,
-        /["'\\\\]\\/pin\\/(\\d+)(?:[/?#"'\\\\]|$)/gi
+        /https?:\/\/(?:[a-z]{2}\.)?(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)(?:[/?#"'\\]|$)/gi,
+        /["'\\]\/pin\/(\d+)(?:[/?#"'\\]|$)/gi
     ];
 
     for (const regex of patterns) {
