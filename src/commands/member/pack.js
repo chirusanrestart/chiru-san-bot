@@ -87,24 +87,22 @@ async function fetchPinterest(
     return response.text();
 }
 
-function extractPinUrls(
-    html
-) {
+function extractPinUrls(html) {
     const pins = new Set();
 
-    // Aceita apenas IDs que aparecem dentro de uma URL real de Pin.
-    // Campos genéricos "id"/"pinId" também podem ser IDs de boards,
-    // usuários ou outros objetos, e geravam links inventados/inválidos.
-    const patterns = [
-        /https?:\/\/(?:[a-z]{2}\.)?(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)(?:[/?#"'\\]|$)/gi,
-        /["'\\]\/pin\/(\d+)(?:[/?#"'\\]|$)/gi
-    ];
+    // O HTML do Pinterest costuma conter URLs escapadas como
+    // https:\/\/www.pinterest.com\/pin\/123/ ou caminhos relativos.
+    // Normaliza os escapes antes de procurar somente caminhos reais /pin/ID.
+    const normalized = String(html || "")
+        .replace(/\\u002F/gi, "/")
+        .replace(/\\\//g, "/")
+        .replace(/&amp;/g, "&");
 
-    for (const regex of patterns) {
-        let match;
-        while ((match = regex.exec(html))) {
-            pins.add("https://www.pinterest.com/pin/" + match[1] + "/");
-        }
+    const regex = /(?:https?:\/\/(?:[a-z]{2}\.)?(?:www\.)?pinterest\.[a-z.]+)?\/pin\/(\d+)/gi;
+    let match;
+
+    while ((match = regex.exec(normalized))) {
+        pins.add("https://www.pinterest.com/pin/" + match[1] + "/");
     }
 
     return [...pins];
