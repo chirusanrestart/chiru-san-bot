@@ -28,13 +28,14 @@ async function fetchJson(url, timeoutMs = 7000) {
 }
 
 async function fromJikan(character) {
-    const query = encodeURIComponent(character.name);
+    const searchName = String(character.name || "").replace(/\s*\([^)]*\)\s*/g, " ").trim();
+    const query = encodeURIComponent(searchName);
     const result = await fetchJson(`https://api.jikan.moe/v4/characters?q=${query}&limit=5`);
-    const wanted = normalize(character.name);
+    const wanted = normalize(searchName).split(" ").filter(Boolean);
     const entries = result?.data || [];
     const match = entries.find(item => {
         const candidate = normalize(item.name);
-        return candidate === wanted || candidate.includes(wanted) || wanted.includes(candidate);
+        return candidate === wanted.join(" ") || wanted.every(token => candidate.split(" ").includes(token));
     });
     return match?.images?.jpg?.image_url || match?.images?.webp?.image_url || null;
 }
