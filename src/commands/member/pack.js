@@ -90,56 +90,24 @@ async function fetchPinterest(
 function extractPinUrls(
     html
 ) {
-    const pins =
-        new Set();
+    const pins = new Set();
 
-    const absoluteRegex =
-        /https?:\/\/(?:www\.)?pinterest\.[a-z.]+\/pin\/(\d+)[^"'\\]*/gi;
-
-    let match;
-
-    while (
-        (match =
-            absoluteRegex.exec(
-                html
-            ))
-    ) {
-        pins.add(
-            "https://www.pinterest.com/pin/" + match[1] + "/"
-        );
-    }
-
-    const relativeRegex =
-        /["'\\]\/pin\/(\d+)\/?[^"'\\]*/gi;
-
-    while (
-        (match =
-            relativeRegex.exec(
-                html
-            ))
-    ) {
-        pins.add(
-            "https://www.pinterest.com/pin/" + match[1] + "/"
-        );
-    }
-
-    const idRegex =
-        /["'](?:id|pinId)["']\s*:\s*["'](\d{6,})["']/gi;
-
-    while (
-        (match =
-            idRegex.exec(
-                html
-            ))
-    ) {
-        pins.add(
-            "https://www.pinterest.com/pin/" + match[1] + "/"
-        );
-    }
-
-    return [
-        ...pins
+    // Aceita apenas IDs que aparecem dentro de uma URL real de Pin.
+    // Campos genéricos "id"/"pinId" também podem ser IDs de boards,
+    // usuários ou outros objetos, e geravam links inventados/inválidos.
+    const patterns = [
+        /https?:\\/\\/(?:[a-z]{2}\\.)?(?:www\\.)?pinterest\\.[a-z.]+\\/pin\\/(\\d+)(?:[/?#"'\\\\]|$)/gi,
+        /["'\\\\]\\/pin\\/(\\d+)(?:[/?#"'\\\\]|$)/gi
     ];
+
+    for (const regex of patterns) {
+        let match;
+        while ((match = regex.exec(html))) {
+            pins.add("https://www.pinterest.com/pin/" + match[1] + "/");
+        }
+    }
+
+    return [...pins];
 }
 
 async function searchPinterestPage(
