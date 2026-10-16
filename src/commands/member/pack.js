@@ -233,57 +233,57 @@ async function searchPinterest(
 async function extractPinImage(
     pinUrl
 ) {
-    // Extrator antigo: lê os metadados públicos da página do próprio Pinterest.
     try {
         const html = await fetchPinterest(pinUrl);
 
-        function decodeHtml(value) {
-            return String(value || "")
-                .replace(/&amp;/g, "&")
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;|&#x27;/gi, "'")
-                .replace(/\\u002F/gi, "/")
-                .replace(/\\\//g, "/");
-        }
-
         function getMeta(name) {
-            const tags = html.match(/<meta\b[^>]*>/gi) || [];
+            const a = new RegExp(
+                "<meta[^>]+(?:property|name)=[\\\"']" +
+                name +
+                "[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']",
+                "i"
+            );
 
-            for (const tag of tags) {
-                const key = tag.match(/\b(?:property|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-                const keyValue = key?.[1] ?? key?.[2] ?? key?.[3] ?? "";
+            const b = new RegExp(
+                "<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+(?:property|name)=[\\\"']" +
+                name +
+                "[\\\"']",
+                "i"
+            );
 
-                if (keyValue.toLowerCase() !== name.toLowerCase()) continue;
-
-                const content = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-                if (!content) continue;
-
-                return decodeHtml(content[1] ?? content[2] ?? content[3] ?? "");
-            }
-
-            return "";
+            return (
+                html.match(a)?.[1] ||
+                html.match(b)?.[1] ||
+                ""
+            )
+                .replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
         }
 
         const imageUrl =
             getMeta("og:image") ||
-            decodeHtml(
-                html.match(/https?:\/\/i\.pinimg\.com\/[^"'\s]+/gi)?.[0] || ""
-            );
+            html.match(
+                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
+            )?.[0]
+                ?.replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
 
-        if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) return null;
+        if (!imageUrl) return null;
 
         return {
             url: imageUrl,
-            title: getMeta("og:title") || getMeta("twitter:title"),
+            title:
+                getMeta("og:title") ||
+                getMeta("twitter:title"),
             description:
                 getMeta("og:description") ||
                 getMeta("description") ||
                 getMeta("twitter:description"),
-            pinUrl,
-            source: "pinterest"
+            pinUrl
         };
-    } catch (err) {
-        console.log("⚠️ Pinterest não extraiu " + pinUrl + ": " + err.message);
+    } catch {
         return null;
     }
 }
