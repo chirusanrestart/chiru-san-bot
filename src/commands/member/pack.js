@@ -158,106 +158,202 @@ async function searchPinterestPage(
 async function searchPinterest(
     query
 ) {
-    // Use the already-installed yt-dlp as the primary Pinterest extractor.
-    // Metadata-only mode keeps downloads and sticker conversion under the bot's
-    // existing pipeline, so FFmpeg and the legacy backend remain untouched.
-    try {
-        const { stdout } = await run(
-            "yt-dlp",
-            [
-                "--dump-single-json",
-                "--flat-playlist",
-                "--playlist-end",
-                String(MAX_CANDIDATES),
-                "--no-warnings",
-                "--ignore-errors",
-                `ytsearch${MAX_CANDIDATES}:${query} site:pinterest.com`
-            ],
-            {
-                timeout: 45000,
-                maxBuffer: 12 * 1024 * 1024
+    const allPins =
+        new Set();
+
+    for (
+        let page = 1;
+        page <= MAX_SEARCH_PAGES;
+        page++
+    ) {
+        try {
+            const pins =
+                await searchPinterestPage(
+                    query,
+                    page
+                );
+
+            console.log(
+                `📌 Página ${page}: ${pins.length} pins`
+            );
+
+            const before =
+                allPins.size;
+
+            for (
+                const pin of pins
+            ) {
+                allPins.add(
+                    pin
+                );
+
+                if (
+                    allPins.size >=
+                    MAX_CANDIDATES
+                ) {
+                    break;
+                }
             }
-        );
-
-        const payload = JSON.parse(stdout);
-        const entries = Array.isArray(payload.entries)
-            ? payload.entries
-            : [payload];
-
-        const images = [];
-        const seen = new Set();
-
-        for (const entry of entries) {
-            if (!entry || entry._type === "playlist") continue;
-
-            const url =
-                entry.thumbnail ||
-                entry.thumbnails?.at(-1)?.url ||
-                entry.url;
 
             if (
-                typeof url !== "string" ||
-                !/^https?:\\/\\//i.test(url) ||
-                seen.has(url)
+                allPins.size ===
+                before
             ) {
-                continue;
+                break;
             }
 
-            seen.add(url);
-            images.push({
-                url,
-                source: "yt-dlp",
-                animated: isAnimated(url),
-                title: entry.title || "",
-                description: entry.description || "",
-                pinUrl: typeof entry.webpage_url === "string"
-                    ? entry.webpage_url
-                    : ""
-            });
+            if (
+                allPins.size >=
+                MAX_CANDIDATES
+            ) {
+                break;
+            }
 
-            if (images.length >= MAX_CANDIDATES) break;
-        }
-
-        if (images.length) {
-            console.log(
-                `📌 yt-dlp encontrou ${images.length} resultados para "${query}"`
+            await sleep(
+                randomDelay(
+                    MIN_DELAY,
+                    MAX_DELAY
+                )
             );
-            return images;
+        } catch (err) {
+            console.log(
+                `⚠️ Erro na página ${page}: ${err.message}`
+            );
         }
-
-        console.log(
-            "⚠️ yt-dlp não retornou thumbnails; tentando o extrator Pinterest antigo."
-        );
-    } catch (err) {
-        console.log(
-            `⚠️ yt-dlp falhou no Pinterest: ${err.message}. Tentando o extrator antigo.`
-        );
     }
 
-    const allPins = new Set();
+    return [
+        ...allPins
+    ].slice(
+        0,
+        MAX_CANDIDATES
+    );
+}
 
-    for (let page = 1; page <= MAX_SEARCH_PAGES; page++) {
-        try {
-            const pins = await searchPinterestPage(query, page);
-            console.log(`📌 Pinterest legado página ${page}: ${pins.length} pins`);
+async function extractPinImage(
+    pinUrl
+) {
+    try {
+        const html = await fetchPinterest(pinUrl);
 
-            const before = allPins.size;
-            for (const pin of pins) {
-                allPins.add(pin);
-                if (allPins.size >= MAX_CANDIDATES) break;
+        function getMeta(name) {
+            const a = new RegExp(
+                "<meta[^>]+(?:property|name)=[\\\"']" +
+                name +
+                "[\\\"'][^>]+content=[\\\"']([^\\\"']+)[\\\"']",
+                "i"
+            );
+
+            const b = new RegExp(
+                "<meta[^>]+content=[\\\"']([^\\\"']+)[\\\"'][^>]+(?:property|name)=[\\\"']" +
+                name +
+                "[\\\"']",
+                "i"
+            );
+
+            return (
+                html.match(a)?.[1] ||
+                html.match(b)?.[1] ||
+                ""
+            )
+                .replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
+        }
+
+        const imageUrl =
+            getMeta("og:image") ||
+            html.match(
+                /https?:\/\/i\.pinimg\.com\/[^"'\\\s]+/gi
+            )?.[0]
+                ?.replace(/&amp;/g, "&")
+                .replace(/\\u002F/g, "/")
+                .replace(/\\\//g, "/");
+
+        if (!imageUrl) return null;
+
+        return {
+            url: imageUrl,
+            title:
+                getMeta("og:title") ||
+                getMeta("twitter:title"),
+            description:
+                getMeta("og:description") ||
+                getMeta("description") ||
+                getMeta("twitter:description"),
+            pinUrl
+        };
+    } catch {
+        return null;
+    }
+}
+
+async function resolvePinterestImages(
+    pinUrls,
+    needed
+) {
+    const images = [];
+
+    let i = 0;
+
+    async function worker() {
+        while (
+            images.length < needed &&
+            i < pinUrls.length
+        ) {
+            const current =
+                i++;
+
+            const pinUrl =
+                pinUrls[current];
+
+            const imgUrl =
+                await extractPinImage(
+                    pinUrl
+                );
+
+            if (imgUrl?.url) {
+                images.push({
+                    url: imgUrl.url,
+                    source: "pinterest",
+                    animated: isAnimated(imgUrl.url),
+                    title: imgUrl.title,
+                    description: imgUrl.description,
+                    pinUrl: imgUrl.pinUrl
+                });
             }
 
-            if (allPins.size === before || allPins.size >= MAX_CANDIDATES) break;
-
-            await sleep(randomDelay(MIN_DELAY, MAX_DELAY));
-        } catch (err) {
-            console.log(`⚠️ Erro na página Pinterest legada ${page}: ${err.message}`);
+            await sleep(
+                randomDelay(
+                    MIN_DELAY,
+                    MAX_DELAY
+                )
+            );
         }
     }
 
-    const pins = [...allPins].slice(0, MAX_CANDIDATES);
-    return resolvePinterestImages(pins, Math.max(TOTAL * 2, 80));
+    const workers =
+        Array.from(
+            {
+                length:
+                    CONCURRENCY
+            },
+            () =>
+                worker()
+        );
+
+    await Promise.all(
+        workers
+    );
+
+    console.log(
+        `📌 Pinterest resolvido: ${images.length} imagens`
+    );
+
+    return images;
 }
+
+
 
 async function findImages(query) {
     const all = [];
@@ -273,7 +369,8 @@ async function findImages(query) {
 
     add(await googlePhotos(query));
     if (all.length < TOTAL * 2) {
-        add(await searchPinterest(query));
+        const pins = await searchPinterest(query);
+        add(await resolvePinterestImages(pins, Math.max(TOTAL * 2, 80)));
     }
 
     const selected = [
