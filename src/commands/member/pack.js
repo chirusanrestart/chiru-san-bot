@@ -155,9 +155,15 @@ async function downloadWithYtDlp(pinUrl, file) {
 }
 
 async function download(url, file, pinUrl) {
-    // Primeiro tenta o extrator do Pinterest do yt-dlp. Se o pin não tiver
-    // suporte, estiver bloqueado ou falhar, usa o link direto da imagem.
-    if (pinUrl) {
+    // O scraper pode retornar IDs internos opacos, que não são URLs públicas
+    // válidas de pins. Só entrega ao yt-dlp links com ID numérico real.
+    // Para os demais casos, preserva a URL direta da imagem como caminho principal.
+    const validPublicPinUrl = typeof pinUrl === "string"
+        && /^https?:\/\/(?:www\.)?pinterest\.com\/pin\/\d+\/?(?:[?#].*)?$/i.test(pinUrl);
+
+    // Primeiro tenta yt-dlp apenas com URLs públicas válidas; em caso de falha,
+    // mantém o fallback existente para baixar a imagem diretamente.
+    if (validPublicPinUrl) {
         try {
             await downloadWithYtDlp(pinUrl, file);
             return;
