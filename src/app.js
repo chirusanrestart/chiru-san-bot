@@ -211,6 +211,24 @@ async function hidePresence(sock) {
     }
 }
 
+// Aplica as opções de privacidade da própria conta do bot no WhatsApp.
+// Cada opção é isolada para que uma falha não impeça a reconexão nem os comandos.
+async function applyWhatsAppPrivacy(sock) {
+    const privacyUpdates = [
+        ["visto por último", () => sock.updateLastSeenPrivacy?.("none")],
+        ["status online", () => sock.updateOnlinePrivacy?.("match_last_seen")],
+        ["confirmações de leitura", () => sock.updateReadReceiptsPrivacy?.("none")]
+    ];
+
+    for (const [label, update] of privacyUpdates) {
+        try {
+            await update();
+        } catch (error) {
+            console.warn(`⚠️ Não foi possível atualizar a privacidade de ${label}.`);
+        }
+    }
+}
+
 async function flushAutoSticker(
     sock,
     jid
@@ -595,7 +613,8 @@ async function startBotInternal() {
                     "🟢 Bot conectado!"
                 );
 
-                // Já entra conectado sem marcar online e força presença offline.
+                // Ajusta a privacidade da conta e força presença offline.
+                await applyWhatsAppPrivacy(sock);
                 await hidePresence(sock);
             }
 
