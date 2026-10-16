@@ -417,13 +417,70 @@ async function findImages(query) {
     return shuffle(selected).slice(0, TOTAL);
 }
 
+let cachedYtDlpCommand = null;
+
+// Resolve yt-dlp sem presumir que o executável fica dentro da pasta do bot.
+// No Termux, a instalação via pip normalmente funciona com "python -m yt_dlp".
+async function locateYtDlp() {
+    if (cachedYtDlpCommand) {
+        try {
+            await run(cachedYtDlpCommand.command, [...cachedYtDlpCommand.prefixArgs, "--version"], {
+                timeout: 10000,
+                maxBuffer: 1024 * 1024
+            });
+            return cachedYtDlpCommand;
+        } catch {
+            cachedYtDlpCommand = null;
+        }
+    }
+
+    const candidates = [];
+    const add = (command, prefixArgs = []) => {
+        if (!command) return;
+        const key = command + "\\0" + prefixArgs.join("\\0");
+        if (!candidates.some(item => item.key === key)) {
+            candidates.push({ key, command, prefixArgs });
+        }
+    };
+
+    add(process.env.YT_DLP_PATH);
+    add("yt-dlp");
+    add("yt-dlp.exe");
+    add("python", ["-m", "yt_dlp"]);
+    add("python3", ["-m", "yt_dlp"]);
+    add(process.env.PYTHON, ["-m", "yt_dlp"]);
+    add(process.env.PREFIX ? path.join(process.env.PREFIX, "bin", "python") : null, ["-m", "yt_dlp"]);
+    add("/data/data/com.termux/files/usr/bin/python", ["-m", "yt_dlp"]);
+    add("/data/data/com.termux/files/usr/bin/python3", ["-m", "yt_dlp"]);
+
+    const errors = [];
+    for (const candidate of candidates) {
+        try {
+            await run(candidate.command, [...candidate.prefixArgs, "--version"], {
+                timeout: 10000,
+                maxBuffer: 1024 * 1024
+            });
+            cachedYtDlpCommand = candidate;
+            console.log("✅ yt-dlp localizado:", candidate.prefixArgs.length
+                ? candidate.command + " " + candidate.prefixArgs.join(" ")
+                : candidate.command);
+            return candidate;
+        } catch (e) {
+            errors.push(candidate.command + (candidate.prefixArgs.length ? " " + candidate.prefixArgs.join(" ") : "") + ": " + (e.code || e.message));
+        }
+    }
+
+    throw new Error("não encontrei yt-dlp. Instale com 'python -m pip install -U yt-dlp' ou defina YT_DLP_PATH. Tentativas: " + errors.join("; "));
+}
+
 async function downloadWithYtDlp(pinUrl, file) {
     if (!pinUrl) throw new Error("pin sem URL de origem");
 
-    const executable = path.join(process.cwd(), "yt-dlp");
+    const resolved = await locateYtDlp();
     const outputTemplate = file + ".%(ext)s";
 
-    await run(executable, [
+    await run(resolved.command, [
+        ...resolved.prefixArgs,
         "--no-warnings",
         "--no-playlist",
         "--no-part",
