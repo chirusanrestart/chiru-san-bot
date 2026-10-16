@@ -76,3 +76,7 @@ Teste o isolamento com `node --test tests/characterStore.test.js`.
 ## Observação
 
 Este é um projeto pessoal do Chiru-san.
+
+### Pokémon para conversar
+
+O catálogo de personagens inclui Pokémon com personalidades próprias e imagens de referência individuais. Use `.personagens` para ver o catálogo, `.personagem Eevee` (ou outro nome) para selecionar um Pokémon e ver sua imagem, e `.falar Oi!` para conversar. As imagens oficiais de Pokémon são carregadas do repositório público PokeAPI Sprites; se uma imagem falhar, a seleção continua funcionando em texto.
