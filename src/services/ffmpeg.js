@@ -320,7 +320,8 @@ export async function runFFmpegSticker(
 
 export async function runFFmpegHD(
     input,
-    output
+    output,
+    profile = "balanced"
 ) {
     const methods = await getHDMethods();
 
@@ -347,7 +348,8 @@ export async function runFFmpegHD(
             const command = buildHDCommand(
                 input,
                 output,
-                method
+                method,
+                profile
             );
 
             if (process.env.FFMPEG_DEBUG === "1") {
@@ -404,13 +406,24 @@ export async function webpToImage(
 function buildHDCommand(
     input,
     output,
-    method
+    method,
+    profile = "balanced"
 ) {
+    // Perfis são opcionais: o perfil balanced mantém o comportamento atual do .hd.
+    const profiles = {
+        balanced: { contrast: 1.12, brightness: 0.01, saturation: 1.12, sharp: 0.45 },
+        anime: { contrast: 1.10, brightness: 0.005, saturation: 1.16, sharp: 0.35 },
+        sharp: { contrast: 1.04, brightness: 0, saturation: 1.02, sharp: 0.72 },
+        vivid: { contrast: 1.06, brightness: 0.005, saturation: 1.24, sharp: 0.25 },
+        natural: { contrast: 1.05, brightness: 0.005, saturation: 1.04, sharp: 0.22 },
+        beauty: { contrast: 1.06, brightness: 0.012, saturation: 1.08, sharp: 0.28 }
+    };
+    const selected = profiles[profile] || profiles.balanced;
     const enhancement =
         "eq=" +
-        "contrast=1.12:" +
-        "brightness=0.01:" +
-        "saturation=1.12";
+        "contrast=" + selected.contrast + ":" +
+        "brightness=" + selected.brightness + ":" +
+        "saturation=" + selected.saturation;
 
     let hwInit = "";
     let filter = "";
@@ -426,7 +439,7 @@ function buildHDCommand(
             "hwdownload," +
             "format=rgba," +
             enhancement +
-            ",unsharp=5:5:0.45:5:5:0.0";
+            ",unsharp=5:5:" + selected.sharp + ":5:5:0.0";
     }
 
     else if (method === "opencl") {
@@ -452,7 +465,7 @@ function buildHDCommand(
     else {
         filter =
             enhancement +
-            ",unsharp=5:5:1.0:5:5:0.0";
+            ",unsharp=5:5:" + selected.sharp + ":5:5:0.0";
     }
 
     return (
