@@ -47,11 +47,13 @@ export function createOpenAICompatibleProvider({
             method: "POST",
             signal,
             headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
                 ...(providerName === "portkey" ? {
+                    "x-portkey-api-key": apiKey,
                     "x-portkey-provider": process.env.PORTKEY_PROVIDER || "groq",
-                } : {}),
+                } : {
+                    Authorization: `Bearer ${apiKey}`,
+                }),
+                "Content-Type": "application/json",
             },
             body: JSON.stringify({ ...compatibleRequest, model }),
         });
