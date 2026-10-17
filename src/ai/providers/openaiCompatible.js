@@ -5,14 +5,27 @@ const PROVIDERS = [
         name: "portkey",
         key: "PORTKEY_API_KEY",
         modelKey: "PORTKEY_MODEL",
-        defaultModel: "openai/gpt-oss-120b",
         baseURLKey: "PORTKEY_BASE_URL",
         baseURL: "https://api.portkey.ai/v1",
     },
 ];
 
 function cleanBaseURL(value) {
-    return String(value || "").trim().replace(/\/+$/, "");
+    return String(value || "").trim().replace(/\\/+$/, "");
+}
+
+function getPortkeyModel(env) {
+    if (env.PORTKEY_MODEL?.trim()) return env.PORTKEY_MODEL.trim();
+
+    // Portkey Model Catalog providers must be addressed by their provider slug,
+    // not by the upstream provider name (e.g. "groq"). The model after the slug
+    // is the model ID exposed by that Portkey provider.
+    const slug = String(env.PORTKEY_PROVIDER || "").trim().replace(/^@/, "");
+    if (slug) return `@${slug}/openai/gpt-oss-120b`;
+
+    // Preserve an explicit fallback, but the Portkey response body below will
+    // explain if routing is not configured for this model.
+    return "openai/gpt-oss-120b";
 }
 
 export function getConfiguredProviderNames(env = process.env) {
@@ -27,6 +40,7 @@ export function createOpenAICompatibleProvider({
     baseURL,
     providerName = "provider",
     fetchImpl = globalThis.fetch,
+    configId,
 } = {}) {
     if (!apiKey?.trim()) return null;
     if (typeof fetchImpl !== "function") {
@@ -43,23 +57,49 @@ export function createOpenAICompatibleProvider({
 
         // These fields are not consistently accepted by OpenAI-compatible APIs.
         const { reasoning_effort: _reasoningEffort, parallel_tool_calls: _parallelToolCalls, ...compatibleRequest } = request || {};
+        const headers = {
+            "x-portkey-api-key": apiKey,
+            "Content-Type": "application/json",
+        };
+
+        if (providerName === "portkey") {
+            // A Model Catalog reference (@provider-slug/model) performs routing
+            // itself. Use x-portkey-provider only for an explicitly configured
+            // provider value, and allow saved Gateway Configs via their ID.
+            if (!model.startsWith("@") && process.env.PORTKEY_PROVIDER?.trim()) {
+                headers["x-portkey-provider"] = process.env.PORTKEY_PROVIDER.trim();
+            }
+            const resolvedConfigId = configId || process.env.PORTKEY_CONFIG_ID;
+            if (resolvedConfigId?.trim()) headers["x-portkey-config"] = resolvedConfigId.trim();
+        } else {
+            headers.Authorization = `Bearer ${apiKey}`;
+        }
+
         const response = await fetchImpl(endpoint, {
             method: "POST",
             signal,
-            headers: {
-                ...(providerName === "portkey" ? {
-                    "x-portkey-api-key": apiKey,
-                    "x-portkey-provider": process.env.PORTKEY_PROVIDER || "groq",
-                } : {
-                    Authorization: `Bearer ${apiKey}`,
-                }),
-                "Content-Type": "application/json",
-            },
+            headers,
             body: JSON.stringify({ ...compatibleRequest, model }),
         });
 
         if (!response.ok) {
-            const error = new Error(`${providerName} request failed with HTTP ${response.status}`);
+            let details = "";
+            try {
+                const body = await response.text();
+                if (body) {
+                    try {
+                        const parsed = JSON.parse(body);
+                        details = parsed?.error?.message || parsed?.message || body;
+                    } catch {
+                        details = body;
+                    }
+                }
+            } catch {
+                // Keep the HTTP status even if the response body cannot be read.
+            }
+
+            const suffix = details ? `: ${String(details).slice(0, 1200)}` : "";
+            const error = new Error(`${providerName} request failed with HTTP ${response.status}${suffix}`);
             error.status = response.status;
             error.code = response.status === 429 ? "rate_limit_exceeded" : "provider_http_error";
             const retryAfter = response.headers?.get?.("retry-after");
@@ -78,9 +118,12 @@ export function registerConfiguredProviders(manager, env = process.env) {
 
         const handler = createOpenAICompatibleProvider({
             apiKey,
-            model: env[definition.modelKey] || definition.defaultModel,
+            model: definition.name === "portkey"
+                ? getPortkeyModel(env)
+                : env[definition.modelKey] || "openai/gpt-oss-120b",
             baseURL: env[definition.baseURLKey] || definition.baseURL,
             providerName: definition.name,
+            configId: env.PORTKEY_CONFIG_ID,
         });
         if (!handler) continue;
         manager.registerProvider(definition.name, handler);
