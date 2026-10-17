@@ -98,7 +98,7 @@ const incomingMessages = [];
 let activeMessageTasks = 0;
 
 // Concorrência fixa: até 10 conversões simultâneas.
-const AUTO_STICKER_CONCURRENCY = 10;
+const AUTO_STICKER_CONCURRENCY = 20;
 const AUTO_STICKER_QUEUE_LIMIT = 300;
 const autoStickerJobs = [];
 let activeAutoStickerJobs = 0;
