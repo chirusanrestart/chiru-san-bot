@@ -11,7 +11,7 @@ const PROVIDERS = [
 ];
 
 function cleanBaseURL(value) {
-    return String(value || "").trim().replace(/\\/+$/, "");
+    return String(value || "").trim().replace(/\/+$/, "");
 }
 
 function getPortkeyModel(env) {
