@@ -15,17 +15,18 @@ function cleanBaseURL(value) {
 }
 
 function getPortkeyModel(env) {
-    if (env.PORTKEY_MODEL?.trim()) return env.PORTKEY_MODEL.trim();
-
-    // Portkey Model Catalog providers must be addressed by their provider slug,
-    // not by the upstream provider name (e.g. "groq"). The model after the slug
-    // is the model ID exposed by that Portkey provider.
+    const configuredModel = String(env.PORTKEY_MODEL || "").trim();
     const slug = String(env.PORTKEY_PROVIDER || "").trim().replace(/^@/, "");
-    if (slug) return `@${slug}/openai/gpt-oss-120b`;
 
-    // Preserve an explicit fallback, but the Portkey response body below will
-    // explain if routing is not configured for this model.
-    return "openai/gpt-oss-120b";
+    // A Model Catalog reference already contains its provider slug.
+    if (configuredModel.startsWith("@")) return configuredModel;
+
+    // PORTKEY_MODEL in older .env files may still be "openai/gpt-oss-120b".
+    // When a catalog slug is configured, qualify that model instead of silently
+    // bypassing the selected integration.
+    if (slug) return `@${slug}/${configuredModel || "openai/gpt-oss-120b"}`;
+
+    return configuredModel || "openai/gpt-oss-120b";
 }
 
 export function getConfiguredProviderNames(env = process.env) {
