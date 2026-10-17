@@ -206,7 +206,7 @@ function scheduleAutoSticker(sock, msg) {
     if (!message?.imageMessage && !message?.videoMessage) return;
 
     if (
-        activeAutoStickerJobs >= AUTO_STICKER_CONCURRENCY &&
+        activeAutoStickerJobs >= autoStickerConcurrency &&
         autoStickerJobs.length >= AUTO_STICKER_QUEUE_LIMIT
     ) {
         console.warn("⚠️ Fila de auto-sticker cheia; mídia ignorada para proteger a memória.");
