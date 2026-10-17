@@ -1,5 +1,13 @@
 import "dotenv/config";
 
+// Exibe o estado da integração Portkey no terminal sem revelar a chave.
+const portkeyConfigured = Boolean(process.env.PORTKEY_API_KEY?.trim());
+console.log(
+    portkeyConfigured
+        ? "🟢 Portkey: chave da API configurada."
+        : "⚠️ Portkey: chave da API não configurada (PORTKEY_API_KEY)."
+);
+
 import makeWASocket, {
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
