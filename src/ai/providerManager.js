@@ -9,11 +9,7 @@ const DEFAULTS = {
     maxDelayMs: 8000,
 };
 
-const DEFAULT_PROVIDER_ORDER = [
-    "groq", "gemini", "cerebras", "mistral", "openrouter",
-    "huggingface", "sambanova", "nvidia", "deepinfra",
-    "fireworks", "together", "openai",
-];
+const DEFAULT_PROVIDER_ORDER = ["groq", "portkey"];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
