@@ -64,7 +64,7 @@ export default {
             `• Memória externa: ${formatBytes(memory.external)}`,
             "",
             "🧩 *Serviços*",
-            `• IA (provedores): ${serviceStatus(["GROQ_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "CEREBRAS_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "HF_TOKEN", "SAMBANOVA_API_KEY", "NVIDIA_API_KEY", "DEEPINFRA_API_KEY", "FIREWORKS_API_KEY", "TOGETHER_API_KEY"])}`,
+            `• IA (provedores): ${serviceStatus(["GROQ_API_KEY", "PORTKEY_API_KEY"])}`,
             `• Pesquisa web Tavily: ${serviceStatus(["TAVILY_API_KEY"])}`,
             "",
             "ℹ️ *Nota:* 'Configurado' confirma apenas a presença da variável, não que a API esteja respondendo. Chaves e dados privados não são exibidos."
