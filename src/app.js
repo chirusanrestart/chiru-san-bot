@@ -97,110 +97,11 @@ const MESSAGE_CONCURRENCY = Math.max(
 const incomingMessages = [];
 let activeMessageTasks = 0;
 
-// Auto-sticker adapta a concorrência à latência observada.
-// Começa com 1 conversão e ajusta gradualmente, respeitando o teto seguro de 3.
-const AUTO_STICKER_MAX_CONCURRENCY = Math.max(
-    1,
-    Math.min(
-        3,
-        Number.parseInt(
-            process.env.AUTO_STICKER_MAX_CONCURRENCY ||
-            process.env.AUTO_STICKER_CONCURRENCY ||
-            "3",
-            10
-        ) || 3
-    )
-);
+// Concorrência fixa: até 10 conversões simultâneas.
+const AUTO_STICKER_CONCURRENCY = 10;
 const AUTO_STICKER_QUEUE_LIMIT = 300;
-const AUTO_STICKER_BASELINE_SAMPLE_COUNT = 3;
-const AUTO_STICKER_LATENCY_WINDOW = 5;
-const AUTO_STICKER_ADJUSTMENT_COOLDOWN_MS = 10000;
 const autoStickerJobs = [];
-const autoStickerBaselineDurations = [];
-const autoStickerRecentDurations = [];
-let autoStickerBaselineMs = null;
-let autoStickerConcurrency = 1;
-let autoStickerGoodSamples = 0;
-let autoStickerSlowSamples = 0;
-let autoStickerLastAdjustmentAt = 0;
 let activeAutoStickerJobs = 0;
-
-function average(values) {
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function adaptAutoStickerConcurrency(durationMs, concurrencyAtStart, failed) {
-    if (concurrencyAtStart === 1 &&
-        autoStickerBaselineDurations.length < AUTO_STICKER_BASELINE_SAMPLE_COUNT &&
-        !failed) {
-        autoStickerBaselineDurations.push(durationMs);
-
-        if (autoStickerBaselineDurations.length === AUTO_STICKER_BASELINE_SAMPLE_COUNT) {
-            autoStickerBaselineMs = average(autoStickerBaselineDurations);
-            console.log(
-                `📊 Auto-sticker: latência inicial de referência ${Math.round(autoStickerBaselineMs)} ms`
-            );
-        }
-    }
-
-    autoStickerRecentDurations.push(durationMs);
-    if (autoStickerRecentDurations.length > AUTO_STICKER_LATENCY_WINDOW) {
-        autoStickerRecentDurations.shift();
-    }
-
-    const now = Date.now();
-    if (now - autoStickerLastAdjustmentAt < AUTO_STICKER_ADJUSTMENT_COOLDOWN_MS) {
-        return;
-    }
-
-    if (failed && autoStickerConcurrency > 1) {
-        autoStickerConcurrency--;
-        autoStickerGoodSamples = 0;
-        autoStickerSlowSamples = 0;
-        autoStickerLastAdjustmentAt = now;
-        console.warn(`⚠️ Auto-sticker: falha detectada, reduzindo concorrência para ${autoStickerConcurrency}`);
-        return;
-    }
-
-    if (autoStickerBaselineMs === null || autoStickerRecentDurations.length < AUTO_STICKER_LATENCY_WINDOW) {
-        return;
-    }
-
-    const recentAverage = average(autoStickerRecentDurations);
-    if (recentAverage > autoStickerBaselineMs * 1.6) {
-        autoStickerSlowSamples++;
-        autoStickerGoodSamples = 0;
-    } else if (recentAverage <= autoStickerBaselineMs * 1.25) {
-        autoStickerGoodSamples++;
-        autoStickerSlowSamples = 0;
-    } else {
-        autoStickerGoodSamples = 0;
-        autoStickerSlowSamples = 0;
-    }
-
-    if (autoStickerSlowSamples >= 3 && autoStickerConcurrency > 1) {
-        autoStickerConcurrency--;
-        autoStickerGoodSamples = 0;
-        autoStickerSlowSamples = 0;
-        autoStickerLastAdjustmentAt = now;
-        console.warn(
-            `🐢 Auto-sticker: latência subiu para média de ${Math.round(recentAverage)} ms; concorrência reduzida para ${autoStickerConcurrency}`
-        );
-        return;
-    }
-
-    if (autoStickerGoodSamples >= 3 &&
-        autoStickerJobs.length >= 2 &&
-        autoStickerConcurrency < AUTO_STICKER_MAX_CONCURRENCY) {
-        autoStickerConcurrency++;
-        autoStickerGoodSamples = 0;
-        autoStickerSlowSamples = 0;
-        autoStickerLastAdjustmentAt = now;
-        console.log(
-            `🚀 Auto-sticker: latência estável (${Math.round(recentAverage)} ms); concorrência aumentada para ${autoStickerConcurrency}/${AUTO_STICKER_MAX_CONCURRENCY}`
-        );
-    }
-}
 
 function scheduleAutoSticker(sock, msg) {
     const message = msg.message;
@@ -208,10 +109,7 @@ function scheduleAutoSticker(sock, msg) {
     if (!jid?.endsWith("@g.us")) return;
     if (!message?.imageMessage && !message?.videoMessage) return;
 
-    if (
-        activeAutoStickerJobs >= autoStickerConcurrency &&
-        autoStickerJobs.length >= AUTO_STICKER_QUEUE_LIMIT
-    ) {
+    if (autoStickerJobs.length >= AUTO_STICKER_QUEUE_LIMIT) {
         console.warn("⚠️ Fila de auto-sticker cheia; mídia ignorada para proteger a memória.");
         return;
     }
@@ -249,26 +147,18 @@ function scheduleAutoStickerFlush(sock, jid) {
 
 function drainAutoStickerJobs() {
     while (
-        activeAutoStickerJobs < autoStickerConcurrency &&
+        activeAutoStickerJobs < AUTO_STICKER_CONCURRENCY &&
         autoStickerJobs.length > 0
     ) {
         const job = autoStickerJobs.shift();
-        const startedAt = Date.now();
-        const concurrencyAtStart = autoStickerConcurrency;
-        let failed = false;
         activeAutoStickerJobs++;
 
         Promise.resolve()
             .then(() => createAutoSticker(job.sock, job.msg))
-            .then(result => {
-                if (result === false) failed = true;
-            })
             .catch(error => {
-                failed = true;
                 console.error("❌ Erro auto-sticker:", error);
             })
             .finally(() => {
-                adaptAutoStickerConcurrency(Date.now() - startedAt, concurrencyAtStart, failed);
                 activeAutoStickerJobs--;
 
                 const jid = job.jid || job.msg.key?.remoteJid;
