@@ -85,30 +85,27 @@ test("qualifies legacy Portkey model with the selected integration slug", async 
     let captured;
     const registered = [];
     const manager = { registerProvider: (name, handler) => registered.push([name, handler]) };
-    registerConfiguredProviders(manager, {
-        PORTKEY_API_KEY: "portkey-test-key",
-        PORTKEY_PROVIDER: "mel",
-        PORTKEY_MODEL: "openai/gpt-oss-120b",
-    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options) => {
+        captured = { url, options };
+        return { ok: true, json: async () => ({ choices: [] }) };
+    };
 
-    const [, handler] = registered[0];
-    // The provider uses the real fetch by default, so inject a stub by testing
-    // the model selection through the request body in a dedicated provider.
-    const routedHandler = createOpenAICompatibleProvider({
-        apiKey: "portkey-test-key",
-        model: "@mel/openai/gpt-oss-120b",
-        baseURL: "https://api.portkey.ai/v1",
-        providerName: "portkey",
-        fetchImpl: async (url, options) => {
-            captured = { url, options };
-            return { ok: true, json: async () => ({ choices: [] }) };
-        },
-    });
-    await routedHandler({ messages: [{ role: "user", content: "test" }] });
+    try {
+        registerConfiguredProviders(manager, {
+            PORTKEY_API_KEY: "portkey-test-key",
+            PORTKEY_PROVIDER: "mel",
+            PORTKEY_MODEL: "openai/gpt-oss-120b",
+        });
+        assert.equal(registered.length, 1);
+        assert.equal(registered[0][0], "portkey");
+        await registered[0][1]({ messages: [{ role: "user", content: "test" }] });
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
 
     assert.equal(captured.url, "https://api.portkey.ai/v1/chat/completions");
     assert.equal(JSON.parse(captured.options.body).model, "@mel/openai/gpt-oss-120b");
     assert.equal(captured.options.headers["x-portkey-provider"], undefined);
     assert.equal(captured.options.headers["x-portkey-api-key"], "portkey-test-key");
-    assert.equal(typeof handler, "function");
 });
