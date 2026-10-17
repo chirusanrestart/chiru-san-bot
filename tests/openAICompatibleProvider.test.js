@@ -6,14 +6,15 @@ import {
     registerConfiguredProviders,
 } from "../src/ai/providers/openaiCompatible.js";
 
-test("registers only providers with non-empty keys", () => {
+test("registers only Portkey when its key is non-empty", () => {
     assert.deepEqual(
         getConfiguredProviderNames({
-            GEMINI_API_KEY: "key",
-            MISTRAL_API_KEY: "   ",
-            NVIDIA_API_KEY: "nvidia-key",
+            PORTKEY_API_KEY: "key",
+            GEMINI_API_KEY: "ignored",
+            OPENROUTER_API_KEY: "ignored",
+            PORTKEY_MODEL: "test-model",
         }),
-        ["gemini", "nvidia"],
+        ["portkey"],
     );
 });
 
@@ -68,13 +69,14 @@ test("does not include response body or credentials in HTTP errors", async () =>
     });
 });
 
-test("registers each configured provider into the manager", () => {
+test("registers only the configured Portkey router into the manager", () => {
     const registered = [];
     const manager = { registerProvider: (name, handler) => registered.push([name, handler]) };
     const names = registerConfiguredProviders(manager, {
-        GEMINI_API_KEY: "g",
-        TOGETHER_API_KEY: "t",
+        PORTKEY_API_KEY: "p",
+        GEMINI_API_KEY: "ignored",
+        GROQ_API_KEY: "ignored",
     });
-    assert.deepEqual(names, ["gemini", "together"]);
+    assert.deepEqual(names, ["portkey"]);
     assert.deepEqual(registered.map(([name]) => name), names);
 });
