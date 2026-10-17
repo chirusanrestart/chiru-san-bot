@@ -98,9 +98,9 @@ let activeMessageTasks = 0;
 // e a espera para que rajadas de mídia não consumam toda a RAM.
 const AUTO_STICKER_CONCURRENCY = Math.max(
     1,
-    Math.min(2, Number.parseInt(process.env.AUTO_STICKER_CONCURRENCY || "2", 10) || 2)
+    Math.min(3, Number.parseInt(process.env.AUTO_STICKER_CONCURRENCY || "3", 10) || 3)
 );
-const AUTO_STICKER_QUEUE_LIMIT = 20;
+const AUTO_STICKER_QUEUE_LIMIT = 300;
 const autoStickerJobs = [];
 let activeAutoStickerJobs = 0;
 
