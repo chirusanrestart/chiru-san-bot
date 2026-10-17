@@ -64,14 +64,24 @@ export function createOpenAICompatibleProvider({
         };
 
         if (providerName === "portkey") {
-            // A Model Catalog reference (@provider-slug/model) performs routing
-            // itself. Use x-portkey-provider only for an explicitly configured
-            // provider value, and allow saved Gateway Configs via their ID.
-            if (!model.startsWith("@") && process.env.PORTKEY_PROVIDER?.trim()) {
-                headers["x-portkey-provider"] = process.env.PORTKEY_PROVIDER.trim();
+            const resolvedConfigId = String(configId || process.env.PORTKEY_CONFIG_ID || "").trim();
+            const providerSlug = String(process.env.PORTKEY_PROVIDER || "").trim().replace(/^@/, "");
+
+            // Portkey requires either x-portkey-config or x-portkey-provider.
+            // Prefer a saved Gateway Config (for example, a load-balancing config).
+            // Otherwise, always send the provider header, including when the model
+            // uses a Model Catalog reference such as @mel/openai/gpt-oss-120b.
+            if (resolvedConfigId) {
+                headers["x-portkey-config"] = resolvedConfigId;
+            } else if (providerSlug) {
+                headers["x-portkey-provider"] = providerSlug;
+            } else {
+                const error = new Error(
+                    "Portkey precisa de PORTKEY_CONFIG_ID (Gateway Config) ou PORTKEY_PROVIDER (slug do provedor) no .env.",
+                );
+                error.code = "PORTKEY_ROUTING_NOT_CONFIGURED";
+                throw error;
             }
-            const resolvedConfigId = configId || process.env.PORTKEY_CONFIG_ID;
-            if (resolvedConfigId?.trim()) headers["x-portkey-config"] = resolvedConfigId.trim();
         } else {
             headers.Authorization = `Bearer ${apiKey}`;
         }
