@@ -49,6 +49,9 @@ const autoStickerBuffers =
 const autoStickerTimers =
     new Map();
 
+const autoStickerPending =
+    new Map();
+
 let activeSocket = null;
 let startPromise = null;
 
@@ -213,8 +216,35 @@ function scheduleAutoSticker(sock, msg) {
         return;
     }
 
-    autoStickerJobs.push({ sock, msg });
+    // Uma nova mídia chegou: não deixe o temporizador separar o pack
+    // enquanto ainda há conversões desta mesma conversa na fila.
+    const oldTimer = autoStickerTimers.get(jid);
+    if (oldTimer) {
+        clearTimeout(oldTimer);
+        autoStickerTimers.delete(jid);
+    }
+
+    autoStickerPending.set(jid, (autoStickerPending.get(jid) || 0) + 1);
+    autoStickerJobs.push({ sock, msg, jid });
     drainAutoStickerJobs();
+}
+
+function scheduleAutoStickerFlush(sock, jid) {
+    if ((autoStickerPending.get(jid) || 0) > 0) return;
+
+    const stickers = autoStickerBuffers.get(jid);
+    if (!stickers || stickers.length === 0) return;
+
+    const oldTimer = autoStickerTimers.get(jid);
+    if (oldTimer) clearTimeout(oldTimer);
+
+    const timer = setTimeout(() => {
+        flushAutoSticker(sock, jid).catch(error => {
+            console.error("❌ Erro finalizando pack do auto-sticker:", error);
+        });
+    }, AUTO_STICKER_WAIT);
+
+    autoStickerTimers.set(jid, timer);
 }
 
 function drainAutoStickerJobs() {
@@ -240,6 +270,18 @@ function drainAutoStickerJobs() {
             .finally(() => {
                 adaptAutoStickerConcurrency(Date.now() - startedAt, concurrencyAtStart, failed);
                 activeAutoStickerJobs--;
+
+                const jid = job.jid || job.msg.key?.remoteJid;
+                if (jid) {
+                    const pending = Math.max(0, (autoStickerPending.get(jid) || 1) - 1);
+                    if (pending === 0) {
+                        autoStickerPending.delete(jid);
+                        scheduleAutoStickerFlush(job.sock, jid);
+                    } else {
+                        autoStickerPending.set(jid, pending);
+                    }
+                }
+
                 drainAutoStickerJobs();
             });
     }
@@ -574,40 +616,9 @@ async function createAutoSticker(
             `📥 Sticker colocado na fila: ${queue.length}`
         );
 
-        
-
-        const oldTimer =
-            autoStickerTimers.get(
-                jid
-            );
-
-        if (
-            oldTimer
-        ) {
-
-            clearTimeout(
-                oldTimer
-            );
-        }
-
-        const timer =
-            setTimeout(
-                () => {
-
-                    flushAutoSticker(
-                        sock,
-                        jid
-                    );
-
-                },
-                AUTO_STICKER_WAIT
-            );
-
-        autoStickerTimers.set(
-            jid,
-            timer
-        );
-
+        // O pack só é agendado quando todas as mídias já recebidas
+        // para este grupo terminarem de converter. O temporizador é
+        // controlado pelo scheduler para não dividir uma rajada em figs soltas.
         return true;
 
     } catch (error) {
