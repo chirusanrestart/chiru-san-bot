@@ -1,7 +1,6 @@
 import Groq from "groq-sdk";
 import axios from "axios";
 import { aiProviderManager } from "./providerManager.js";
-import { createOpenAIProvider } from "./providers/openai.js";
 
 import personality from "./personality.js";
 
@@ -57,10 +56,6 @@ if (groq) {
     );
 }
 
-const openAIProvider = createOpenAIProvider();
-if (openAIProvider) {
-    aiProviderManager.registerProvider("openai", openAIProvider);
-}
 
 if (
     tavilyApiKey &&
