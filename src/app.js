@@ -230,6 +230,9 @@ function drainAutoStickerJobs() {
 
         Promise.resolve()
             .then(() => createAutoSticker(job.sock, job.msg))
+            .then(result => {
+                if (result === false) failed = true;
+            })
             .catch(error => {
                 failed = true;
                 console.error("❌ Erro auto-sticker:", error);
@@ -605,12 +608,16 @@ async function createAutoSticker(
             timer
         );
 
+        return true;
+
     } catch (error) {
 
         console.error(
             "❌ Erro auto-sticker:",
             error
         );
+
+        return false;
 
     } finally {
 
