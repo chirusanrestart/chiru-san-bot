@@ -9,7 +9,7 @@ import {
     saveUserMessage
 } from "./memory.js";
 
-const MODEL = "openai/gpt-oss-120b";
+const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 const MAX_HISTORY_MESSAGES = 6;
 
