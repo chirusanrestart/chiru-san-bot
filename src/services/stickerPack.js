@@ -727,6 +727,11 @@ export async function sendStickerPack(
                 options
             );
 
+        // Os bytes já foram compactados, criptografados e enviados ao servidor.
+        // Solta as referências dos buffers antes de aguardar a confirmação do relay.
+        pack.length = 0;
+        stickers.length = 0;
+
         await sock.relayMessage(
             jid,
             {
