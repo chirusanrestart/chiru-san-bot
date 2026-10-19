@@ -64,7 +64,7 @@ async function drainQueue() {
     running = true;
 
     try {
-        while (queue.length > 0) {
+        while (queue.length > 0 && queue[0].ready) {
             const job = queue.shift();
             currentJob = job;
             job.startedAt = Date.now();
@@ -119,6 +119,7 @@ export async function enqueuePack(task, options = {}) {
         onError: options.onError,
         onQueued: options.onQueued,
         onQueueUpdate: options.onQueueUpdate,
+        ready: false,
         queuedAt: Date.now(),
         startedAt: null
     };
@@ -138,9 +139,10 @@ export async function enqueuePack(task, options = {}) {
         console.error(`⚠️ [pack ${job.id}] Não consegui enviar a confirmação inicial da fila:`, error);
     }
 
+    job.ready = true;
     notifyQueueChanges();
 
-    // O job já está registrado. O worker é iniciado sem bloquear o handler do WhatsApp.
+    // Só começa quando a mensagem inicial já foi criada, evitando condições de corrida.
     void drainQueue();
 
     return {
