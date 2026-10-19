@@ -197,10 +197,27 @@ async function download(url, file, pinUrl) {
         signal: AbortSignal.timeout(20000)
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length === 0) throw new Error("imagem vazia");
-    if (buf.length > MAX_IMAGE) throw new Error("imagem muito grande");
-    await fs.writeFile(file, buf);
+    // Grava o corpo da resposta diretamente no armazenamento, sem criar
+    // um Buffer com a imagem inteira na RAM.
+    if (!res.body) throw new Error("resposta sem conteúdo de imagem");
+    const { Readable } = await import("node:stream");
+    const { pipeline } = await import("node:stream/promises");
+    const { createWriteStream } = await import("node:fs");
+    let total = 0;
+    const source = Readable.fromWeb(res.body);
+    source.on("data", chunk => {
+        total += chunk.length;
+        if (total > MAX_IMAGE) {
+            source.destroy(new Error("imagem muito grande"));
+        }
+    });
+    try {
+        await pipeline(source, createWriteStream(file, { flags: "wx" }));
+        if (total === 0) throw new Error("imagem vazia");
+    } catch (error) {
+        await fs.unlink(file).catch(() => {});
+        throw error;
+    }
 }
 
 async function convert(input, output, animated) {
