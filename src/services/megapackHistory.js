@@ -173,10 +173,11 @@ export function scanHistoricalMessages(messages, isLatest = false) {
                 }
             }
 
-            addedThisBatch += await rememberHistoricalPacks(found);
+            const addedInChunk = await rememberHistoricalPacks(found);
+            addedThisBatch += addedInChunk;
+            state.uniqueNamesAdded = (Number(state.uniqueNamesAdded) || 0) + addedInChunk;
             state.messagesScanned = (Number(state.messagesScanned) || 0) + chunk.length;
             state.commandsFound = (Number(state.commandsFound) || 0) + found.length;
-            state.uniqueNamesAdded = (Number(state.uniqueNamesAdded) || 0) + await Promise.resolve(0);
             state.lastBatchAt = new Date().toISOString();
             state.isLatestHistoryBatch = Boolean(isLatest);
             state.lastBatchSize = batch.length;
@@ -188,7 +189,6 @@ export function scanHistoricalMessages(messages, isLatest = false) {
         }
 
         state.batches = (Number(state.batches) || 0) + 1;
-        state.uniqueNamesAdded = (Number(state.uniqueNamesAdded) || 0) + addedThisBatch;
         state.lastBatchProcessed = batch.length;
         state.lastBatchUniqueCommands = batchCommands.size;
         state.lastCompletedAt = new Date().toISOString();
