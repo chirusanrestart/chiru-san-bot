@@ -338,7 +338,8 @@ export default {
                 const stickers = await makeStickers(candidates, dir, query, author);
 
                 if (stickers.length < 5) {
-                    await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    if (msg.packBatch) msg.packBatch.failed = true;
+                    else await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
                     return;
                 }
 
