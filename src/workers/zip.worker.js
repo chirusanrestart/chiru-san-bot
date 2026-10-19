@@ -1,28 +1,72 @@
 import { parentPort } from "node:worker_threads";
-import { zipSync } from "fflate";
+import { openSync, closeSync, unlinkSync, writeSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { Zip, ZipPassThrough } from "fflate";
+
+function writeAll(fd, data) {
+    let offset = 0;
+    while (offset < data.length) {
+        const written = writeSync(fd, data, offset, data.length - offset);
+        if (written <= 0) throw new Error("Falha ao gravar bloco do ZIP");
+        offset += written;
+    }
+}
 
 parentPort.on("message", files => {
+    const filePath = path.join(
+        os.tmpdir(),
+        `chiru-sticker-pack-${randomUUID()}.zip`
+    );
+
+    let fd;
+    let fileLength = 0;
+    let writeError = null;
+
     try {
-        // ZIP é CPU-bound: mantenha a compressão fora da thread principal.
-        const zipped = zipSync(files);
+        fd = openSync(filePath, "wx");
 
-        // Transfer the ZIP's backing store directly when it contains only
-        // the ZIP bytes. Slice only for views into a larger backing store.
-        const exactBacking =
-            zipped.byteOffset === 0 &&
-            zipped.byteLength === zipped.buffer.byteLength;
-        const transferable = exactBacking
-            ? zipped.buffer
-            : zipped.buffer.slice(
-                zipped.byteOffset,
-                zipped.byteOffset + zipped.byteLength
-            );
+        const zip = new Zip((error, data) => {
+            if (error) {
+                writeError = error;
+                return;
+            }
+            if (data?.length) {
+                writeAll(fd, data);
+                fileLength += data.length;
+            }
+        });
 
-        parentPort.postMessage(
-            { ok: true, buffer: transferable },
-            [transferable]
-        );
+        for (const [fileName, entry] of Object.entries(files)) {
+            const data = Array.isArray(entry) ? entry[0] : entry;
+            if (!(data instanceof Uint8Array)) {
+                throw new TypeError(`Dados inválidos para ${fileName}`);
+            }
+
+            // ZipPassThrough preserva os bytes originais, como level: 0 no ZIP anterior.
+            const stream = new ZipPassThrough(fileName);
+            zip.add(stream);
+            stream.push(data, true);
+
+            if (writeError) throw writeError;
+        }
+
+        zip.end();
+        if (writeError) throw writeError;
+
+        closeSync(fd);
+        fd = null;
+        parentPort.postMessage({
+            ok: true,
+            filePath,
+            fileLength
+        });
     } catch (error) {
+        if (fd !== null && fd !== undefined) {
+            try { closeSync(fd); } catch {}
+        }
+        try { unlinkSync(filePath); } catch {}
         parentPort.postMessage({
             ok: false,
             error: error?.message || String(error)
