@@ -1,6 +1,6 @@
 
 
-import { downloadMedia } from "../../utils/download.js";
+import { downloadMediaToFile } from "../../utils/download.js";
 import { createSticker } from "../../services/sticker.js";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -106,17 +106,10 @@ export default {
 
 
 
-            const media =
-                await downloadMedia(
-                    source,
-                    downloadType
-                );
-
-
-
-            await fs.writeFile(
-                input,
-                media
+            await downloadMediaToFile(
+                source,
+                downloadType,
+                input
             );
 
 
