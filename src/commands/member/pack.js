@@ -349,6 +349,8 @@ export default {
 
         return enqueuePack(async ({ id }) => {
             let dir;
+            let candidates = [];
+            let stickers = [];
             let packSucceeded = false;
 
             try {
@@ -356,7 +358,7 @@ export default {
 
                  console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
 
-                const candidates = await findImages(query);
+                candidates = await findImages(query);
                 if (!candidates.length) {
                     if (msg.packBatch) msg.packBatch.failed = true;
                     else {
@@ -367,7 +369,9 @@ export default {
                 }
 
                 const author = `Chiru san bot • ${requester}`;
-                const stickers = await makeStickers(candidates, dir, query, author);
+                stickers = await makeStickers(candidates, dir, query, author);
+                candidates.length = 0;
+                candidates = [];
 
                 if (stickers.length < 5) {
                     if (msg.packBatch) msg.packBatch.failed = true;
@@ -385,6 +389,9 @@ export default {
                 });
 
                 packSucceeded = true;
+                // Solta os buffers originais assim que o envio terminar.
+                stickers.length = 0;
+                stickers = [];
                 if (!msg.packBatch) {
                     await updateSingleStatus(`✅ Pack de *${query}* concluído com ${stickers.length} figurinhas!`);
                     await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
@@ -405,6 +412,11 @@ export default {
 
                 throw e;
             } finally {
+                // Libera referências a buffers de imagens antes do próximo pack.
+                stickers.length = 0;
+                stickers = [];
+                candidates.length = 0;
+                candidates = [];
                 if (dir) {
                     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
                 }
@@ -428,6 +440,7 @@ export default {
                 }
             }
         }, {
+            awaitCompletion: Boolean(msg.packBatch?.sequential),
             onQueued: async ({ position }) => {
                 if (msg.packBatch) return;
                 await updateSingleStatus(`⏳ Pack de *${query}* na fila\n📍 Posição: *${position}*`);
