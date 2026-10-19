@@ -35,7 +35,8 @@ const execFileAsync =
 
 const MAX_STICKERS_PER_PACK = 60;
 
-const PROCESS_BATCH_SIZE = 16;
+// Lotes pequenos limitam as cópias temporárias de metadados e buffers.
+const PROCESS_BATCH_SIZE = 4;
 
 const MAX_STICKER_SIZE =
     1024 * 1024;
@@ -572,7 +573,11 @@ export async function createStickerPack(
 
     
 
-    const zipBuffer = await zipStickerFiles(stickerFiles);
+    let zipBuffer = await zipStickerFiles(stickerFiles);
+    const zipLength = zipBuffer.length;
+
+    // O ZIP já contém os arquivos; não mantenha também o mapa de entrada em RAM.
+    for (const fileName of Object.keys(stickerFiles)) delete stickerFiles[fileName];
 
     
 
@@ -581,6 +586,9 @@ export async function createStickerPack(
             zipBuffer,
             "sticker-pack"
         );
+
+    // O pacote criptografado foi gravado em disco. Libera o ZIP grande antes do upload.
+    zipBuffer = null;
 
     let uploadedPack;
 
@@ -692,7 +700,7 @@ export async function createStickerPack(
                         .USER_CREATED,
 
                 stickerPackSize:
-                    zipBuffer.length,
+                    zipLength,
 
                 stickers:
                     stickerMetadata,
@@ -714,7 +722,7 @@ export async function createStickerPack(
                         .directPath,
 
                 fileLength:
-                    zipBuffer.length,
+                    zipLength,
 
                 mediaKeyTimestamp:
                     unixTimestampSeconds(),

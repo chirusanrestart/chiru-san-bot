@@ -15,16 +15,24 @@ import { rememberMegapack } from "../../services/megapackHistory.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
-const CONCURRENCY = 3;
+// Um único conversor por pack reduz o pico de RAM em aparelhos Android limitados.
+const CONCURRENCY = 1;
 const MAX_IMAGE = 12 * 1024 * 1024;
 const MAX_STICKER = 1024 * 1024;
-const MAX_CANDIDATES = 180;
+const MAX_CANDIDATES = 120;
 const MAX_SEARCH_PAGES = 5;
 const MIN_DELAY = 100;
 const MAX_DELAY = 200;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const shuffle = a => [...a].sort(() => Math.random() - 0.5);
+const shuffle = input => {
+    const result = [...input];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+};
 const isAnimated = url => /\.gif(?:[?#]|$)/i.test(String(url || ""));
 
 async function googlePhotos(query) {
@@ -38,6 +46,7 @@ async function findImages(query) {
 
     const add = list => {
         for (const x of list || []) {
+            if (all.length >= MAX_CANDIDATES) break;
             if (!x?.url || seen.has(x.url)) continue;
             seen.add(x.url);
             all.push({ ...x, animated: x.animated || isAnimated(x.url) });
@@ -46,7 +55,7 @@ async function findImages(query) {
 
     add(await googlePhotos(query));
     if (all.length < TOTAL * 2) {
-        const pins = await searchPinterest(query, Math.max(TOTAL * 2, 80));
+        const pins = await searchPinterest(query, Math.min(MAX_CANDIDATES, Math.max(TOTAL * 2, 80)));
         add(pins.map(pin => ({ ...pin, source: "pinterest" })));
     }
 
@@ -420,6 +429,9 @@ export default {
                 if (dir) {
                     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
                 }
+
+                const mem = process.memoryUsage();
+                console.log(`🧠 [pack ${id}] Memória após limpeza: RSS=${Math.round(mem.rss / 1048576)}MB heap=${Math.round(mem.heapUsed / 1048576)}MB external=${Math.round(mem.external / 1048576)}MB arrayBuffers=${Math.round(mem.arrayBuffers / 1048576)}MB`);
 
                 if (msg.packBatch) {
                     if (!packSucceeded) msg.packBatch.failed = true;
