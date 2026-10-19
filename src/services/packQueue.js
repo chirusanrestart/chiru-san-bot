@@ -102,7 +102,7 @@ async function drainQueue() {
         running = false;
 
         // Evita deixar jobs presos caso um novo pedido chegue no limite do worker.
-        if (queue.length > 0) {
+        if (queue.length > 0 && queue[0].ready) {
             void drainQueue();
         }
     }
