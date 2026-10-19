@@ -40,9 +40,15 @@ export async function zipStickerFiles(files) {
 
         try {
             // Transfere os ArrayBuffers em vez de clonar todos os bytes do pack.
-            const transferList = Object.values(files)
-                .map(([data]) => data?.buffer)
-                .filter(buffer => buffer instanceof ArrayBuffer);
+            // An ArrayBuffer may appear in more than one entry when callers
+            // reuse views. Transfer each backing store only once.
+            const transferList = [
+                ...new Set(
+                    Object.values(files)
+                        .map(([data]) => data?.buffer)
+                        .filter(buffer => buffer instanceof ArrayBuffer)
+                )
+            ];
 
             worker.postMessage(files, transferList);
         } catch (error) {
