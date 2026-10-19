@@ -324,17 +324,11 @@ export default {
             try {
                 dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
 
-                await sock.sendMessage(from, {
-                    text: `🔎 Começando o pack de *${query}* (até ${TOTAL} figs)...`
-                }, { quoted: msg });
-
-                console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
+                 console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
 
                 const candidates = await findImages(query);
                 if (!candidates.length) {
-                    await sock.sendMessage(from, {
-                        text: `❌ Não achei imagens pra *${query}*.`
-                    }, { quoted: msg });
+                    await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
                     return;
                 }
 
@@ -342,9 +336,7 @@ export default {
                 const stickers = await makeStickers(candidates, dir, query, author);
 
                 if (stickers.length < 5) {
-                    await sock.sendMessage(from, {
-                        text: `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.`
-                    }, { quoted: msg });
+                    await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
                     return;
                 }
 
@@ -354,20 +346,16 @@ export default {
                     description: `🌸 ${query}`
                 });
 
-                await sock.sendMessage(from, {
-                    text: `✅ Pack *${query}* pronto (*${stickers.length}* figs)`
-                }, { quoted: msg });
+                await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
 
                 console.log(`✅ [pack ${id}] Concluído "${query}" (${stickers.length} stickers)`);
             } catch (e) {
                 console.error(`❌ [pack ${id}] Erro em "${query}":`, e);
 
                 try {
-                    await sock.sendMessage(from, {
-                        text: `❌ Erro ao montar o pack *${query}*: ${e.message || "erro desconhecido"}`
-                    }, { quoted: msg });
+                    await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
                 } catch (sendError) {
-                    console.error(`❌ [pack ${id}] Também falhou ao avisar o usuário:`, sendError);
+                    console.error(`❌ [pack ${id}] Também falhou ao reagir à mensagem:`, sendError);
                 }
 
                 throw e;
@@ -377,11 +365,9 @@ export default {
                 }
             }
         }, {
-            onQueued: ({ id, position }) => sock.sendMessage(from, {
-                text: position === 1
-                    ? `📥 Pack *${query}* entrou na fila e será iniciado em breve. (ID: ${id})`
-                    : `📥 Pack *${query}* entrou na fila na posição *${position}*. (ID: ${id})`
-            }, { quoted: msg })
+            onQueued: () => sock.sendMessage(from, {
+                react: { text: "⏳", key: msg.key }
+            })
         });
     }
 };
