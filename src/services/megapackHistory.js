@@ -1,13 +1,16 @@
 import fs from "fs/promises";
 import path from "path";
+import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, "../../data");
 const HISTORY_FILE = path.join(DATA_DIR, "megapack-history.json");
 const SCAN_STATE_FILE = path.join(DATA_DIR, "megapack-history-scan.json");
+const PENDING_DIR = path.join(DATA_DIR, "megapack-history-pending");
 let writeChain = Promise.resolve();
 let scanChain = Promise.resolve();
+let pendingWriteChain = Promise.resolve();
 
 async function readHistory() {
     try {
@@ -82,12 +85,9 @@ function getMessageText(msg) {
     );
 }
 
-function extractPackQuery(msg) {
-    const text = getMessageText(msg);
-    // Só registra comandos reais iniciados por .pack, não menções no meio da conversa.
-    const match = text.match(/^\s*\.pack\s+([\s\S]*?)\s*$/i);
-    const query = match?.[1]?.trim();
-    return query || null;
+function extractPackQueryFromText(text) {
+    const match = String(text || "").match(/^\s*\.pack\s+([\s\S]*?)\s*$/i);
+    return match?.[1]?.trim() || null;
 }
 
 async function rememberHistoricalPacks(queries) {
@@ -140,65 +140,122 @@ async function readScanState() {
 
 async function writeScanState(state) {
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(SCAN_STATE_FILE, JSON.stringify(state, null, 2) + "\n", "utf8");
+    const tempFile = SCAN_STATE_FILE + ".tmp";
+    await fs.writeFile(tempFile, JSON.stringify(state, null, 2) + "\n", "utf8");
+    await fs.rename(tempFile, SCAN_STATE_FILE);
 }
 
-/**
- * Processa em pequenos lotes para deixar o event loop livre entre os lotes.
- * O Baileys só entrega o histórico que o WhatsApp disponibilizar para esta sessão.
- */
-export function scanHistoricalMessages(messages, isLatest = false) {
-    const batch = Array.isArray(messages) ? messages : [];
-    if (!batch.length) return Promise.resolve();
+async function drainPendingHistoryFiles() {
+    await pendingWriteChain;
+    await fs.mkdir(PENDING_DIR, { recursive: true });
+    const state = await readScanState();
+    const chunkSize = 100;
 
-    const operation = scanChain.then(async () => {
-        const state = await readScanState();
-        const batchCommands = new Set();
-        let scanned = 0;
-        let addedThisBatch = 0;
-        const chunkSize = 100;
+    while (true) {
+        const files = (await fs.readdir(PENDING_DIR))
+            .filter(name => name.endsWith(".json"))
+            .sort();
+        if (!files.length) {
+            delete state.activeBatchFile;
+            delete state.activeBatchNextIndex;
+            await writeScanState(state);
+            return;
+        }
 
-        console.log(`🔎 Megapack: analisando ${batch.length} mensagens históricas em lotes...`);
+        const fileName = files.includes(state.activeBatchFile)
+            ? state.activeBatchFile
+            : files[0];
+        const filePath = path.join(PENDING_DIR, fileName);
+        const pending = JSON.parse(await fs.readFile(filePath, "utf8"));
+        let nextIndex = files.includes(state.activeBatchFile)
+            ? Math.min(Number(state.activeBatchNextIndex) || 0, pending.messages.length)
+            : 0;
 
-        for (let start = 0; start < batch.length; start += chunkSize) {
-            const chunk = batch.slice(start, start + chunkSize);
+        state.activeBatchFile = fileName;
+        state.activeBatchNextIndex = nextIndex;
+        await writeScanState(state);
+
+        console.log(`🔎 Megapack: retomando varredura de ${pending.messages.length} mensagens históricas (posição ${nextIndex}).`);
+
+        while (nextIndex < pending.messages.length) {
+            const end = Math.min(nextIndex + chunkSize, pending.messages.length);
+            const chunk = pending.messages.slice(nextIndex, end);
             const found = [];
-
-            for (const msg of chunk) {
-                scanned++;
-                const query = extractPackQuery(msg);
-                if (query) {
-                    batchCommands.add(query);
-                    found.push(query);
-                }
+            for (const text of chunk) {
+                const query = extractPackQueryFromText(text);
+                if (query) found.push(query);
             }
 
-            const addedInChunk = await rememberHistoricalPacks(found);
-            addedThisBatch += addedInChunk;
-            state.uniqueNamesAdded = (Number(state.uniqueNamesAdded) || 0) + addedInChunk;
+            const added = await rememberHistoricalPacks(found);
             state.messagesScanned = (Number(state.messagesScanned) || 0) + chunk.length;
             state.commandsFound = (Number(state.commandsFound) || 0) + found.length;
+            state.uniqueNamesAdded = (Number(state.uniqueNamesAdded) || 0) + added;
             state.lastBatchAt = new Date().toISOString();
-            state.isLatestHistoryBatch = Boolean(isLatest);
-            state.lastBatchSize = batch.length;
-            state.lastBatchProcessed = scanned;
+            state.isLatestHistoryBatch = Boolean(pending.isLatest);
+            state.lastBatchSize = pending.messages.length;
+            state.activeBatchNextIndex = end;
+            nextIndex = end;
             await writeScanState(state);
 
             // Cede o event loop para que mensagens e comandos normais continuem fluindo.
             await new Promise(resolve => setTimeout(resolve, 0));
         }
 
+        const allFound = pending.messages.reduce((count, text) => count + (extractPackQueryFromText(text) ? 1 : 0), 0);
         state.batches = (Number(state.batches) || 0) + 1;
-        state.lastBatchProcessed = batch.length;
-        state.lastBatchUniqueCommands = batchCommands.size;
+        state.lastBatchProcessed = pending.messages.length;
+        state.lastBatchUniqueCommands = allFound;
         state.lastCompletedAt = new Date().toISOString();
+
+        // Apaga a fila antes de limpar o checkpoint. Se houver reinício entre
+        // estas operações, o próximo início detectará que o arquivo já sumiu.
+        await fs.unlink(filePath).catch(error => {
+            if (error.code !== "ENOENT") throw error;
+        });
+        delete state.activeBatchFile;
+        delete state.activeBatchNextIndex;
         await writeScanState(state);
+        console.log(`✅ Megapack: ${pending.messages.length} mensagens analisadas; ${allFound} comandos .pack encontrados neste lote.`);
+    }
+}
 
-        console.log(`✅ Megapack: ${batch.length} mensagens analisadas; ${batchCommands.size} comandos .pack encontrados; ${addedThisBatch} nomes novos adicionados.`);
+export function scanHistoricalMessages(messages, isLatest = false) {
+    const batch = Array.isArray(messages) ? messages : [];
+    if (!batch.length) return Promise.resolve();
+
+    const persist = pendingWriteChain.then(async () => {
+        await fs.mkdir(PENDING_DIR, { recursive: true });
+        const fileName = `${Date.now()}-${randomUUID()}.json`;
+        const filePath = path.join(PENDING_DIR, fileName);
+        const tempPath = filePath + ".tmp";
+        // Guarda só o texto das mensagens, não mídia nem dados privados desnecessários.
+        const snapshot = {
+            isLatest: Boolean(isLatest),
+            messages: batch.map(getMessageText)
+        };
+        await fs.writeFile(tempPath, JSON.stringify(snapshot), "utf8");
+        await fs.rename(tempPath, filePath);
+        return fileName;
     });
+    pendingWriteChain = persist.catch(() => {});
 
+    const operation = scanChain.then(async () => {
+        await persist;
+        await drainPendingHistoryFiles();
+    });
     scanChain = operation.catch(error => {
         console.error("❌ Erro varrendo histórico para o megapack:", error);
+    });
+    return operation;
+}
+
+export function resumeHistoricalScan() {
+    const operation = scanChain.then(async () => {
+        await pendingWriteChain;
+        await drainPendingHistoryFiles();
+    });
+    scanChain = operation.catch(error => {
+        console.error("❌ Erro retomando varredura do histórico para o megapack:", error);
     });
     return operation;
 }
