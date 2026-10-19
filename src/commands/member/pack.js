@@ -320,6 +320,7 @@ export default {
 
         return enqueuePack(async ({ id }) => {
             let dir;
+            let packSucceeded = false;
 
             try {
                 dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
@@ -346,16 +347,21 @@ export default {
                     description: `🌸 ${query}`
                 });
 
-                await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
+                packSucceeded = true;
+                if (!msg.packBatch) {
+                    await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
+                }
 
                 console.log(`✅ [pack ${id}] Concluído "${query}" (${stickers.length} stickers)`);
             } catch (e) {
                 console.error(`❌ [pack ${id}] Erro em "${query}":`, e);
 
-                try {
-                    await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
-                } catch (sendError) {
-                    console.error(`❌ [pack ${id}] Também falhou ao reagir à mensagem:`, sendError);
+                if (!msg.packBatch) {
+                    try {
+                        await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    } catch (sendError) {
+                        console.error(`❌ [pack ${id}] Também falhou ao reagir à mensagem:`, sendError);
+                    }
                 }
 
                 throw e;
@@ -363,11 +369,27 @@ export default {
                 if (dir) {
                     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
                 }
+
+                if (msg.packBatch) {
+                    if (!packSucceeded) msg.packBatch.failed = true;
+                    msg.packBatch.remaining -= 1;
+
+                    if (msg.packBatch.remaining === 0) {
+                        const emoji = msg.packBatch.failed ? "❌" : "✅";
+                        try {
+                            await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
+                        } catch (reactionError) {
+                            console.error("⚠️ Não consegui atualizar a reação do megapack:", reactionError);
+                        }
+                    }
+                }
             }
         }, {
-            onQueued: () => sock.sendMessage(from, {
-                react: { text: "⏳", key: msg.key }
-            })
+            onQueued: () => msg.packBatch
+                ? undefined
+                : sock.sendMessage(from, {
+                    react: { text: "⏳", key: msg.key }
+                })
         });
     }
 };
