@@ -3,8 +3,7 @@ import { Worker } from "node:worker_threads";
 function buildCatalogInWorker() {
     return new Promise((resolve, reject) => {
         const worker = new Worker(
-            new URL("../../workers/megapacklista.worker.js", import.meta.url),
-            { type: "module" }
+            new URL("../../workers/megapacklista.worker.js", import.meta.url)
         );
 
         let settled = false;
