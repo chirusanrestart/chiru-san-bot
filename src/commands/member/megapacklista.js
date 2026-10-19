@@ -1,73 +1,71 @@
-import { getMegapackHistory } from "../../services/megapackHistory.js";
+import { Worker } from "node:worker_threads";
 
-const YIELD_EVERY = 250;
+function buildCatalogInWorker() {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(
+            new URL("../../workers/megapacklista.worker.js", import.meta.url),
+            { type: "module" }
+        );
 
-function yieldToEventLoop() {
-    return new Promise(resolve => setTimeout(resolve, 0));
+        let settled = false;
+
+        const finish = (callback, value) => {
+            if (settled) return;
+            settled = true;
+            callback(value);
+        };
+
+        worker.once("message", result => {
+            if (result?.ok) {
+                finish(resolve, result);
+            } else {
+                finish(reject, new Error(result?.error || "O worker não conseguiu preparar o catálogo."));
+            }
+            void worker.terminate();
+        });
+
+        worker.once("error", error => {
+            finish(reject, error);
+            void worker.terminate();
+        });
+
+        worker.once("exit", code => {
+            if (code !== 0) {
+                finish(reject, new Error(`O worker do megapack terminou com código ${code}.`));
+            }
+        });
+    });
 }
 
 export default {
     name: "megapacklista",
     aliases: ["listamegapack", "megapacklist"],
-    description: "Lista todos os personagens salvos no catálogo do megapack",
+    description: "Lista todos os personagens salvos no catálogo do megapack usando uma thread separada",
     async execute(sock, msg) {
         const from = msg.key.remoteJid;
 
-        let packs;
+        let result;
         try {
-            packs = await getMegapackHistory();
+            result = await buildCatalogInWorker();
         } catch (error) {
-            console.error("❌ Erro lendo catálogo do megapack:", error);
+            console.error("❌ Erro no worker do catálogo do megapack:", error);
             return sock.sendMessage(from, {
-                text: "❌ Não consegui ler a lista do megapack agora. Tenta novamente daqui a pouquinho."
+                text: "❌ Não consegui preparar a lista do megapack agora. Tenta novamente daqui a pouquinho."
             }, { quoted: msg });
         }
 
-        // Deduplica em blocos e cede o event loop para o bot continuar atendendo.
-        const unique = new Map();
-        for (let index = 0; index < packs.length; index++) {
-            const name = String(packs[index]?.name || "").trim();
-            if (name) {
-                const key = name.toLocaleLowerCase("pt-BR");
-                if (!unique.has(key)) unique.set(key, name);
-            }
-
-            if ((index + 1) % YIELD_EVERY === 0) {
-                await yieldToEventLoop();
-            }
-        }
-
-        const names = [...unique.values()];
-        names.sort((a, b) => a.localeCompare(b, "pt-BR"));
-
-        if (!names.length) {
+        if (!result.count) {
             return sock.sendMessage(from, {
                 text: "🌸 O catálogo do megapack ainda está vazio. Os nomes vão sendo salvos quando alguém usa *.pack nome do personagem* e quando a varredura encontra comandos antigos."
             }, { quoted: msg });
         }
 
-        // Monta a lista inteira numa única mensagem, cedendo o event loop durante a montagem.
-        const lines = [];
-        for (let index = 0; index < names.length; index++) {
-            lines.push(`${index + 1}. ${names[index]}`);
-            if ((index + 1) % YIELD_EVERY === 0) {
-                await yieldToEventLoop();
-            }
-        }
-
-        const text = [
-            "📚 *CATÁLOGO COMPLETO DO MEGAPACK*",
-            `💖 Personagens únicos: *${names.length}*`,
-            "",
-            ...lines
-        ].join("\n");
-
         try {
-            await sock.sendMessage(from, { text }, { quoted: msg });
+            await sock.sendMessage(from, { text: result.text }, { quoted: msg });
         } catch (error) {
             console.error("❌ Erro enviando catálogo completo do megapack:", error);
             await sock.sendMessage(from, {
-                text: `❌ Não consegui enviar a lista completa em uma única mensagem. O catálogo tem ${names.length} personagens e a mensagem pode ter ultrapassado o limite aceito pelo WhatsApp.`
+                text: `❌ Não consegui enviar a lista completa em uma única mensagem. O catálogo tem ${result.count} personagens e a mensagem pode ter ultrapassado o limite aceito pelo WhatsApp.`
             }, { quoted: msg });
         }
     }
