@@ -591,6 +591,14 @@ async function startBotInternal() {
             sock
         );
 
+    // Registra os eventos antes de carregar comandos para não perder uma
+    // sincronização de histórico que chegue durante a inicialização.
+    sock.ev.on("messaging-history.set", ({ messages, isLatest }) => {
+        scanHistoricalMessages(messages, isLatest).catch(error => {
+            console.error("❌ Falha na varredura do histórico para o megapack:", error);
+        });
+    });
+
     await commandHandler.loadCommands();
 
     sock.ev.on(
@@ -609,14 +617,6 @@ async function startBotInternal() {
             }
         }
     );
-
-    // O evento de histórico é separado de messages.upsert: varre comandos antigos
-    // sem executá-los novamente nem disparar packs durante a sincronização.
-    sock.ev.on("messaging-history.set", ({ messages, isLatest }) => {
-        scanHistoricalMessages(messages, isLatest).catch(error => {
-            console.error("❌ Falha na varredura do histórico para o megapack:", error);
-        });
-    });
 
     
     sock.ev.on(
