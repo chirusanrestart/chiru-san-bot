@@ -22,6 +22,7 @@ import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
 import CommandHandler from "./handlers/CommandHandler.js";
+import { scanHistoricalMessages } from "./services/megapackHistory.js";
 
 import {
     isEnabled
@@ -608,6 +609,14 @@ async function startBotInternal() {
             }
         }
     );
+
+    // O evento de histórico é separado de messages.upsert: varre comandos antigos
+    // sem executá-los novamente nem disparar packs durante a sincronização.
+    sock.ev.on("messaging-history.set", ({ messages, isLatest }) => {
+        scanHistoricalMessages(messages, isLatest).catch(error => {
+            console.error("❌ Falha na varredura do histórico para o megapack:", error);
+        });
+    });
 
     
     sock.ev.on(
