@@ -1,9 +1,8 @@
 import { Worker } from "node:worker_threads";
 
 /**
- * Executa a compressão ZIP numa worker thread.
- * O socket e a lógica do Baileys continuam na thread principal;
- * somente o trabalho CPU-bound é delegado.
+ * Cria o ZIP em disco dentro da worker thread.
+ * A thread principal recebe apenas o caminho e o tamanho do arquivo final.
  */
 export async function zipStickerFiles(files) {
     const worker = new Worker(
@@ -13,12 +12,11 @@ export async function zipStickerFiles(files) {
     return new Promise((resolve, reject) => {
         let settled = false;
 
-        const finish = (error, buffer) => {
+        const finish = (error, result) => {
             if (settled) return;
             settled = true;
-
             if (error) reject(error);
-            else resolve(Buffer.from(buffer));
+            else resolve(result);
         };
 
         worker.once("message", message => {
@@ -26,22 +24,18 @@ export async function zipStickerFiles(files) {
                 finish(new Error(message?.error || "Falha ao compactar o pack"));
                 return;
             }
-
-            finish(null, message.buffer);
+            finish(null, {
+                filePath: message.filePath,
+                fileLength: message.fileLength
+            });
         });
 
         worker.once("error", error => finish(error));
-
         worker.once("exit", code => {
-            if (code !== 0) {
-                finish(new Error(`Worker ZIP terminou com código ${code}`));
-            }
+            if (code !== 0) finish(new Error(`Worker ZIP terminou com código ${code}`));
         });
 
         try {
-            // Transfere os ArrayBuffers em vez de clonar todos os bytes do pack.
-            // An ArrayBuffer may appear in more than one entry when callers
-            // reuse views. Transfer each backing store only once.
             const transferList = [
                 ...new Set(
                     Object.values(files)
@@ -49,7 +43,6 @@ export async function zipStickerFiles(files) {
                         .filter(buffer => buffer instanceof ArrayBuffer)
                 )
             ];
-
             worker.postMessage(files, transferList);
         } catch (error) {
             finish(error);
