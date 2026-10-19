@@ -58,7 +58,7 @@ export default {
                             : `✅ Megapack concluído!\n📦 Packs processados: ${done}/${batch.total}`;
                     } else {
                         const queue = getPackQueueStatus();
-                        text = `⏳ Megapack em andamento\n📦 Packs processados: ${done}/${batch.total}\n⚙️ Packs em processamento: ${queue.running}\n🕒 Packs aguardando na fila: ${queue.pending}`;
+                        text = `⏳ Megapack em andamento\n📦 Packs processados: ${done}/${batch.total}\n⚙️ Fila global em processamento: ${queue.running}\n🕒 Na fila global: ${queue.pending}`;
                     }
 
                     if (text === lastStatusText) return;
