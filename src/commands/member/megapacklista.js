@@ -1,6 +1,5 @@
 import { getMegapackHistory } from "../../services/megapackHistory.js";
 
-const PAGE_SIZE = 100;
 const YIELD_EVERY = 250;
 
 function yieldToEventLoop() {
@@ -10,16 +9,9 @@ function yieldToEventLoop() {
 export default {
     name: "megapacklista",
     aliases: ["listamegapack", "megapacklist"],
-    description: "Lista os personagens salvos no catálogo do megapack",
-    async execute(sock, msg, args = []) {
+    description: "Lista todos os personagens salvos no catálogo do megapack",
+    async execute(sock, msg) {
         const from = msg.key.remoteJid;
-        const requestedPage = Number.parseInt(args[0] || "1", 10);
-
-        if (!Number.isSafeInteger(requestedPage) || requestedPage < 1) {
-            return sock.sendMessage(from, {
-                text: "📚 Usa assim: *.megapacklista* ou *.megapacklista 2* para ver outra página."
-            }, { quoted: msg });
-        }
 
         let packs;
         try {
@@ -54,34 +46,29 @@ export default {
             }, { quoted: msg });
         }
 
-        const totalPages = Math.ceil(names.length / PAGE_SIZE);
-        if (requestedPage > totalPages) {
-            return sock.sendMessage(from, {
-                text: `📚 Existem ${names.length} personagens no catálogo, divididos em ${totalPages} páginas. Essa página não existe. Usa *.megapacklista ${totalPages}* para ver a última.`
-            }, { quoted: msg });
-        }
-
-        const start = (requestedPage - 1) * PAGE_SIZE;
-        const pageNames = names.slice(start, start + PAGE_SIZE);
+        // Monta a lista inteira numa única mensagem, cedendo o event loop durante a montagem.
         const lines = [];
-
-        for (let index = 0; index < pageNames.length; index++) {
-            lines.push(`${start + index + 1}. ${pageNames[index]}`);
-            if ((index + 1) % YIELD_EVERY === 0) await yieldToEventLoop();
+        for (let index = 0; index < names.length; index++) {
+            lines.push(`${index + 1}. ${names[index]}`);
+            if ((index + 1) % YIELD_EVERY === 0) {
+                await yieldToEventLoop();
+            }
         }
 
         const text = [
-            `📚 *CATÁLOGO DO MEGAPACK*`,
+            "📚 *CATÁLOGO COMPLETO DO MEGAPACK*",
             `💖 Personagens únicos: *${names.length}*`,
-            `📄 Página *${requestedPage}/${totalPages}* (até ${PAGE_SIZE} nomes por página)`,
             "",
-            ...lines,
-            "",
-            requestedPage < totalPages
-                ? `➡️ Próxima página: *.megapacklista ${requestedPage + 1}*`
-                : "✅ Esta é a última página."
+            ...lines
         ].join("\n");
 
-        await sock.sendMessage(from, { text }, { quoted: msg });
+        try {
+            await sock.sendMessage(from, { text }, { quoted: msg });
+        } catch (error) {
+            console.error("❌ Erro enviando catálogo completo do megapack:", error);
+            await sock.sendMessage(from, {
+                text: `❌ Não consegui enviar a lista completa em uma única mensagem. O catálogo tem ${names.length} personagens e a mensagem pode ter ultrapassado o limite aceito pelo WhatsApp.`
+            }, { quoted: msg });
+        }
     }
 };
