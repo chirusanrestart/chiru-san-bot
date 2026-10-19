@@ -318,23 +318,51 @@ export default {
             requester
         });
 
+        let statusMessageKey = null;
+        let lastStatusText = "";
+        let statusChain = Promise.resolve();
+
+        const updateSingleStatus = text => {
+            statusChain = statusChain.then(async () => {
+                if (lastStatusText === text) return;
+
+                if (!statusMessageKey) {
+                    const sent = await sock.sendMessage(from, { text }, { quoted: msg });
+                    statusMessageKey = sent?.key || null;
+                } else {
+                    await sock.sendMessage(from, { text, edit: statusMessageKey });
+                }
+
+                lastStatusText = text;
+            }).catch(error => {
+                console.error(`⚠️ Não consegui atualizar a mensagem da fila para "${query}":`, error);
+            });
+
+            return statusChain;
+        };
+
+        const queueStatusText = status => {
+            if (msg.packBatch) return msg.packBatch.updateStatus?.();
+            if (status.state === "running") return updateSingleStatus(`⚙️ Gerando o pack de *${query}*...\n\nA fila está trabalhando nele agora!`);
+            return updateSingleStatus(`⏳ Pack de *${query}* na fila\n📍 Posição: *${status.position}*`);
+        };
+
         return enqueuePack(async ({ id }) => {
             let dir;
+            let packSucceeded = false;
 
             try {
                 dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-"));
 
-                await sock.sendMessage(from, {
-                    text: `🔎 Começando o pack de *${query}* (até ${TOTAL} figs)...`
-                }, { quoted: msg });
-
-                console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
+                 console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
 
                 const candidates = await findImages(query);
                 if (!candidates.length) {
-                    await sock.sendMessage(from, {
-                        text: `❌ Não achei imagens pra *${query}*.`
-                    }, { quoted: msg });
+                    if (msg.packBatch) msg.packBatch.failed = true;
+                    else {
+                        await updateSingleStatus(`❌ Não encontrei imagens suficientes para *${query}*.`);
+                        await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    }
                     return;
                 }
 
@@ -342,9 +370,11 @@ export default {
                 const stickers = await makeStickers(candidates, dir, query, author);
 
                 if (stickers.length < 5) {
-                    await sock.sendMessage(from, {
-                        text: `❌ Só consegui *${stickers.length}* figurinhas pra *${query}*.`
-                    }, { quoted: msg });
+                    if (msg.packBatch) msg.packBatch.failed = true;
+                    else {
+                        await updateSingleStatus(`❌ Não consegui gerar stickers suficientes para *${query}*.`);
+                        await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    }
                     return;
                 }
 
@@ -354,20 +384,23 @@ export default {
                     description: `🌸 ${query}`
                 });
 
-                await sock.sendMessage(from, {
-                    text: `✅ Pack *${query}* pronto (*${stickers.length}* figs)`
-                }, { quoted: msg });
+                packSucceeded = true;
+                if (!msg.packBatch) {
+                    await updateSingleStatus(`✅ Pack de *${query}* concluído com ${stickers.length} figurinhas!`);
+                    await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
+                }
 
                 console.log(`✅ [pack ${id}] Concluído "${query}" (${stickers.length} stickers)`);
             } catch (e) {
                 console.error(`❌ [pack ${id}] Erro em "${query}":`, e);
 
-                try {
-                    await sock.sendMessage(from, {
-                        text: `❌ Erro ao montar o pack *${query}*: ${e.message || "erro desconhecido"}`
-                    }, { quoted: msg });
-                } catch (sendError) {
-                    console.error(`❌ [pack ${id}] Também falhou ao avisar o usuário:`, sendError);
+                if (!msg.packBatch) {
+                    await updateSingleStatus(`❌ Falha ao gerar o pack de *${query}*.`);
+                    try {
+                        await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    } catch (sendError) {
+                        console.error(`❌ [pack ${id}] Também falhou ao reagir à mensagem:`, sendError);
+                    }
                 }
 
                 throw e;
@@ -375,13 +408,34 @@ export default {
                 if (dir) {
                     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
                 }
+
+                if (msg.packBatch) {
+                    if (!packSucceeded) msg.packBatch.failed = true;
+                    msg.packBatch.remaining -= 1;
+
+                    if (msg.packBatch.remaining === 0 && !msg.packBatch.finalized) {
+                        msg.packBatch.finalized = true;
+                        const emoji = msg.packBatch.failed ? "❌" : "✅";
+                        try {
+                            await msg.packBatch.updateStatus?.();
+                            await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
+                        } catch (reactionError) {
+                            console.error("⚠️ Não consegui finalizar o status do megapack:", reactionError);
+                        }
+                    } else {
+                        await msg.packBatch.updateStatus?.();
+                    }
+                }
             }
         }, {
-            onQueued: ({ id, position }) => sock.sendMessage(from, {
-                text: position === 1
-                    ? `📥 Pack *${query}* entrou na fila e será iniciado em breve. (ID: ${id})`
-                    : `📥 Pack *${query}* entrou na fila na posição *${position}*. (ID: ${id})`
-            }, { quoted: msg })
+            onQueued: async ({ position }) => {
+                if (msg.packBatch) return;
+                await updateSingleStatus(`⏳ Pack de *${query}* na fila\n📍 Posição: *${position}*`);
+                await sock.sendMessage(from, {
+                    react: { text: "⏳", key: msg.key }
+                });
+            },
+            onQueueUpdate: status => queueStatusText(status)
         });
     }
 };

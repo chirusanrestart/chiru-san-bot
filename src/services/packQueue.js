@@ -22,16 +22,54 @@ function snapshot() {
     };
 }
 
+function notifyQueueChanges() {
+    const updates = [];
+
+    if (currentJob?.onQueueUpdate) {
+        updates.push({
+            job: currentJob,
+            state: "running",
+            position: 0
+        });
+    }
+
+    queue.forEach((job, index) => {
+        if (job.onQueueUpdate) {
+            updates.push({
+                job,
+                state: "queued",
+                position: index + (currentJob ? 2 : 1)
+            });
+        }
+    });
+
+    for (const update of updates) {
+        try {
+            Promise.resolve(update.job.onQueueUpdate({
+                id: update.job.id,
+                state: update.state,
+                position: update.position,
+                ...snapshot()
+            })).catch(error => {
+                console.error(`⚠️ [pack ${update.job.id}] Falha ao atualizar status da fila:`, error);
+            });
+        } catch (error) {
+            console.error(`⚠️ [pack ${update.job.id}] Falha ao atualizar status da fila:`, error);
+        }
+    }
+}
+
 async function drainQueue() {
     if (running) return;
     running = true;
 
     try {
-        while (queue.length > 0) {
+        while (queue.length > 0 && queue[0].ready) {
             const job = queue.shift();
             currentJob = job;
             job.startedAt = Date.now();
 
+            notifyQueueChanges();
             console.log(
                 `📦 [pack ${job.id}] Iniciando. Pendentes: ${queue.length}`
             );
@@ -57,13 +95,14 @@ async function drainQueue() {
                     `🏁 [pack ${job.id}] Finalizado em ${Date.now() - job.startedAt}ms. ${JSON.stringify(snapshot())}`
                 );
                 currentJob = null;
+                notifyQueueChanges();
             }
         }
     } finally {
         running = false;
 
         // Evita deixar jobs presos caso um novo pedido chegue no limite do worker.
-        if (queue.length > 0) {
+        if (queue.length > 0 && queue[0].ready) {
             void drainQueue();
         }
     }
@@ -78,6 +117,9 @@ export async function enqueuePack(task, options = {}) {
         id: randomUUID().slice(0, 8),
         task,
         onError: options.onError,
+        onQueued: options.onQueued,
+        onQueueUpdate: options.onQueueUpdate,
+        ready: false,
         queuedAt: Date.now(),
         startedAt: null
     };
@@ -89,17 +131,18 @@ export async function enqueuePack(task, options = {}) {
         `📥 [pack ${job.id}] Na fila, posição ${position}. ${JSON.stringify(snapshot())}`
     );
 
-    // Dispara o aviso antes do worker, mas não deixa um envio lento travar a fila.
+    // Cria a mensagem inicial antes de iniciar o worker, para que as edições
+    // posteriores sempre tenham a chave da mensagem que precisam editar.
     try {
-        const notification = options.onQueued?.({ id: job.id, position });
-        Promise.resolve(notification).catch(error => {
-            console.error(`⚠️ [pack ${job.id}] Não consegui enviar confirmação da fila:`, error);
-        });
+        await job.onQueued?.({ id: job.id, position, ...snapshot() });
     } catch (error) {
-        console.error(`⚠️ [pack ${job.id}] Não consegui enviar confirmação da fila:`, error);
+        console.error(`⚠️ [pack ${job.id}] Não consegui enviar a confirmação inicial da fila:`, error);
     }
 
-    // O job já está registrado. O worker é iniciado sem bloquear o handler do WhatsApp.
+    job.ready = true;
+    notifyQueueChanges();
+
+    // Só começa quando a mensagem inicial já foi criada, evitando condições de corrida.
     void drainQueue();
 
     return {
