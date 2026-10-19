@@ -2,11 +2,25 @@ import { getMegapackHistory } from "../../services/megapackHistory.js";
 import { getPackQueueStatus } from "../../services/packQueue.js";
 import packCommand from "./pack.js";
 
+function getCatalogNames(packs) {
+    const unique = new Map();
+
+    for (const item of packs || []) {
+        const name = String(item?.name || "").trim();
+        if (!name) continue;
+
+        const key = name.toLocaleLowerCase("pt-BR");
+        if (!unique.has(key)) unique.set(key, name);
+    }
+
+    return [...unique.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
 export default {
     name: "megapack",
     aliases: ["restaurarpack", "packbackup"],
-    description: "Recoloca na fila todos os packs já pedidos ao bot",
-    async execute(sock, msg) {
+    description: "Restaura todos os packs salvos ou envia somente o pack indicado pelo número da megapacklista",
+    async execute(sock, msg, args = []) {
         const from = msg.key.remoteJid;
         let packs;
 
@@ -19,11 +33,37 @@ export default {
             }, { quoted: msg });
         }
 
-        const names = [...new Set(packs.map(item => String(item.name || "").trim()).filter(Boolean))];
+        const names = getCatalogNames(packs);
         if (!names.length) {
             return sock.sendMessage(from, {
                 text: "🌸 Ainda não há packs no catálogo. A partir dos pedidos feitos com *.pack nome do personagem*, o bot vai guardar os nomes automaticamente para todo mundo."
             }, { quoted: msg });
+        }
+
+        // Com um número, usa exatamente a mesma ordenação e numeração de .megapacklista.
+        // O comando .megapack sem argumentos mantém o comportamento original: restaurar tudo.
+        if (args.length > 0) {
+            const rawIndex = String(args[0] || "").trim();
+            if (!/^\d+$/.test(rawIndex) || args.length > 1) {
+                return sock.sendMessage(from, {
+                    text: "🌸 Use *.megapack número* para enviar um único pack, por exemplo *.megapack 90*.\nPara restaurar todos os packs, use *.megapack*."
+                }, { quoted: msg });
+            }
+
+            const index = Number(rawIndex);
+            if (!Number.isSafeInteger(index) || index < 1 || index > names.length) {
+                return sock.sendMessage(from, {
+                    text: `❌ O número *${rawIndex}* não existe no catálogo. Use *.megapacklista* para conferir os números de 1 a ${names.length}.`
+                }, { quoted: msg });
+            }
+
+            const name = names[index - 1];
+            const queue = getPackQueueStatus();
+            await sock.sendMessage(from, {
+                text: `📦 Você escolheu o pack *#${index}: ${name}*.\n🌸 Vou gerar somente esse pack.\n📍 Itens aguardando na fila: ${queue.pending}.`
+            }, { quoted: msg });
+
+            return packCommand.execute(sock, msg, [name]);
         }
 
         await sock.sendMessage(from, {
@@ -94,7 +134,7 @@ export default {
             } catch (error) {
                 msg.packBatch.failed = true;
                 msg.packBatch.remaining = Math.max(0, msg.packBatch.remaining - 1);
-                console.error(`❌ Falha ao processar o pack \"${name}\" no megapack:`, error);
+                console.error(`❌ Falha ao processar o pack "${name}" no megapack:`, error);
             }
             // Cede o event loop entre tarefas pesadas.
             await new Promise(resolve => setImmediate(resolve));
@@ -102,8 +142,6 @@ export default {
 
         msg.packBatch.initializing = false;
 
-        // Atualiza uma vez depois de enfileirar o lote, evitando dezenas de edições
-        // durante a preparação inicial.
         if (msg.packBatch.remaining === 0 && !msg.packBatch.finalized) {
             msg.packBatch.finalized = true;
             const emoji = msg.packBatch.failed ? "❌" : "✅";
