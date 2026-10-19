@@ -391,6 +391,7 @@ export default {
                     return;
                 }
 
+                const stickerCount = stickers.length;
                 await sendStickerPack(sock, from, stickers, {
                     name: query,
                     publisher: author,
@@ -402,11 +403,11 @@ export default {
                 stickers.length = 0;
                 stickers = [];
                 if (!msg.packBatch) {
-                    await updateSingleStatus(`✅ Pack de *${query}* concluído com ${stickers.length} figurinhas!`);
+                    await updateSingleStatus(`✅ Pack de *${query}* concluído com ${stickerCount} figurinhas!`);
                     await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
                 }
 
-                console.log(`✅ [pack ${id}] Concluído "${query}" (${stickers.length} stickers)`);
+                console.log(`✅ [pack ${id}] Concluído "${query}" (${stickerCount} stickers)`);
             } catch (e) {
                 console.error(`❌ [pack ${id}] Erro em "${query}":`, e);
 
@@ -429,6 +430,14 @@ export default {
                 if (dir) {
                     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
                 }
+
+                // Se o Node foi iniciado com --expose-gc, recolhe os buffers
+                // já sem referências antes de o próximo pack começar.
+                if (typeof global.gc === "function") {
+                    global.gc();
+                }
+                // Cede o event loop para concluir callbacks de I/O/liberação.
+                await sleep(50);
 
                 const mem = process.memoryUsage();
                 console.log(`🧠 [pack ${id}] Memória após limpeza: RSS=${Math.round(mem.rss / 1048576)}MB heap=${Math.round(mem.heapUsed / 1048576)}MB external=${Math.round(mem.external / 1048576)}MB arrayBuffers=${Math.round(mem.arrayBuffers / 1048576)}MB`);
