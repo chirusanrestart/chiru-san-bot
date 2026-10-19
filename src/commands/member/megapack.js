@@ -4,34 +4,31 @@ import packCommand from "./pack.js";
 export default {
     name: "megapack",
     aliases: ["restaurarpack", "packbackup"],
-    description: "Recoloca na fila os packs de personagens já pedidos por você",
+    description: "Recoloca na fila todos os packs já pedidos ao bot",
     async execute(sock, msg) {
         const from = msg.key.remoteJid;
-        const ownerJid = msg.key.participant || from;
-
         let packs;
-        try {
-            packs = await getMegapackHistory(ownerJid);
-        } catch (error) {
-            console.error("❌ Erro lendo histórico do megapack:", error);
-            return sock.sendMessage(from, {
-                text: "❌ Não consegui ler o histórico de packs agora. Tenta novamente daqui a pouquinho."
-            }, { quoted: msg });
-        }
 
-        if (!packs.length) {
+        try {
+            packs = await getMegapackHistory();
+        } catch (error) {
+            console.error("❌ Erro lendo histórico global do megapack:", error);
             return sock.sendMessage(from, {
-                text: "🌸 Ainda não encontrei packs salvos para você. A partir dos próximos pedidos com *.pack nome do personagem*, vou guardar o histórico automaticamente."
+                text: "❌ Não consegui ler o catálogo de packs agora. Tenta novamente daqui a pouquinho."
             }, { quoted: msg });
         }
 
         const names = [...new Set(packs.map(item => String(item.name || "").trim()).filter(Boolean))];
+        if (!names.length) {
+            return sock.sendMessage(from, {
+                text: "🌸 Ainda não há packs no catálogo. A partir dos pedidos feitos com *.pack nome do personagem*, o bot vai guardar os nomes automaticamente para todo mundo."
+            }, { quoted: msg });
+        }
+
         await sock.sendMessage(from, {
-            text: `💖 Encontrei *${names.length}* personagens no seu histórico! Vou colocar todos os packs na fila. Isso pode levar um tempinho, pois cada pack é processado normalmente.\n\n${names.map((name, i) => `${i + 1}. ${name}`).join("\n")}`
+            text: `💖 O catálogo global tem *${names.length}* personagens! Vou colocar todos os packs na fila para você.\n\n${names.map((name, i) => `${i + 1}. ${name}`).join("\n")}\n\n📥 Pode demorar um pouquinho porque cada pack é gerado normalmente.`
         }, { quoted: msg });
 
-        // Reutiliza o comando .pack e sua fila original, sem duplicar a lógica
-        // de busca, conversão e envio de figurinhas.
         for (const name of names) {
             await packCommand.execute(sock, msg, [name]);
         }
