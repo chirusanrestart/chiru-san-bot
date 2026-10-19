@@ -81,8 +81,10 @@ async function drainQueue() {
                     startedAt: job.startedAt
                 });
                 completed++;
+                job.resolveCompletion({ success: true, id: job.id });
             } catch (error) {
                 failed++;
+                job.resolveCompletion({ success: false, id: job.id, error });
                 console.error(`❌ [pack ${job.id}] Falha não tratada:`, error);
 
                 try {
@@ -113,9 +115,14 @@ export async function enqueuePack(task, options = {}) {
         throw new TypeError("enqueuePack espera uma função");
     }
 
+    let resolveCompletion;
+    const completion = new Promise(resolve => { resolveCompletion = resolve; });
+
     const job = {
         id: randomUUID().slice(0, 8),
         task,
+        completion,
+        resolveCompletion,
         onError: options.onError,
         onQueued: options.onQueued,
         onQueueUpdate: options.onQueueUpdate,
@@ -145,11 +152,9 @@ export async function enqueuePack(task, options = {}) {
     // Só começa quando a mensagem inicial já foi criada, evitando condições de corrida.
     void drainQueue();
 
-    return {
-        id: job.id,
-        position,
-        queuedAt: job.queuedAt
-    };
+    const queuedResult = { id: job.id, position, queuedAt: job.queuedAt };
+    if (options.awaitCompletion) return await job.completion;
+    return queuedResult;
 }
 
 export function getPackQueueStatus() {
