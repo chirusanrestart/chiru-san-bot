@@ -176,136 +176,57 @@ async function encryptBuffer(
     mediaType,
     mediaKey = randomBytes(32)
 ) {
+    const { cipherKey, iv, macKey } = await getMediaKeys(mediaKey, mediaType);
+    const cipher = createCipheriv("aes-256-cbc", cipherKey, iv);
+    const hmac = createHmac("sha256", macKey).update(iv);
+    const plainHash = createHash("sha256").update(buffer);
+    const encryptedHash = createHash("sha256");
+    const filePath = path.join(
+        os.tmpdir(),
+        `${mediaType}-${generateMessageIDV2()}-enc`
+    );
 
-    const {
-        cipherKey,
-        iv,
-        macKey
-    } =
-        await getMediaKeys(
+    // Criptografa em blocos e grava direto no disco. Evita manter, ao mesmo
+    // tempo, o ZIP original, todas as partes cifradas e um Buffer.concat gigante.
+    const CHUNK_SIZE = 256 * 1024;
+    let fileHandle;
+
+    try {
+        fileHandle = await fs.open(filePath, "w");
+
+        const writeEncrypted = async (part) => {
+            if (!part || part.length === 0) return;
+            encryptedHash.update(part);
+            hmac.update(part);
+            await fileHandle.write(part);
+        };
+
+        for (let offset = 0; offset < buffer.length; offset += CHUNK_SIZE) {
+            const end = Math.min(offset + CHUNK_SIZE, buffer.length);
+            await writeEncrypted(cipher.update(buffer.subarray(offset, end)));
+        }
+
+        await writeEncrypted(cipher.final());
+
+        const mac = hmac.digest().subarray(0, 10);
+        encryptedHash.update(mac);
+        await fileHandle.write(mac);
+        await fileHandle.close();
+        fileHandle = null;
+
+        return {
             mediaKey,
-            mediaType
-        );
-
-    const cipher =
-        createCipheriv(
-            "aes-256-cbc",
-            cipherKey,
-            iv
-        );
-
-    const hmac =
-        createHmac(
-            "sha256",
-            macKey
-        )
-            .update(iv);
-
-    const plainHash =
-        createHash(
-            "sha256"
-        );
-
-    const encryptedHash =
-        createHash(
-            "sha256"
-        );
-
-    plainHash.update(
-        buffer
-    );
-
-    const encryptedParts = [];
-
-    const first =
-        cipher.update(
-            buffer
-        );
-
-    if (
-        first.length
-    ) {
-
-        encryptedParts.push(
-            first
-        );
-
-        encryptedHash.update(
-            first
-        );
-
-        hmac.update(
-            first
-        );
-    }
-
-    const last =
-        cipher.final();
-
-    if (
-        last.length
-    ) {
-
-        encryptedParts.push(
-            last
-        );
-
-        encryptedHash.update(
-            last
-        );
-
-        hmac.update(
-            last
-        );
-    }
-
-    
-    const mac =
-        hmac
-            .digest()
-            .subarray(
-                0,
-                10
-            );
-
-    encryptedHash.update(
-        mac
-    );
-
-    const encryptedBuffer =
-        Buffer.concat([
-            ...encryptedParts,
+            filePath,
+            fileLength: buffer.length,
+            fileSha256: plainHash.digest(),
+            fileEncSha256: encryptedHash.digest(),
             mac
-        ]);
-
-    
-    const filePath =
-        path.join(
-            os.tmpdir(),
-            `${mediaType}-${generateMessageIDV2()}-enc`
-        );
-
-    await fs.writeFile(
-        filePath,
-        encryptedBuffer
-    );
-
-    return {
-        mediaKey,
-
-        filePath,
-
-        fileLength:
-            buffer.length,
-
-        fileSha256:
-            plainHash.digest(),
-
-        fileEncSha256:
-            encryptedHash.digest(),
-
-        mac
-    };
+        };
+    } catch (error) {
+        if (fileHandle) await fileHandle.close().catch(() => {});
+        await fs.unlink(filePath).catch(() => {});
+        throw error;
+    }
 }
 
 async function createThumbnail(
