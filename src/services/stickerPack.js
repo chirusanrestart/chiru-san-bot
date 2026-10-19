@@ -198,7 +198,20 @@ async function encryptBuffer(
             if (!part || part.length === 0) return;
             encryptedHash.update(part);
             hmac.update(part);
-            await fileHandle.write(part);
+
+            // FileHandle.write pode gravar menos bytes do que o buffer contém.
+            // Repete a escrita até persistir o bloco inteiro.
+            let offset = 0;
+            while (offset < part.length) {
+                const { bytesWritten } = await fileHandle.write(
+                    part,
+                    offset,
+                    part.length - offset,
+                    null
+                );
+                if (bytesWritten <= 0) throw new Error("Falha ao gravar bloco criptografado");
+                offset += bytesWritten;
+            }
         };
 
         for (let offset = 0; offset < buffer.length; offset += CHUNK_SIZE) {
@@ -210,7 +223,17 @@ async function encryptBuffer(
 
         const mac = hmac.digest().subarray(0, 10);
         encryptedHash.update(mac);
-        await fileHandle.write(mac);
+        let macOffset = 0;
+        while (macOffset < mac.length) {
+            const { bytesWritten } = await fileHandle.write(
+                mac,
+                macOffset,
+                mac.length - macOffset,
+                null
+            );
+            if (bytesWritten <= 0) throw new Error("Falha ao gravar MAC criptográfico");
+            macOffset += bytesWritten;
+        }
         await fileHandle.close();
         fileHandle = null;
 
