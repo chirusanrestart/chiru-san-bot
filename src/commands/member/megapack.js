@@ -32,7 +32,7 @@ export default {
 
         // Uma única mensagem editável acompanha o lote inteiro.
         const initialStatus = await sock.sendMessage(from, {
-            text: `⏳ Preparando o megapack...\\n📦 Packs concluídos: 0/${names.length}`
+            text: `⏳ Preparando o megapack...\n📦 Packs concluídos: 0/${names.length}`
         }, { quoted: msg });
 
         let statusChain = Promise.resolve();
@@ -54,11 +54,11 @@ export default {
 
                     if (batch.finalized || batch.remaining === 0) {
                         text = batch.failed
-                            ? `❌ Megapack finalizado com falhas.\\n📦 Packs processados: ${done}/${batch.total}`
-                            : `✅ Megapack concluído!\\n📦 Packs processados: ${done}/${batch.total}`;
+                            ? `❌ Megapack finalizado com falhas.\n📦 Packs processados: ${done}/${batch.total}`
+                            : `✅ Megapack concluído!\n📦 Packs processados: ${done}/${batch.total}`;
                     } else {
                         const queue = getPackQueueStatus();
-                        text = `⏳ Megapack em andamento\\n📦 Packs processados: ${done}/${batch.total}\\n⚙️ Packs em processamento: ${queue.running}\\n🕒 Packs aguardando na fila: ${queue.pending}`;
+                        text = `⏳ Megapack em andamento\n📦 Packs processados: ${done}/${batch.total}\n⚙️ Packs em processamento: ${queue.running}\n🕒 Packs aguardando na fila: ${queue.pending}`;
                     }
 
                     if (text === lastStatusText) return;
