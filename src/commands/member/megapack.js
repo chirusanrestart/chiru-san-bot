@@ -43,6 +43,7 @@ export default {
             failed: false,
             finalized: false,
             initializing: true,
+            sequential: true,
             statusMessageKey: initialStatus?.key || null,
             updateStatus: () => {
                 if (msg.packBatch.initializing) return Promise.resolve();
@@ -85,12 +86,15 @@ export default {
 
         for (const name of names) {
             try {
+                // Aguarda cada pack terminar antes de iniciar o próximo.
                 await packCommand.execute(sock, msg, [name]);
             } catch (error) {
                 msg.packBatch.failed = true;
-                msg.packBatch.remaining -= 1;
-                console.error(`❌ Falha ao enfileirar o pack "${name}" no megapack:`, error);
+                msg.packBatch.remaining = Math.max(0, msg.packBatch.remaining - 1);
+                console.error(`❌ Falha ao processar o pack \"${name}\" no megapack:`, error);
             }
+            // Cede o event loop entre tarefas pesadas.
+            await new Promise(resolve => setImmediate(resolve));
         }
 
         msg.packBatch.initializing = false;
