@@ -11,6 +11,7 @@ import { searchPinterest } from "../../services/pinterestScraper.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
+import { rememberMegapack } from "../../services/megapackHistory.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
@@ -307,6 +308,15 @@ export default {
         const requester = String(
             msg.pushName || msg.verifiedBizName || "usuário"
         ).trim();
+
+        // Registra o pedido antes de entrar na fila, para que o histórico sobreviva
+        // mesmo se o bot reiniciar enquanto o pack estiver aguardando.
+        await rememberMegapack({
+            jid: msg.key.participant || from,
+            chatJid: from,
+            query,
+            requester
+        });
 
         return enqueuePack(async ({ id }) => {
             let dir;
