@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -248,6 +249,80 @@ async function encryptBuffer(
     } catch (error) {
         if (fileHandle) await fileHandle.close().catch(() => {});
         await fs.unlink(filePath).catch(() => {});
+        throw error;
+    }
+}
+
+async function encryptFileToDisk(
+    inputPath,
+    mediaType,
+    mediaKey = randomBytes(32)
+) {
+    const { cipherKey, iv, macKey } = await getMediaKeys(mediaKey, mediaType);
+    const cipher = createCipheriv("aes-256-cbc", cipherKey, iv);
+    const hmac = createHmac("sha256", macKey).update(iv);
+    const plainHash = createHash("sha256");
+    const encryptedHash = createHash("sha256");
+    const outputPath = path.join(
+        os.tmpdir(),
+        `${mediaType}-${generateMessageIDV2()}-enc`
+    );
+    const CHUNK_SIZE = 256 * 1024;
+    let fileHandle;
+    let fileLength = 0;
+
+    try {
+        fileHandle = await fs.open(outputPath, "w");
+
+        const writeAll = async (data) => {
+            if (!data || data.length === 0) return;
+            encryptedHash.update(data);
+            hmac.update(data);
+            let offset = 0;
+            while (offset < data.length) {
+                const { bytesWritten } = await fileHandle.write(
+                    data, offset, data.length - offset, null
+                );
+                if (bytesWritten <= 0) throw new Error("Falha ao gravar bloco criptografado");
+                offset += bytesWritten;
+            }
+        };
+
+        for await (const chunk of createReadStream(inputPath, {
+            highWaterMark: CHUNK_SIZE
+        })) {
+            fileLength += chunk.length;
+            plainHash.update(chunk);
+            await writeAll(cipher.update(chunk));
+        }
+
+        await writeAll(cipher.final());
+
+        const mac = hmac.digest().subarray(0, 10);
+        encryptedHash.update(mac);
+        let macOffset = 0;
+        while (macOffset < mac.length) {
+            const { bytesWritten } = await fileHandle.write(
+                mac, macOffset, mac.length - macOffset, null
+            );
+            if (bytesWritten <= 0) throw new Error("Falha ao gravar MAC criptográfico");
+            macOffset += bytesWritten;
+        }
+
+        await fileHandle.close();
+        fileHandle = null;
+
+        return {
+            mediaKey,
+            filePath: outputPath,
+            fileLength,
+            fileSha256: plainHash.digest(),
+            fileEncSha256: encryptedHash.digest(),
+            mac
+        };
+    } catch (error) {
+        if (fileHandle) await fileHandle.close().catch(() => {});
+        await fs.unlink(outputPath).catch(() => {});
         throw error;
     }
 }
@@ -524,22 +599,22 @@ export async function createStickerPack(
 
     
 
-    let zipBuffer = await zipStickerFiles(stickerFiles);
-    const zipLength = zipBuffer.length;
+    // Gera o ZIP incrementalmente em disco, sem materializar o pacote inteiro na RAM.
+    const zipFile = await zipStickerFiles(stickerFiles);
+    const zipLength = zipFile.fileLength;
 
-    // O ZIP já contém os arquivos; não mantenha também o mapa de entrada em RAM.
+    // O worker terminou de gravar os arquivos; solte as referências aos dados de entrada.
     for (const fileName of Object.keys(stickerFiles)) delete stickerFiles[fileName];
 
-    
-
-    const encryptedPack =
-        await encryptBuffer(
-            zipBuffer,
+    let encryptedPack;
+    try {
+        encryptedPack = await encryptFileToDisk(
+            zipFile.filePath,
             "sticker-pack"
         );
-
-    // O pacote criptografado foi gravado em disco. Libera o ZIP grande antes do upload.
-    zipBuffer = null;
+    } finally {
+        await fs.unlink(zipFile.filePath).catch(() => {});
+    }
 
     let uploadedPack;
 
