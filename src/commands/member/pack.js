@@ -318,6 +318,35 @@ export default {
             requester
         });
 
+        let statusMessageKey = null;
+        let lastStatusText = "";
+        let statusChain = Promise.resolve();
+
+        const updateSingleStatus = text => {
+            statusChain = statusChain.then(async () => {
+                if (lastStatusText === text) return;
+
+                if (!statusMessageKey) {
+                    const sent = await sock.sendMessage(from, { text }, { quoted: msg });
+                    statusMessageKey = sent?.key || null;
+                } else {
+                    await sock.sendMessage(from, { text }, { edit: statusMessageKey });
+                }
+
+                lastStatusText = text;
+            }).catch(error => {
+                console.error(`⚠️ Não consegui atualizar a mensagem da fila para "${query}":`, error);
+            });
+
+            return statusChain;
+        };
+
+        const queueStatusText = status => {
+            if (msg.packBatch) return msg.packBatch.updateStatus?.();
+            if (status.state === "running") return updateSingleStatus(`⚙️ Gerando o pack de *${query}*...\\n\\nA fila está trabalhando nele agora!`);
+            return updateSingleStatus(`⏳ Pack de *${query}* na fila\\n📍 Posição: *${status.position}*`);
+        };
+
         return enqueuePack(async ({ id }) => {
             let dir;
             let packSucceeded = false;
@@ -330,7 +359,10 @@ export default {
                 const candidates = await findImages(query);
                 if (!candidates.length) {
                     if (msg.packBatch) msg.packBatch.failed = true;
-                    else await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    else {
+                        await updateSingleStatus(`❌ Não encontrei imagens suficientes para *${query}*.`);
+                        await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    }
                     return;
                 }
 
@@ -339,7 +371,10 @@ export default {
 
                 if (stickers.length < 5) {
                     if (msg.packBatch) msg.packBatch.failed = true;
-                    else await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    else {
+                        await updateSingleStatus(`❌ Não consegui gerar stickers suficientes para *${query}*.`);
+                        await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    }
                     return;
                 }
 
@@ -351,6 +386,7 @@ export default {
 
                 packSucceeded = true;
                 if (!msg.packBatch) {
+                    await updateSingleStatus(`✅ Pack de *${query}* concluído com ${stickers.length} figurinhas!`);
                     await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
                 }
 
@@ -359,6 +395,7 @@ export default {
                 console.error(`❌ [pack ${id}] Erro em "${query}":`, e);
 
                 if (!msg.packBatch) {
+                    await updateSingleStatus(`❌ Falha ao gerar o pack de *${query}*.`);
                     try {
                         await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
                     } catch (sendError) {
@@ -376,22 +413,29 @@ export default {
                     if (!packSucceeded) msg.packBatch.failed = true;
                     msg.packBatch.remaining -= 1;
 
-                    if (msg.packBatch.remaining === 0) {
+                    if (msg.packBatch.remaining === 0 && !msg.packBatch.finalized) {
+                        msg.packBatch.finalized = true;
                         const emoji = msg.packBatch.failed ? "❌" : "✅";
                         try {
+                            await msg.packBatch.updateStatus?.();
                             await sock.sendMessage(from, { react: { text: emoji, key: msg.key } });
                         } catch (reactionError) {
-                            console.error("⚠️ Não consegui atualizar a reação do megapack:", reactionError);
+                            console.error("⚠️ Não consegui finalizar o status do megapack:", reactionError);
                         }
+                    } else {
+                        await msg.packBatch.updateStatus?.();
                     }
                 }
             }
         }, {
-            onQueued: () => msg.packBatch
-                ? undefined
-                : sock.sendMessage(from, {
+            onQueued: async ({ position }) => {
+                if (msg.packBatch) return;
+                await updateSingleStatus(`⏳ Pack de *${query}* na fila\\n📍 Posição: *${position}*`);
+                await sock.sendMessage(from, {
                     react: { text: "⏳", key: msg.key }
-                })
+                });
+            },
+            onQueueUpdate: status => queueStatusText(status)
         });
     }
 };
