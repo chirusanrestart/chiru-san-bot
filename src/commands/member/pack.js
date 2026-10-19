@@ -330,7 +330,7 @@ export default {
                     const sent = await sock.sendMessage(from, { text }, { quoted: msg });
                     statusMessageKey = sent?.key || null;
                 } else {
-                    await sock.sendMessage(from, { text }, { edit: statusMessageKey });
+                    await sock.sendMessage(from, { text, edit: statusMessageKey });
                 }
 
                 lastStatusText = text;
@@ -343,8 +343,8 @@ export default {
 
         const queueStatusText = status => {
             if (msg.packBatch) return msg.packBatch.updateStatus?.();
-            if (status.state === "running") return updateSingleStatus(`⚙️ Gerando o pack de *${query}*...\\n\\nA fila está trabalhando nele agora!`);
-            return updateSingleStatus(`⏳ Pack de *${query}* na fila\\n📍 Posição: *${status.position}*`);
+            if (status.state === "running") return updateSingleStatus(`⚙️ Gerando o pack de *${query}*...\n\nA fila está trabalhando nele agora!`);
+            return updateSingleStatus(`⏳ Pack de *${query}* na fila\n📍 Posição: *${status.position}*`);
         };
 
         return enqueuePack(async ({ id }) => {
@@ -430,7 +430,7 @@ export default {
         }, {
             onQueued: async ({ position }) => {
                 if (msg.packBatch) return;
-                await updateSingleStatus(`⏳ Pack de *${query}* na fila\\n📍 Posição: *${position}*`);
+                await updateSingleStatus(`⏳ Pack de *${query}* na fila\n📍 Posição: *${position}*`);
                 await sock.sendMessage(from, {
                     react: { text: "⏳", key: msg.key }
                 });
