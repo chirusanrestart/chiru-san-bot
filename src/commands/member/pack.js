@@ -329,7 +329,8 @@ export default {
 
                 const candidates = await findImages(query);
                 if (!candidates.length) {
-                    await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    if (msg.packBatch) msg.packBatch.failed = true;
+                    else await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
                     return;
                 }
 
