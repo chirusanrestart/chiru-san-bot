@@ -370,7 +370,11 @@ export async function createStickerPack(
     const stickerPackId =
         generateMessageIDV2();
 
+    // Preserve a small, independent cover copy: the ZIP worker may take
+    // ownership of full-size sticker ArrayBuffers and detach them from here.
+    const cover = Buffer.from(stickers[0]);
     const stickerFiles = {};
+    const transferableBuffers = new Set();
 
     const stickerMetadata =
         new Array(
@@ -439,16 +443,28 @@ export async function createStickerPack(
                                 fileName
                             ]
                         ) {
+                            // A full, exclusive ArrayBuffer can be transferred
+                            // to the worker without copying its image bytes.
+                            // Slices and pooled/shared Buffers still get copied
+                            // to avoid transferring unrelated bytes or detaching
+                            // another sticker that uses the same backing store.
+                            const backing = buffer.buffer;
+                            const ownsWholeBacking =
+                                buffer.byteOffset === 0 &&
+                                buffer.byteLength === backing.byteLength &&
+                                !transferableBuffers.has(backing);
 
-                            stickerFiles[
-                                fileName
-                            ] = [
-                                new Uint8Array(
-                                    buffer
-                                ),
-                                {
-                                    level: 0
-                                }
+                            let imageData;
+                            if (ownsWholeBacking) {
+                                imageData = new Uint8Array(backing);
+                                transferableBuffers.add(backing);
+                            } else {
+                                imageData = new Uint8Array(buffer);
+                            }
+
+                            stickerFiles[fileName] = [
+                                imageData,
+                                { level: 0 }
                             ];
                         }
 
@@ -491,15 +507,6 @@ export async function createStickerPack(
     }
 
     
-
-    const cover =
-        Buffer.isBuffer(
-            stickers[0]
-        )
-            ? stickers[0]
-            : Buffer.from(
-                stickers[0]
-            );
 
     const trayIconFileName =
         `${stickerPackId}.webp`;
