@@ -84,6 +84,9 @@ export default {
             react: { text: "⏳", key: msg.key }
         });
 
+        // O lote agora é sequencial, então o status precisa atualizar durante cada pack.
+        msg.packBatch.initializing = false;
+
         for (const name of names) {
             try {
                 // Aguarda cada pack terminar antes de iniciar o próximo.
