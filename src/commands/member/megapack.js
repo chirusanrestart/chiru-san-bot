@@ -29,8 +29,33 @@ export default {
             text: `💖 O catálogo global tem *${names.length}* personagens! Vou colocar todos os packs na fila para você.\n\n${names.map((name, i) => `${i + 1}. ${name}`).join("\n")}\n\n📥 Pode demorar um pouquinho porque cada pack é gerado normalmente.`
         }, { quoted: msg });
 
+        // Uma única reação representa o lote inteiro, não cada pack individual.
+        msg.packBatch = {
+            remaining: names.length,
+            failed: false
+        };
+
+        await sock.sendMessage(from, {
+            react: { text: "⏳", key: msg.key }
+        });
+
         for (const name of names) {
-            await packCommand.execute(sock, msg, [name]);
+            try {
+                await packCommand.execute(sock, msg, [name]);
+            } catch (error) {
+                msg.packBatch.failed = true;
+                msg.packBatch.remaining -= 1;
+                console.error(`❌ Falha ao enfileirar o pack "${name}" no megapack:`, error);
+            }
+        }
+
+        // Se todos os enfileiramentos falharam antes de criar qualquer tarefa,
+        // encerra o estado visual sem deixar o relógio preso.
+        if (msg.packBatch.remaining === 0) {
+            const emoji = msg.packBatch.failed ? "❌" : "✅";
+            await sock.sendMessage(from, {
+                react: { text: emoji, key: msg.key }
+            });
         }
     }
 };
