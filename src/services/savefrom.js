@@ -132,7 +132,7 @@ export async function downloadSaveFrom(url) {
       candidate.resolution,
       candidate.text
     ].filter(value => value != null).join(" ");
-    const match = raw.match(/(?:^|\\D)(\\d{3,4})\\s*p?(?:\\D|$)/i);
+    const match = raw.match(/(?:^|\D)(\d{3,4})\s*p?(?:\D|$)/i);
     return match ? Number(match[1]) : 0;
   };
 
