@@ -60,7 +60,53 @@ export async function downloadSaveFrom(url) {
     origin: "https://en.savefrom.net",
     href: "https://en.savefrom.net/"
   };
-  const document = { location, referrer: "https://en.savefrom.net/" };
+  const makeElement = () => ({
+    firstChild: null,
+    lastChild: null,
+    childNodes: [],
+    children: [],
+    style: {},
+    dataset: {},
+    attributes: {},
+    classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+    appendChild(child) { this.childNodes.push(child); this.children.push(child); child.parentNode = this; return child; },
+    insertBefore(child) { return this.appendChild(child); },
+    removeChild(child) { this.childNodes = this.childNodes.filter(item => item !== child); this.children = this.children.filter(item => item !== child); return child; },
+    replaceChild(next, previous) { this.removeChild(previous); return this.appendChild(next); },
+    setAttribute(name, value) { this.attributes[name] = String(value); },
+    getAttribute(name) { return this.attributes[name] ?? null; },
+    removeAttribute(name) { delete this.attributes[name]; },
+    addEventListener() {},
+    removeEventListener() {},
+    getElementsByTagName() { return []; },
+    getElementsByClassName() { return []; },
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    cloneNode() { return makeElement(); },
+    focus() {},
+    click() {},
+    remove() {},
+    innerHTML: "",
+    textContent: "",
+    innerText: ""
+  });
+  const body = makeElement();
+  const documentElement = makeElement();
+  const document = {
+    location,
+    referrer: "https://en.savefrom.net/",
+    body,
+    documentElement,
+    createElement: makeElement,
+    createTextNode: text => ({ textContent: String(text), nodeType: 3 }),
+    getElementById: () => makeElement(),
+    getElementsByTagName: () => [body, documentElement],
+    getElementsByClassName: () => [],
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener() {},
+    removeEventListener() {}
+  };
   const parent = {
     document,
     location,
