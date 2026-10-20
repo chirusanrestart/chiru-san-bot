@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { downloadTikwm } from "./tikwm.js";
 import { downloadSaveApiInstagram } from "./saveapi.js";
+import { downloadSaveFrom } from "./savefrom.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -29,17 +30,25 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)instagram\.com$/.test(hostname);
 
-    // Instagram: usa exclusivamente a SaveAPI e aceita o vídeo mesmo sem áudio.
+    // Instagram: SaveAPI principal e SaveFrom experimental como plano B.
+    // Ambos são APIs; não faz fallback para yt-dlp/local no Instagram.
     if (isInstagram) {
       try {
         const result = await downloadSaveApiInstagram(url);
-        console.log("[Downloader] Instagram baixado pela API; enviando mesmo se vier sem áudio.");
+        console.log("[Downloader] Instagram baixado pela SaveAPI; aceitando vídeo mesmo sem áudio.");
         return result;
-      } catch (error) {
-        console.warn(`[Downloader] Falha na API do Instagram: ${error.message}`);
-        throw new Error(
-          `Não foi possível baixar este vídeo do Instagram pela API. ${error.message}`
-        );
+      } catch (saveApiError) {
+        console.warn(`[Downloader] SaveAPI falhou; testando SaveFrom como plano B: ${saveApiError.message}`);
+        try {
+          const result = await downloadSaveFrom(url);
+          console.log("[Downloader] Instagram baixado pelo SaveFrom (fallback experimental); aceitando vídeo mesmo sem áudio.");
+          return result;
+        } catch (saveFromError) {
+          console.warn(`[Downloader] SaveFrom também falhou: ${saveFromError.message}`);
+          throw new Error(
+            `Não foi possível baixar este vídeo do Instagram pelas APIs. SaveAPI: ${saveApiError.message}. SaveFrom: ${saveFromError.message}`
+          );
+        }
       }
     }
 
