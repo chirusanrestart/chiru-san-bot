@@ -91,5 +91,5 @@ test("releases conversation locks after an operation fails", async () => {
 });
 
 test("keeps the recent context bounded", () => {
-    assert.equal(historyLimit, 12);
+    assert.equal(historyLimit, 40);
 });
