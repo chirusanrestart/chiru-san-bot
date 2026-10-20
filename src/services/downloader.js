@@ -43,10 +43,10 @@ export default class Downloader {
       "-o", output
     ];
 
-    // Pede vídeo HD até 1080p com áudio separado quando disponível.
+    // Pede vídeo HD até 720p com áudio separado quando disponível.
     // Não fixa o player Android do YouTube, que pode restringir os formatos oferecidos.
     if (type !== "audio" && isYouTube) {
-      args.push("-f", "bv*[height<=1080]+ba/b[height<=1080]/best");
+      args.push("-f", "bv*[height<=720]+ba/b[height<=720]/best");
     }
 
     // Só força impersonation se a instalação local do yt-dlp confirmar um alvo Chrome.
