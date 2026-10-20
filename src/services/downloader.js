@@ -33,7 +33,16 @@ export default class Downloader {
     if (type !== "audio" && isInstagram) {
       try {
         const result = await downloadSaveApiInstagram(url);
-        console.log("[Downloader] Instagram baixado pela SaveAPI.");
+        const audioStatus = await hasAudioStream(result.file);
+        if (audioStatus === false) {
+          await fs.unlink(result.file).catch(() => {});
+          throw new Error("A SaveAPI entregou um vídeo sem faixa de áudio.");
+        }
+        console.log(
+          audioStatus === true
+            ? "[Downloader] Instagram baixado pela SaveAPI com áudio."
+            : "[Downloader] Instagram baixado pela SaveAPI; ffprobe indisponível para confirmar o áudio."
+        );
         return result;
       } catch (error) {
         console.warn(`[Downloader] SaveAPI falhou; tentando yt-dlp local: ${error.message}`);
@@ -187,4 +196,28 @@ async function exists(file) {
   } catch {
     return false;
   }
+}\n
+function hasAudioStream(filePath) {
+  return new Promise(resolve => {
+    const probe = spawn("ffprobe", [
+      "-v", "error",
+      "-select_streams", "a:0",
+      "-show_entries", "stream=codec_type",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      filePath
+    ]);
+    let output = "";
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    probe.stdout.on("data", chunk => { output += chunk.toString(); });
+    probe.on("error", () => finish(null));
+    probe.on("close", code => {
+      if (code !== 0) return finish(null);
+      finish(output.trim().split(/\\r?\\n/).some(line => line.trim() === "audio"));
+    });
+  });
 }
