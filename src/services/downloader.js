@@ -27,7 +27,18 @@ export default class Downloader {
     const isYouTube = /(^|\.)((youtube\.com)|(youtu\.be)|(youtube-nocookie\.com))$/.test(hostname);
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
 
-    // Para vídeos do TikTok, tenta primeiro a API TikWM. Se ela falhar, mantém o yt-dlp como fallback.\n    if (type !== "audio" && isTikTok) {\n      try {\n        const result = await downloadTikwm(url);\n        console.log("[Downloader] TikTok baixado pelo TikWM.");\n        return result;\n      } catch (error) {\n        console.warn(`[Downloader] TikWM falhou; tentando yt-dlp: ${error.message}`);\n      }\n    }\n\n    const output = path.join(DOWNLOAD_DIR, `${randomUUID()}-%(title)s.%(ext)s`);
+    // Para vídeos do TikTok, tenta primeiro a API TikWM. Se ela falhar, mantém o yt-dlp como fallback.
+    if (type !== "audio" && isTikTok) {
+      try {
+        const result = await downloadTikwm(url);
+        console.log("[Downloader] TikTok baixado pelo TikWM.");
+        return result;
+      } catch (error) {
+        console.warn(`[Downloader] TikWM falhou; tentando yt-dlp: ${error.message}`);
+      }
+    }
+
+    const output = path.join(DOWNLOAD_DIR, `${randomUUID()}-%(title)s.%(ext)s`);
     const args = [
       "--newline",
       "--no-playlist",
