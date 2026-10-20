@@ -64,6 +64,9 @@ export default class Downloader {
         "--print",
         "after_move:ChiruFile:%(filepath)s",
 
+        "--merge-output-format",
+        "mp4",
+
         "-o",
         output
       ];
