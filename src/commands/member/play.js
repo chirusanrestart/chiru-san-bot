@@ -26,28 +26,8 @@ export default {
         }
 
 
-        let type = "video";
-        let url;
-
-
-        if (args[0] === "mp3" || args[0] === "mp4") {\n\n            await sock.sendMessage(jid, {\n                text: `Use o comando separado: .${args[0]} URL`\n            });\n            return;\n\n        }\n\n        if (false) {
-
-            type = "audio";
-            url = args[1];
-
-
-        } else if (args[0] === "mp4") {
-
-            type = "video";
-            url = args[1];
-
-
-        } else {
-
-            url = args[0];
-
-        }
-
+        const type = "video";
+        const url = args[0];
 
         if (!url) {
 
