@@ -64,15 +64,6 @@ export default class Downloader {
         "--print",
         "after_move:ChiruFile:%(filepath)s",
 
-        "-f",
-
-        type === "audio"
-          ? "bestaudio/best"
-          : "bv*[vcodec^=avc1]+ba[acodec^=mp4a]/bv*[vcodec^=avc1]/b",
-
-        "--merge-output-format",
-        "mp4",
-
         "-o",
         output
       ];
@@ -88,15 +79,6 @@ export default class Downloader {
 
           "--audio-quality",
           "0"
-
-        );
-
-      } else {
-
-        args.push(
-
-          "--postprocessor-args",
-          "ffmpeg:-c:v libx264 -c:a aac"
 
         );
 
