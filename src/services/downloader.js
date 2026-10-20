@@ -56,6 +56,12 @@ export default class Downloader {
         "ChiruTitle:%(title)s",
 
         "--print",
+        "ChiruDescription:%(description)s",
+
+        "--print",
+        "ChiruThumbnail:%(thumbnail)s",
+
+        "--print",
         "after_move:ChiruFile:%(filepath)s",
 
         "-f",
@@ -174,6 +180,8 @@ export default class Downloader {
           .filter(Boolean);
 
         let title = null;
+        let description = null;
+        let thumbnail = null;
         let filePath = null;
 
         for (const line of lines) {
@@ -187,6 +195,14 @@ export default class Downloader {
               )
               .trim();
 
+          }
+
+          if (line.startsWith("ChiruDescription:")) {
+            description = line.replace("ChiruDescription:", "").trim();
+          }
+
+          if (line.startsWith("ChiruThumbnail:")) {
+            thumbnail = line.replace("ChiruThumbnail:", "").trim();
           }
 
           if (line.startsWith("ChiruFile:")) {
@@ -219,7 +235,11 @@ export default class Downloader {
 
           title:
             title ||
-            path.basename(filePath)
+            path.basename(filePath),
+
+          description: description || null,
+
+          thumbnail: thumbnail || null
 
         });
 
