@@ -120,13 +120,32 @@ export async function downloadSaveFrom(url) {
   };
   walk(parsed);
 
-  const video = candidates
-    .filter(candidate => typeof candidate.url === "string")
-    .sort((a, b) => {
-      const qa = parseInt(String(a.quality || a.label || "0").replace(/\D/g, ""), 10) || 0;
-      const qb = parseInt(String(b.quality || b.label || "0").replace(/\D/g, ""), 10) || 0;
-      return qb - qa;
-    })[0];
+  // Prioriza explicitamente 720p, em vez de escolher a maior resolução.
+  // Se 720p não estiver disponível, escolhe a opção mais próxima abaixo;
+  // se só houver opções acima, escolhe a mais próxima acima.
+  const getQuality = candidate => {
+    const raw = [
+      candidate.quality,
+      candidate.label,
+      candidate.name,
+      candidate.format,
+      candidate.resolution,
+      candidate.text
+    ].filter(value => value != null).join(" ");
+    const match = raw.match(/(?:^|\\D)(\\d{3,4})\\s*p?(?:\\D|$)/i);
+    return match ? Number(match[1]) : 0;
+  };
+
+  const availableVideos = candidates.filter(candidate => typeof candidate.url === "string");
+  const qualityScore = quality => {
+    if (quality === 720) return 0;
+    if (quality > 0 && quality < 720) return 720 - quality;
+    if (quality > 720) return 1000 + quality - 720;
+    return 2000;
+  };
+  const video = availableVideos.sort((a, b) =>
+    qualityScore(getQuality(a)) - qualityScore(getQuality(b))
+  )[0];
 
   if (!video?.url) {
     throw new Error("SaveFrom não encontrou um link de vídeo na resposta.");
