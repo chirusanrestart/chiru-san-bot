@@ -112,11 +112,14 @@ const AUTO_STICKER_QUEUE_LIMIT = 300;
 const autoStickerJobs = [];
 let activeAutoStickerJobs = 0;
 
-function scheduleAutoSticker(sock, msg) {
+async function scheduleAutoSticker(sock, msg) {
     const message = msg.message;
     const jid = msg.key?.remoteJid;
-    if (!jid?.endsWith("@g.us")) return;
+    if (!jid || (!jid.endsWith("@g.us") && !jid.endsWith("@s.whatsapp.net"))) return;
     if (!message?.imageMessage && !message?.videoMessage) return;
+
+    // Só agenda mídias em conversas onde o recurso foi ativado.
+    if (!(await isEnabled(jid))) return;
 
     if (autoStickerJobs.length >= AUTO_STICKER_QUEUE_LIMIT) {
         console.warn("⚠️ Fila de auto-sticker cheia; mídia ignorada para proteger a memória.");
@@ -200,10 +203,10 @@ function isRelevantMessage(msg) {
     // Comandos precisam ser processados em qualquer conversa.
     if (text.trimStart().startsWith(".")) return true;
 
-    // Auto-sticker só atua em mídia de grupos; mensagens comuns não entram na fila.
+    // Mídias podem ativar o auto-sticker tanto em grupos quanto no PV.
     const jid = msg.key?.remoteJid;
     return Boolean(
-        jid?.endsWith("@g.us") &&
+        (jid?.endsWith("@g.us") || jid?.endsWith("@s.whatsapp.net")) &&
         (message.imageMessage || message.videoMessage)
     );
 }
@@ -225,8 +228,10 @@ function drainIncomingMessages() {
                 const { sock, commandHandler, msg } = task;
                 const jid = msg.key.remoteJid;
 
-                if (jid?.endsWith("@g.us")) {
-                    scheduleAutoSticker(sock, msg);
+                if (msg.message?.imageMessage || msg.message?.videoMessage) {
+                    scheduleAutoSticker(sock, msg).catch(error => {
+                        console.error("❌ Erro agendando auto-sticker:", error);
+                    });
                 }
 
                 try {
