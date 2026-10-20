@@ -33,6 +33,9 @@ jobs:
         with:
           gradle-version: '9.8.1'
 
+      - name: Remove Termux-only AAPT2 override
+        run: sed -i '/^android\.aapt2FromMavenOverride=/d' webdroid/gradle.properties
+
       - name: Build debug APK
         working-directory: webdroid
         run: gradle assembleDebug --no-daemon
