@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { downloadTikwm } from "./tikwm.js";
+import { downloadSaveApiInstagram } from "./saveapi.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -26,6 +27,18 @@ export default class Downloader {
     const hostname = parsedUrl.hostname.toLowerCase();
     const isYouTube = /(^|\.)((youtube\.com)|(youtu\.be)|(youtube-nocookie\.com))$/.test(hostname);
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
+    const isInstagram = /(^|\.)instagram\.com$/.test(hostname);
+
+    // Instagram: tenta a SaveAPI primeiro apenas para vídeos; se falhar, usa o yt-dlp local.
+    if (type !== "audio" && isInstagram) {
+      try {
+        const result = await downloadSaveApiInstagram(url);
+        console.log("[Downloader] Instagram baixado pela SaveAPI.");
+        return result;
+      } catch (error) {
+        console.warn(`[Downloader] SaveAPI falhou; tentando yt-dlp local: ${error.message}`);
+      }
+    }
 
     // Para vídeos do TikTok, tenta primeiro a API TikWM. Se ela falhar, mantém o yt-dlp como fallback.
     if (type !== "audio" && isTikTok) {
