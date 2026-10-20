@@ -115,7 +115,7 @@ let activeAutoStickerJobs = 0;
 async function scheduleAutoSticker(sock, msg) {
     const message = msg.message;
     const jid = msg.key?.remoteJid;
-    if (!jid || (!jid.endsWith("@g.us") && !jid.endsWith("@s.whatsapp.net"))) return;
+    if (!jid || (!jid.endsWith("@g.us") && !jid.endsWith("@s.whatsapp.net") && !jid.endsWith("@lid"))) return;
     if (!message?.imageMessage && !message?.videoMessage) return;
 
     // Só agenda mídias em conversas onde o recurso foi ativado.
@@ -206,7 +206,7 @@ function isRelevantMessage(msg) {
     // Mídias podem ativar o auto-sticker tanto em grupos quanto no PV.
     const jid = msg.key?.remoteJid;
     return Boolean(
-        (jid?.endsWith("@g.us") || jid?.endsWith("@s.whatsapp.net")) &&
+        (jid?.endsWith("@g.us") || jid?.endsWith("@s.whatsapp.net") || jid?.endsWith("@lid")) &&
         (message.imageMessage || message.videoMessage)
     );
 }
