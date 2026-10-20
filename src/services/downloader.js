@@ -217,7 +217,7 @@ function hasAudioStream(filePath) {
     probe.on("error", () => finish(null));
     probe.on("close", code => {
       if (code !== 0) return finish(null);
-      finish(output.trim().split(/\\r?\\n/).some(line => line.trim() === "audio"));
+      finish(output.trim().split(/\r?\n/).some(line => line.trim() === "audio"));
     });
   });
 }
