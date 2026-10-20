@@ -29,23 +29,26 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)instagram\.com$/.test(hostname);
 
-    // Instagram: tenta a SaveAPI primeiro apenas para vídeos; se falhar, usa o yt-dlp local.
-    if (type !== "audio" && isInstagram) {
+    // Instagram: usa exclusivamente a SaveAPI. Nunca recorre ao yt-dlp local.
+    if (isInstagram) {
       try {
         const result = await downloadSaveApiInstagram(url);
         const audioStatus = await hasAudioStream(result.file);
         if (audioStatus === false) {
           await fs.unlink(result.file).catch(() => {});
-          throw new Error("A SaveAPI entregou um vídeo sem faixa de áudio.");
+          throw new Error("A API entregou um vídeo sem faixa de áudio.");
         }
         console.log(
           audioStatus === true
-            ? "[Downloader] Instagram baixado pela SaveAPI com áudio."
-            : "[Downloader] Instagram baixado pela SaveAPI; ffprobe indisponível para confirmar o áudio."
+            ? "[Downloader] Instagram baixado pela API com áudio."
+            : "[Downloader] Instagram baixado pela API; não foi possível confirmar a faixa de áudio."
         );
         return result;
       } catch (error) {
-        console.warn(`[Downloader] SaveAPI falhou; tentando yt-dlp local: ${error.message}`);
+        console.warn(`[Downloader] Falha na API do Instagram: ${error.message}`);
+        throw new Error(
+          `Não foi possível baixar este vídeo do Instagram pela API. ${error.message}`
+        );
       }
     }
 
