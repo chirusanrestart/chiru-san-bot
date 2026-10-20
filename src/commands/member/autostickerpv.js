@@ -11,7 +11,7 @@ export default {
     async execute(sock, msg, args) {
         const jid = msg.key?.remoteJid;
 
-        if (!jid?.endsWith("@s.whatsapp.net")) {
+        if (!jid || jid.endsWith("@g.us") || jid === "status@broadcast") {
             await sock.sendMessage(jid, {
                 text: "💗 Este comando deve ser usado no privado com o bot."
             });
