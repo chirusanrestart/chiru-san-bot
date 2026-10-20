@@ -53,8 +53,17 @@ export async function downloadSaveFrom(url) {
     throw new Error("SaveFrom retornou uma resposta vazia.");
   }
 
+  const location = {
+    hostname: "en.savefrom.net",
+    host: "en.savefrom.net",
+    protocol: "https:",
+    origin: "https://en.savefrom.net",
+    href: "https://en.savefrom.net/"
+  };
+  const document = { location, referrer: "https://en.savefrom.net/" };
   const parent = {
-    document: { location: {} },
+    document,
+    location,
     sf: {
       videoResult: {
         show() {},
@@ -63,10 +72,14 @@ export async function downloadSaveFrom(url) {
       enableElement() {}
     }
   };
+  const window = { parent, document, location };
   const context = {
     results: null,
     parent,
-    window: { parent },
+    window,
+    document,
+    location,
+    navigator: { userAgent: "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36" },
     self: null,
     frameElement: {},
     atob: b64 => Buffer.from(b64, "base64").toString("utf8"),
