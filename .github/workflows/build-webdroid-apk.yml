@@ -1,0 +1,54 @@
+name: Build WebDroid APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout bot repository
+        uses: actions/checkout@v4
+
+      - name: Checkout WebDroid source
+        uses: actions/checkout@v4
+        with:
+          repository: takafu/webdroid
+          path: webdroid
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.0'
+
+      - name: Build debug APK
+        working-directory: webdroid
+        run: gradle assembleDebug --no-daemon
+
+      - name: Verify APK exists
+        run: test -s webdroid/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK as a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          TAG="webdroid-build-${RUN_NUMBER}"
+          gh release create "${TAG}" \
+            "webdroid/app/build/outputs/apk/debug/app-debug.apk#WebDroid.apk" \
+            --repo "${REPOSITORY}" \
+            --title "WebDroid APK build ${RUN_NUMBER}" \
+            --notes "Debug APK compiled from the public source repository https://github.com/takafu/webdroid. Built by GitHub Actions."
