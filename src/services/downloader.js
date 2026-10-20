@@ -196,7 +196,8 @@ async function exists(file) {
   } catch {
     return false;
   }
-}\n
+}
+
 function hasAudioStream(filePath) {
   return new Promise(resolve => {
     const probe = spawn("ffprobe", [
