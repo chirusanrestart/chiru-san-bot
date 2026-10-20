@@ -17,9 +17,8 @@ export default {
                 text:
                     "❌ Envie uma URL.\n\n" +
                     "Exemplos:\n" +
-                    ".play https://youtu.be/...\n" +
-                    ".play mp4 https://youtu.be/...\n" +
-                    ".play mp3 https://youtu.be/..."
+                    ".mp4 https://youtu.be/...\n" +
+                    ".mp3 https://youtu.be/..."
             });
 
             return;
@@ -31,7 +30,7 @@ export default {
         let url;
 
 
-        if (args[0] === "mp3") {
+        if (args[0] === "mp3" || args[0] === "mp4") {\n\n            await sock.sendMessage(jid, {\n                text: `Use o comando separado: .${args[0]} URL`\n            });\n            return;\n\n        }\n\n        if (false) {
 
             type = "audio";
             url = args[1];
