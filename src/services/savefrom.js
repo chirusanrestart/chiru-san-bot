@@ -53,9 +53,21 @@ export async function downloadSaveFrom(url) {
     throw new Error("SaveFrom retornou uma resposta vazia.");
   }
 
+  const parent = {
+    document: { location: {} },
+    sf: {
+      videoResult: {
+        show() {},
+        showRows() {}
+      },
+      enableElement() {}
+    }
+  };
   const context = {
     results: null,
-    parent: { document: { location: {} } },
+    parent,
+    window: { parent },
+    self: null,
     frameElement: {},
     atob: b64 => Buffer.from(b64, "base64").toString("utf8"),
     _decodeURIComponent: uri => {
@@ -67,6 +79,7 @@ export async function downloadSaveFrom(url) {
       return decoded;
     }
   };
+  context.self = context.window;
 
   try {
     vm.createContext(context);
