@@ -137,7 +137,12 @@ export async function downloadCobalt(url, options = {}) {
   }
 
   const contentType = (response.headers.get("content-type") || "").toLowerCase();
-  const extension = contentType.includes("audio/") ? "mp3"
+  const reportedExtension = typeof result.filename === "string"
+    ? path.extname(result.filename).slice(1).toLowerCase()
+    : "";
+  const allowedExtensions = new Set(["mp4", "webm", "m4a", "mp3", "ogg", "opus", "wav", "gif", "jpg", "jpeg", "png", "mkv"]);
+  const extension = allowedExtensions.has(reportedExtension) ? reportedExtension
+    : contentType.includes("audio/") ? "mp3"
     : contentType.includes("webm") ? "webm"
     : contentType.includes("video/") ? "mp4"
     : "bin";
