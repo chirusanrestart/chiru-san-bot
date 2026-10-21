@@ -13,6 +13,7 @@ const MEDIA_TIMEOUT_MS = 120_000;
 
 let cobaltQueue = Promise.resolve();
 let lastRequestStartedAt = 0;
+let cooldownUntil = 0;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -45,8 +46,13 @@ function getCobaltConfig() {
 // 10 segundos de intervalo, mesmo quando vários usuários pedem downloads juntos.
 function requestCobalt(payload, config) {
   const request = cobaltQueue.then(async () => {
-    const waitMs = Math.max(0, lastRequestStartedAt + REQUEST_INTERVAL_MS - Date.now());
-    if (waitMs > 0) await sleep(waitMs);
+    const now = Date.now();
+    const nextAllowedAt = Math.max(lastRequestStartedAt + REQUEST_INTERVAL_MS, cooldownUntil);
+    const waitMs = Math.max(0, nextAllowedAt - now);
+    if (waitMs > 0) {
+      console.log(`[API/Nuvem] Cobalt: aguardando ${Math.ceil(waitMs / 1000)}s para respeitar o intervalo/limite da instância...`);
+      await sleep(waitMs);
+    }
 
     lastRequestStartedAt = Date.now();
 
@@ -72,6 +78,24 @@ function requestCobalt(payload, config) {
     }
 
     if (!response.ok) {
+      // Respeita o cooldown informado pela instância quando ela sinaliza excesso de pedidos.
+      // Se não houver Retry-After no 429, aplica uma pausa conservadora de 30 segundos.
+      if (response.status === 429) {
+        const retryAfter = response.headers.get("retry-after");
+        let retryAt = Number(retryAfter);
+        if (Number.isFinite(retryAt) && retryAt > 0) {
+          retryAt = Date.now() + retryAt * 1000;
+        } else if (retryAfter) {
+          const parsedDate = Date.parse(retryAfter);
+          retryAt = Number.isFinite(parsedDate) ? parsedDate : 0;
+        } else {
+          retryAt = Date.now() + 30_000;
+        }
+        cooldownUntil = Math.max(cooldownUntil, retryAt);
+        const waitSeconds = Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 1000));
+        console.warn(`[API/Nuvem] Cobalt respondeu HTTP 429. Pausando novas chamadas por pelo menos ${waitSeconds}s.`);
+      }
+
       const detail = result?.error?.code || result?.message || `HTTP ${response.status}`;
       throw new Error(`Cobalt recusou o pedido: ${detail}`);
     }
