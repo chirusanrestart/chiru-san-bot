@@ -49,7 +49,7 @@ export default class Downloader {
         console.log("[Downloader] TikTok baixado pelo TikWM.");
         return result;
       } catch (error) {
-        console.warn(`[Downloader] TikWM falhou; tentando yt-dlp: ${error.message}`);
+        console.warn(`[Downloader] TikWM falhou; tentando o próximo motor: ${error.message}`);
       }
     }
 
