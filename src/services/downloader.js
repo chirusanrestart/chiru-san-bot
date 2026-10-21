@@ -3,7 +3,6 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { downloadTikwm } from "./tikwm.js";
-import { downloadSaveApiInstagram } from "./saveapi.js";
 import { downloadCobalt } from "./cobalt.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
@@ -30,18 +29,6 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)instagram\.com$/.test(hostname);
 
-    // Instagram: usa somente a API configurada para esse serviço.
-    // Não há fallback por scraping de sites de terceiros.
-    if (isInstagram) {
-      try {
-        const result = await downloadSaveApiInstagram(url);
-        console.log("[Downloader] Instagram baixado pela SaveAPI; aceitando vídeo mesmo sem áudio.");
-        return result;
-      } catch (error) {
-        throw new Error(`Não foi possível baixar este vídeo do Instagram pela API: ${error.message}`);
-      }
-    }
-
     // Para vídeos do TikTok, tenta primeiro a API TikWM. Se ela falhar, mantém o yt-dlp como fallback.
     if (type !== "audio" && isTikTok) {
       try {
@@ -53,17 +40,15 @@ export default class Downloader {
       }
     }
 
-    // Cobalt é o motor genérico para plataformas diferentes de YouTube/Instagram.
-    // No TikTok, só é consultado depois do TikWM, preservando a prioridade pedida.
-    // A instância é opt-in via .env para não depender de um endpoint público sem autorização.
-    if (!isYouTube && !isInstagram && process.env.COBALT_API_URL?.trim()) {
-      try {
-        const result = await downloadCobalt(url, { type });
-        console.log(`[Downloader] Mídia baixada pelo Cobalt (${hostname}).`);
-        return result;
-      } catch (error) {
-        console.warn(`[Downloader] Cobalt falhou para ${hostname}; tentando yt-dlp: ${error.message}`);
-      }
+    // API comunitária Cobalt: tenta depois do TikWM no TikTok e antes do yt-dlp
+    // nas demais plataformas. A instância pode ser substituída por COBALT_API_URL.
+    // Se estiver fora do ar, exigir chave ou recusar a plataforma, seguimos para yt-dlp.
+    try {
+      const result = await downloadCobalt(url, { type });
+      console.log(`[Downloader] Mídia baixada pela API comunitária Cobalt (${hostname}).`);
+      return result;
+    } catch (error) {
+      console.warn(`[Downloader] Cobalt falhou para ${hostname}; tentando yt-dlp: ${error.message}`);
     }
 
     const output = path.join(DOWNLOAD_DIR, `${randomUUID()}-%(title)s.%(ext)s`);
