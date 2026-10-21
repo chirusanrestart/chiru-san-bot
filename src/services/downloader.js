@@ -32,8 +32,9 @@ export default class Downloader {
     // Para vídeos do TikTok, tenta primeiro a API TikWM. Se ela falhar, mantém o yt-dlp como fallback.
     if (type !== "audio" && isTikTok) {
       try {
+        console.log("[API/Nuvem] TikTok: tentando TikWM...");
         const result = await downloadTikwm(url);
-        console.log("[Downloader] TikTok baixado pelo TikWM.");
+        console.log("[API/Nuvem] TikTok baixado pelo TikWM.");
         return result;
       } catch (error) {
         console.warn(`[Downloader] TikWM falhou; tentando o próximo motor: ${error.message}`);
@@ -44,13 +45,15 @@ export default class Downloader {
     // nas demais plataformas. A instância pode ser substituída por COBALT_API_URL.
     // Se estiver fora do ar, exigir chave ou recusar a plataforma, seguimos para yt-dlp.
     try {
+      console.log(`[API/Nuvem] Tentando Cobalt para ${hostname}...`);
       const result = await downloadCobalt(url, { type });
-      console.log(`[Downloader] Mídia baixada pela API comunitária Cobalt (${hostname}).`);
+      console.log(`[API/Nuvem] Mídia baixada pela API comunitária Cobalt (${hostname}).`);
       return result;
     } catch (error) {
       console.warn(`[Downloader] Cobalt falhou para ${hostname}; tentando yt-dlp: ${error.message}`);
     }
 
+    console.log(`[LOCAL] APIs não concluíram o download. Iniciando yt-dlp neste aparelho para ${hostname}...`);
     const output = path.join(DOWNLOAD_DIR, `${randomUUID()}-%(title)s.%(ext)s`);
     const args = [
       "--newline",
@@ -142,6 +145,7 @@ function runDownload(args) {
         return;
       }
 
+      console.log("[LOCAL] yt-dlp concluiu o download no aparelho.");
       settled = true;
       resolve({
         success: true,
