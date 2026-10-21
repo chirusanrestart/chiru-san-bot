@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { downloadTikwm } from "./tikwm.js";
 import { downloadSaveApiInstagram } from "./saveapi.js";
+import { downloadCobalt } from "./cobalt.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -49,6 +50,19 @@ export default class Downloader {
         return result;
       } catch (error) {
         console.warn(`[Downloader] TikWM falhou; tentando yt-dlp: ${error.message}`);
+      }
+    }
+
+    // Cobalt é o motor genérico para plataformas diferentes de YouTube/Instagram.
+    // No TikTok, só é consultado depois do TikWM, preservando a prioridade pedida.
+    // A instância é opt-in via .env para não depender de um endpoint público sem autorização.
+    if (!isYouTube && !isInstagram && process.env.COBALT_API_URL?.trim()) {
+      try {
+        const result = await downloadCobalt(url, { type });
+        console.log(`[Downloader] Mídia baixada pelo Cobalt (${hostname}).`);
+        return result;
+      } catch (error) {
+        console.warn(`[Downloader] Cobalt falhou para ${hostname}; tentando yt-dlp: ${error.message}`);
       }
     }
 
