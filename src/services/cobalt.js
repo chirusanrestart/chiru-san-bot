@@ -17,10 +17,8 @@ let lastRequestStartedAt = 0;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function getCobaltConfig() {
-  const rawUrl = process.env.COBALT_API_URL?.trim();
-  if (!rawUrl) {
-    throw new Error("COBALT_API_URL não está configurada. Defina uma instância Cobalt autorizada no .env.");
-  }
+  // Instância comunitária listada no Cobalt Directory; pode ser trocada pelo .env.
+  const rawUrl = process.env.COBALT_API_URL?.trim() || "https://api-cobalt.eversiege.network/";
 
   let apiUrl;
   try {
