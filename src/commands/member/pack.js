@@ -12,6 +12,7 @@ import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
 import { rememberMegapack } from "../../services/megapackHistory.js";
+import { validatePackRequest, isAdultContent } from "../../security/packSecurity.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
@@ -331,6 +332,15 @@ export default {
             );
         }
 
+        const validation = validatePackRequest(query);
+        if (validation.blocked) {
+            return sock.sendMessage(from, {
+                text: validation.reason === "adult_content"
+                    ? "🔞 Não gero packs com conteúdo +18. Tenta um personagem ou tema seguro, tá? 🌸"
+                    : "🔒 Não posso gerar pack com esse tema. Tenta outro personagem ou assunto, tá? 🌸"
+            }, { quoted: msg });
+        }
+
         const requester = String(
             msg.pushName || msg.verifiedBizName || "usuário"
         ).trim();
@@ -385,6 +395,19 @@ export default {
                  console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
 
                 candidates = await findImages(query);
+                // Rejeita resultados cujo título, descrição ou tags indiquem conteúdo adulto.
+                candidates = candidates.filter(candidate => !isAdultContent([
+                    candidate?.title,
+                    candidate?.description,
+                    candidate?.filename,
+                    candidate?.tags,
+                    candidate?.keywords,
+                    candidate?.sourceUrl,
+                    candidate?.pageUrl,
+                    candidate?.pinUrl,
+                    candidate?.url
+                ].filter(Boolean).join(" ")));
+
                 if (!candidates.length) {
                     if (msg.packBatch) msg.packBatch.failed = true;
                     else {
