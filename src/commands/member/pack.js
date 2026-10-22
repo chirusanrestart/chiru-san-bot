@@ -12,7 +12,7 @@ import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
 import { rememberMegapack } from "../../services/megapackHistory.js";
-import { validatePackRequest, isAdultContent } from "../../security/packSecurity.js";
+import { validatePackRequest } from "../../security/packSecurity.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
@@ -395,8 +395,8 @@ export default {
                  console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
 
                 candidates = await findImages(query);
-                // Rejeita resultados cujo título, descrição ou tags indiquem conteúdo adulto.
-                candidates = candidates.filter(candidate => !isAdultContent([
+                // Rejeita candidatos cujos metadados correspondam a categorias de filtro ativas.
+                candidates = candidates.filter(candidate => !validatePackRequest([
                     candidate?.title,
                     candidate?.description,
                     candidate?.filename,
@@ -406,7 +406,7 @@ export default {
                     candidate?.pageUrl,
                     candidate?.pinUrl,
                     candidate?.url
-                ].filter(Boolean).join(" ")));
+                ].filter(Boolean).join(" ")).blocked);
 
                 if (!candidates.length) {
                     if (msg.packBatch) msg.packBatch.failed = true;
