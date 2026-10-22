@@ -62,12 +62,12 @@ export default {
 
         if (["on", "ligar", "ativar"].includes(input)) {
             const settings = updateFilterSettings(state => { state.enabled = true; });
-            return reply("🟢 Filtros configuráveis ligados. O bloqueio +18 continua ativo.\n\n" + statusText(settings));
+            return reply("🟢 Filtros configuráveis ligados. Os filtros permanentes continuam ativos.\n\n" + statusText(settings));
         }
 
         if (["off", "desligar", "desativar"].includes(input)) {
             const settings = updateFilterSettings(state => { state.enabled = false; });
-            return reply("🔴 Filtros configuráveis desligados. O bloqueio +18 permanece ativo e as escolhas anteriores foram preservadas.\n\n" + statusText(settings));
+            return reply("🔴 Filtros configuráveis desligados. Os filtros permanentes continuam ativos e as escolhas anteriores foram preservadas.\n\n" + statusText(settings));
         }
 
         const match = input.match(/^(.+?)\s+(on|off|ligar|desligar|ativar|desativar)$/);
@@ -88,7 +88,7 @@ export default {
             });
             const message = enabled
                 ? "🟢 Todas as categorias foram ligadas."
-                : "🔴 Todas as categorias configuráveis foram desligadas; o bloqueio +18 continua ativo.";
+                : "🔴 Todas as categorias configuráveis foram desligadas; os filtros permanentes continuam ativos.";
             return reply(message + "\n\n" + statusText(settings));
         }
 
