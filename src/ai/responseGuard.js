@@ -18,16 +18,16 @@ const BLOCKED_TOPIC_PATTERNS = {
         /\b(?:nazismo|nazista|nazistas|nazi|nazis|adolf hitler|hitler|holocausto|suastica|terceiro reich)\b/u
     ],
     machismo: [
-        /\\b(?:mulher(?:es)? nao serve(?:m)? pra nada|lugar de mulher e na cozinha|mulher tem que obedecer|mulher e inferior|mulheres sao inferiores|odeio mulheres|morte as mulheres|homem nao presta|homens nao prestam|todo homem e lixo|homem e tudo igual|homem e inferior|homens sao inferiores|odeio homens|morte aos homens|misandria|misoginia|machista|machismo)\\b/u
+        /\b(?:mulher(?:es)? nao serve(?:m)? pra nada|lugar de mulher e na cozinha|mulher tem que obedecer|mulher e inferior|mulheres sao inferiores|odeio mulheres|morte as mulheres|homem nao presta|homens nao prestam|todo homem e lixo|homem e tudo igual|homem e inferior|homens sao inferiores|odeio homens|morte aos homens|misandria|misoginia|machista|machismo)\b/u
     ],
     catolicismo: [
-        /\\b(?:odeio catolicos|odeio catolicas|catolicos imundos|catolicas imundas|igreja catolica e lixo|desprezo os catolicos|ataquem os catolicos|morte aos catolicos|morte a igreja catolica|profanar a igreja|profanar imagem de santo|destruir imagem de santo)\\b/u
+        /\b(?:odeio catolicos|odeio catolicas|catolicos imundos|catolicas imundas|igreja catolica e lixo|desprezo os catolicos|ataquem os catolicos|morte aos catolicos|morte a igreja catolica|profanar a igreja|profanar imagem de santo|destruir imagem de santo)\b/u
     ],
     ortodoxia: [
-        /\\b(?:odeio ortodoxos|odeio cristaos ortodoxos|ortodoxos imundos|morte aos ortodoxos|ataquem os ortodoxos|desprezo os ortodoxos|profanar icones ortodoxos|destruir icones ortodoxos)\\b/u
+        /\b(?:odeio ortodoxos|odeio cristaos ortodoxos|ortodoxos imundos|morte aos ortodoxos|ataquem os ortodoxos|desprezo os ortodoxos|profanar icones ortodoxos|destruir icones ortodoxos)\b/u
     ],
     assedio: [
-        /\\b(?:voce merece apanhar|merece ser estuprad[oa]|estuprar voce|vou te estuprar|vou te pegar a forca|te pegar a forca|lixo humano|imundo inutil|vou acabar com voce)\\b/u
+        /\b(?:voce merece apanhar|merece ser estuprad[oa]|estuprar voce|vou te estuprar|vou te pegar a forca|te pegar a forca|lixo humano|imundo inutil|vou acabar com voce)\b/u
     ]
 };
 
