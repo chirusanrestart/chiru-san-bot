@@ -92,19 +92,42 @@ export async function downloadMelissa(url, options = {}) {
     throw new Error("O link de mídia retornado usa um protocolo inválido.");
   }
 
-  const originalUrl = new URL(url);
-  const referer = originalUrl.origin + "/";
+  // Prefer the headers used by yt-dlp during extraction. Some media hosts
+  // reject a bare request even when the extracted URL itself is valid.
+  const suppliedHeaders = payload.http_headers && typeof payload.http_headers === "object"
+    ? payload.http_headers
+    : {};
+  const allowedHeaderNames = new Set(["user-agent", "referer", "accept", "accept-language"]);
+  const mediaHeaders = new Headers({
+    accept: "video/*,audio/*,application/octet-stream;q=0.9,*/*;q=0.8",
+    "user-agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36"
+  });
+
+  for (const [name, value] of Object.entries(suppliedHeaders)) {
+    if (allowedHeaderNames.has(name.toLowerCase()) && typeof value === "string" && value.trim()) {
+      mediaHeaders.set(name, value);
+    }
+  }
+
+  // Use the source page as Referer only if yt-dlp did not provide one.
+  if (!mediaHeaders.has("referer")) {
+    mediaHeaders.set("referer", new URL(url).origin + "/");
+  }
+
+  console.log("[API/Melissa] Baixando mídia do host: " + mediaUrl.hostname);
   const mediaResponse = await fetch(mediaUrl, {
-    headers: {
-      accept: "video/*,audio/*,application/octet-stream;q=0.9,*/*;q=0.8",
-      "user-agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
-      referer
-    },
+    headers: mediaHeaders,
     signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS)
   });
 
   if (!mediaResponse.ok || !mediaResponse.body) {
-    throw new Error("Não consegui baixar o link extraído (HTTP " + mediaResponse.status + ").");
+    const finalHost = (() => {
+      try { return new URL(mediaResponse.url || mediaUrl.href).hostname; }
+      catch { return mediaUrl.hostname; }
+    })();
+    console.warn("[API/Melissa] Download da mídia recusado: HTTP " + mediaResponse.status + ", host=" + finalHost +
+      ", content-type=" + (mediaResponse.headers.get("content-type") || "desconhecido"));
+    throw new Error("Não consegui baixar a mídia extraída: HTTP " + mediaResponse.status + " no host " + finalHost + ".");
   }
 
   const contentType = (mediaResponse.headers.get("content-type") || "").toLowerCase();
