@@ -24,7 +24,7 @@ function readSettings() {
             categories: Object.fromEntries(
                 Object.keys(DEFAULT_SETTINGS.categories).map(key => [
                     key,
-                    categories[key] !== false
+                    key === "adulto" ? true : categories[key] !== false
                 ])
             )
         };
@@ -47,7 +47,7 @@ export function getFilterSettings() {
 
 export function isFilterEnabled(category) {
     // O bloqueio de conteúdo +18 permanece ativo mesmo quando os outros filtros são desligados.
-    if (category === "adulto") return cachedSettings.categories.adulto !== false;
+    if (category === "adulto") return true;
     if (!cachedSettings.enabled) return false;
     if (!category) return true;
     return cachedSettings.categories[category] !== false;
@@ -60,6 +60,7 @@ export function updateFilterSettings(mutator) {
         categories: { ...current.categories }
     };
     mutator(next);
+    next.categories.adulto = true;
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
     const temporaryPath = `${statePath}.tmp`;
     fs.writeFileSync(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
