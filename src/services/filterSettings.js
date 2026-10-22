@@ -39,20 +39,20 @@ function readSettings() {
     }
 }
 
+let cachedSettings = readSettings();
+
 export function getFilterSettings() {
-    const settings = readSettings();
-    return { enabled: settings.enabled, categories: { ...settings.categories } };
+    return { enabled: cachedSettings.enabled, categories: { ...cachedSettings.categories } };
 }
 
 export function isFilterEnabled(category) {
-    const settings = readSettings();
-    if (!settings.enabled) return false;
+    if (!cachedSettings.enabled) return false;
     if (!category) return true;
-    return settings.categories[category] !== false;
+    return cachedSettings.categories[category] !== false;
 }
 
 export function updateFilterSettings(mutator) {
-    const current = readSettings();
+    const current = getFilterSettings();
     const next = {
         enabled: current.enabled,
         categories: { ...current.categories }
@@ -62,6 +62,7 @@ export function updateFilterSettings(mutator) {
     const temporaryPath = `${statePath}.tmp`;
     fs.writeFileSync(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
     fs.renameSync(temporaryPath, statePath);
+    cachedSettings = next;
     return getFilterSettings();
 }
 
