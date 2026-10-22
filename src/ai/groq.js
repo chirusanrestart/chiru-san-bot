@@ -2,7 +2,6 @@ import Groq from "groq-sdk";
 import axios from "axios";
 import { aiProviderManager } from "./providerManager.js";
 import { isBlockedTopic } from "./responseGuard.js";
-import { validateCommandRequest } from "../security/commandGuard.js";
 
 import personality from "./personality.js";
 
@@ -533,8 +532,8 @@ export async function askAI(
 ) {
     const detailed = options?.detailed === true;
 
-    // Bloqueio determinístico antes de consultar provedores ou carregar memória.
-    if (validateCommandRequest(message).blocked || isBlockedTopic(message)) {
+    // Mantém o filtro de tópicos existente sem depender do módulo removido.
+    if (isBlockedTopic(message)) {
         return "🔒 Não vou responder sobre esse assunto. Vamos conversar sobre outra coisa? 🌸";
     }
 
@@ -750,11 +749,6 @@ export async function generateChatCompletion(messages) {
     if (!Array.isArray(messages) || messages.length === 0) {
         throw new TypeError("A lista de mensagens para a IA está vazia.");
     }
-    const blockedInput = messages.some(item =>
-        item?.role === "user" && validateCommandRequest(item?.content).blocked
-    );
-    if (blockedInput) return "🔒 Não vou responder sobre esse assunto. Vamos conversar sobre outra coisa? 🌸";
-
     const response = await groq.chat.completions.create({
         model: MODEL,
         messages,
