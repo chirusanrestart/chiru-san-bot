@@ -14,7 +14,14 @@ const CATEGORY_ALIASES = {
     "humor negro": "humorNegro",
     "humor-negro": "humorNegro",
     humornegro: "humorNegro",
-    nazismo: "nazismo"
+    nazismo: "nazismo",
+    machismo: "machismo",
+    catolicismo: "catolicismo",
+    catolico: "catolicismo",
+    ortodoxia: "ortodoxia",
+    ortodoxo: "ortodoxia",
+    assedio: "assedio",
+    "assédio": "assedio"
 };
 
 function statusText(settings) {
@@ -32,7 +39,7 @@ function statusText(settings) {
         ...lines,
         "",
         "Use *.filtro on/off* para os filtros configuráveis.",
-        "Use *.filtro nazismo on/off*, *.filtro política on/off*, *.filtro religião on/off* ou *.filtro humor-negro on/off*.",
+        "Use *.filtro nazismo on/off*, *.filtro política on/off*, *.filtro religião on/off*, *.filtro machismo on/off*, *.filtro catolicismo on/off*, *.filtro ortodoxia on/off*, *.filtro assedio on/off* ou *.filtro humor-negro on/off*.",
         "Use *.filtro tudo on/off* para ligar/desligar todas as categorias configuráveis."
     ].join("\n");
 }
@@ -90,7 +97,7 @@ export default {
             return reply("🔒 O filtro de conteúdo +18 não pode ser desligado. As outras categorias continuam configuráveis.");
         }
         if (!category) {
-            return reply("Categoria desconhecida. Opções configuráveis: política, religião, humor-negro e nazismo. O filtro +18 permanece sempre ligado. Use *.filtro status* para ver o estado atual.");
+            return reply("Categoria desconhecida. Opções configuráveis: política, religião, humor-negro, nazismo, machismo, catolicismo, ortodoxia e assedio. O filtro +18 permanece sempre ligado. Use *.filtro status* para ver o estado atual.");
         }
 
         const settings = updateFilterSettings(state => {
