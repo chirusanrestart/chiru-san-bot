@@ -1,15 +1,32 @@
-# Chiru-san Bot
+# Chiru-san Bot 🌸
 
-Bot de WhatsApp feito em Node.js usando Baileys.
+Bot de WhatsApp desenvolvido em **Node.js** com Baileys, comandos personalizados, inteligência artificial, conversas com personagens e ferramentas para mídia e figurinhas.
 
-## Requisitos
+## ✨ Funcionalidades
 
-- Node.js
+- 💬 Comandos de WhatsApp com prefixo `.`
+- 🤖 Conversas com IA e personagens configuráveis
+- 🧠 Histórico e memória organizados por usuário, conversa e personagem
+- 🎭 Seleção e criação de personagens
+- 🎨 Criação, conversão e envio de figurinhas
+- 📦 Criação e envio de pacotes de figurinhas
+- 🎬 Processamento de mídia com FFmpeg
+- 🔎 Recursos de pesquisa e obtenção de mídia
+- 🔌 Integração com provedores de IA compatíveis, incluindo Groq e Portkey
+- 🌐 Pesquisa na web por meio do Tavily
+
+> Os recursos disponíveis podem variar conforme a configuração local, as dependências e as chaves de API configuradas.
+
+## 📋 Requisitos
+
+- Node.js compatível com as dependências do projeto
+- npm
 - FFmpeg
-- `yt-dlp` (com suporte a download e pós-processamento)
+- yt-dlp e os componentes necessários para os recursos de mídia
 - Uma conta do WhatsApp
+- Chaves de API para os serviços externos que você decidir utilizar
 
-## Instalação
+## 🚀 Instalação
 
 ```bash
 git clone https://github.com/chirusanrestart/chiru-san-bot.git
@@ -17,66 +34,76 @@ cd chiru-san-bot
 npm install
 ```
 
-Configure suas chaves localmente no arquivo `.env` e nunca publique chaves reais no Git. Depois inicie:
+Crie sua configuração local com base no modelo disponível, quando aplicável:
+
+```bash
+cp .env.example .env
+```
+
+Edite o arquivo `.env` e preencha apenas as variáveis necessárias para os recursos que pretende usar. Não publique chaves reais.
+
+Inicie o bot:
 
 ```bash
 npm start
 ```
 
-Na primeira execução, o bot pede o número do WhatsApp e gera um código de pareamento.
+Na primeira execução, siga as instruções exibidas no terminal para conectar sua conta do WhatsApp.
 
-## Comandos
+## 🕹️ Exemplos de comandos
 
-Os comandos usam o prefixo `.`.
+Os comandos usam o prefixo `.`. Alguns exemplos:
 
-Exemplos:
-
-```
+```text
 .menu
 .ia
-.hd
-.encurtar
-.nord
+.personagens
+.personagem Furina
+.falar Oi!
+.novaconversa
 .pack Furina
 ```
 
-## Recursos
+Use `.menu` no próprio bot para consultar os comandos disponíveis na versão instalada.
 
-- 🎭 Conversas com personagens configuráveis, histórico isolado por usuário/chat/personagem e persistência local
-- 🤖 Comandos para WhatsApp
-- 🧠 IA
-- 🎨 Criação e envio de figurinhas
-- 📦 Packs de figurinhas
-- 🖼️ Auto-sticker em grupos
-- 🎬 Processamento de mídia com FFmpeg
-- 🔎 Pesquisa e download de conteúdo
+## 🎭 Conversas com personagens
 
-## Estrutura
+- `.personagens`: mostra os personagens configurados.
+- `.personagem NOME`: seleciona um personagem por nome, ID ou alias.
+- `.falar MENSAGEM`: conversa com o personagem selecionado.
+- `.novaconversa`: inicia uma nova sessão para o personagem atual.
 
-O código principal fica em `src/`, com comandos e serviços separados por função.
+Os personagens são definidos em `src/ai/characters.js`. A configuração de provedores de IA está documentada em `docs/ai-providers.md`, e o arquivo `.env.example` serve como referência para as variáveis necessárias.
 
-A sessão do WhatsApp é armazenada em `auth/`. A memória da IA geral fica em `src/data/memory.json`; o histórico de personagens fica em `src/data/character-chat.json`. Esses arquivos são locais e ignorados pelo Git.
+## 🧪 Testes
 
-**Privacidade:** a sessão do WhatsApp, cookies, credenciais e arquivos de memória/conversas ficam fora do Git. O `.env` também é ignorado pelo Git e deve permanecer apenas no ambiente local. Nunca versione chaves de API; se alguma chave real já foi publicada, revogue-a e gere outra.
+O projeto inclui testes automatizados. Alguns comandos disponíveis são:
 
-## Conversas com personagens
+```bash
+npm run check:syntax
+npm run test:ai
+npm run test:memory
+npm run test:characters
+```
 
-- `.personagens`: lista os personagens configurados em `src/ai/characters.js`.
-- `.personagem NOME`: seleciona um personagem pelo nome, ID ou alias.
-- `.falar MENSAGEM` (alias `.conversar`): conversa com o personagem selecionado.
-- `.novaconversa`: inicia uma sessão nova para o personagem atual.
-- `.novaconversa limpar`: apaga o histórico de personagens do usuário em todos os chats, mantendo as seleções.
+## 🔐 Privacidade e segurança
 
-Para criar um personagem, adicione um objeto a `src/ai/characters.js` com `id`, `name`, `aliases`, `description` e `systemPrompt`. Não é necessário alterar os comandos nem o armazenamento. A camada `src/ai/characterProvider.js` usa o gerenciador em `src/ai/providerManager.js`, com fila, limites de concorrência, timeout e fallback entre Groq direto e Portkey. A pesquisa web usa Tavily. As três configurações ficam descritas em `docs/ai-providers.md` e `.env.example`.
+- Mantenha o arquivo `.env`, a pasta `auth/`, cookies, sessões e dados de conversas apenas no ambiente local.
+- Nunca envie chaves de API ou credenciais para commits públicos.
+- A memória e o histórico locais podem conter informações privadas. Proteja os arquivos e faça cópias de segurança com cuidado.
+- Se uma chave real for publicada acidentalmente, revogue-a no serviço correspondente e gere outra.
 
-O histórico é separado por usuário, chat, personagem e sessão. O armazenamento limita o contexto enviado à IA às últimas 12 mensagens, limita o texto de entrada e grava o arquivo com permissões restritas quando o sistema de arquivos permite.
+## 🗂️ Estrutura
 
-Teste o isolamento com `node --test tests/characterStore.test.js`.
+O código principal fica em `src/`, dividido em comandos, serviços e módulos de IA. Arquivos locais de autenticação e dados são mantidos separados do código versionado.
 
-## Observação
+## 📱 Termux
 
-Este é um projeto pessoal do Chiru-san.
+O projeto pode ser executado em ambientes Android com Termux, desde que a versão do Node.js, as dependências nativas e os utilitários necessários sejam compatíveis com o dispositivo. Alguns recursos podem exigir ajustes específicos.
 
-### Pokémon para conversar
+## 📄 Licença e créditos
 
-O catálogo de personagens inclui Pokémon com personalidades próprias e imagens de referência individuais. Use `.personagens` para ver o catálogo, `.personagem Eevee` (ou outro nome) para selecionar um Pokémon e ver sua imagem, e `.falar Oi!` para conversar. As imagens oficiais de Pokémon são carregadas do repositório público PokeAPI Sprites; se uma imagem falhar, a seleção continua funcionando em texto.
+Projeto pessoal desenvolvido por **Chiru-san**. Consulte os arquivos do repositório e as licenças das dependências utilizadas antes de redistribuir componentes.
+
+---
+Se encontrar um problema, confira os logs do terminal e abra uma issue com os detalhes relevantes. **Não inclua tokens, chaves, números privados ou arquivos de sessão.**
