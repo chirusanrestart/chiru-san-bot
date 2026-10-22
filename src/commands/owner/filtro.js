@@ -20,7 +20,7 @@ const CATEGORY_ALIASES = {
 function statusText(settings) {
     const lines = Object.entries(FILTER_CATEGORIES).map(([key, label]) => {
         const enabled = key === "adulto"
-            ? settings.categories.adulto !== false
+            ? true
             : settings.enabled && settings.categories[key];
         return `${enabled ? "🟢" : "🔴"} ${label}: ${enabled ? "ligado" : "desligado"}`;
     });
@@ -31,9 +31,9 @@ function statusText(settings) {
         "🔒 O filtro de conteúdo +18 permanece sempre ligado por segurança.",
         ...lines,
         "",
-        "Use *.filtro on/off* para o filtro global.",
-        "Use *.filtro +18 on/off*, *.filtro nazismo on/off*, *.filtro política on/off*, *.filtro religião on/off* ou *.filtro humor-negro on/off*.",
-        "Use *.filtro tudo on/off* para ligar/desligar todas as categorias."
+        "Use *.filtro on/off* para os filtros configuráveis.",
+        "Use *.filtro nazismo on/off*, *.filtro política on/off*, *.filtro religião on/off* ou *.filtro humor-negro on/off*.",
+        "Use *.filtro tudo on/off* para ligar/desligar todas as categorias configuráveis."
     ].join("\n");
 }
 
@@ -55,12 +55,12 @@ export default {
 
         if (["on", "ligar", "ativar"].includes(input)) {
             const settings = updateFilterSettings(state => { state.enabled = true; });
-            return reply("🟢 Filtro global ligado.\n\n" + statusText(settings));
+            return reply("🟢 Filtros configuráveis ligados. O bloqueio +18 continua ativo.\n\n" + statusText(settings));
         }
 
         if (["off", "desligar", "desativar"].includes(input)) {
             const settings = updateFilterSettings(state => { state.enabled = false; });
-            return reply("🔴 Filtro global desligado. As categorias foram preservadas para quando você ligar novamente.\n\n" + statusText(settings));
+            return reply("🔴 Filtros configuráveis desligados. O bloqueio +18 permanece ativo e as escolhas anteriores foram preservadas.\n\n" + statusText(settings));
         }
 
         const match = input.match(/^(.+?)\s+(on|off|ligar|desligar|ativar|desativar)$/);
@@ -75,9 +75,14 @@ export default {
         if (["tudo", "todas", "all"].includes(categoryInput)) {
             const settings = updateFilterSettings(state => {
                 state.enabled = true;
-                for (const key of Object.keys(state.categories)) state.categories[key] = enabled;
+                for (const key of Object.keys(state.categories)) {
+                    state.categories[key] = key === "adulto" ? true : enabled;
+                }
             });
-            return reply(`${enabled ? "🟢 Todas as categorias foram ligadas." : "🔴 Todas as categorias foram desligadas."}\n\n` + statusText(settings));
+            const message = enabled
+                ? "🟢 Todas as categorias foram ligadas."
+                : "🔴 Todas as categorias configuráveis foram desligadas; o bloqueio +18 continua ativo.";
+            return reply(message + "\n\n" + statusText(settings));
         }
 
         const category = CATEGORY_ALIASES[categoryInput];
@@ -85,7 +90,7 @@ export default {
             return reply("🔒 O filtro de conteúdo +18 não pode ser desligado. As outras categorias continuam configuráveis.");
         }
         if (!category) {
-            return reply("Categoria desconhecida. Opções: +18, política, religião, humor-negro e nazismo. Use *.filtro status* para ver o estado atual.");
+            return reply("Categoria desconhecida. Opções configuráveis: política, religião, humor-negro e nazismo. O filtro +18 permanece sempre ligado. Use *.filtro status* para ver o estado atual.");
         }
 
         const settings = updateFilterSettings(state => {
