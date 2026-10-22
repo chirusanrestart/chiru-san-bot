@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { isGroupEnabled } from "../services/groupState.js";
 import { isOwnerMessage } from "../services/ownerAuth.js";
 
-const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover", "filtro"]);
+const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"]);
 
 export default class CommandHandler {
     constructor(sock) {
@@ -61,7 +61,7 @@ export default class CommandHandler {
         const normalizedText = text?.trimStart();
         if (!normalizedText || !normalizedText.startsWith(".")) return;
 
-        const args = normalizedText.slice(1).trim().split(/\s+/);
+        const args = normalizedText.slice(1).trim().split(/\\s+/);
         const commandName = args.shift()?.toLowerCase();
         const command = this.commands.get(commandName);
         if (!command) return;
@@ -84,7 +84,7 @@ export default class CommandHandler {
             !(await isGroupEnabled(jid))
         ) {
             await this.sock.sendMessage(jid, {
-                text: "🔕 O bot está desligado neste grupo. Só .on, .off, .ban e .filtro continuam disponíveis."
+                text: "🔕 O bot está desligado neste grupo. Só .on, .off e .ban continuam disponíveis."
             }, { quoted: msg });
             return;
         }
