@@ -1,5 +1,6 @@
 import {
     FILTER_CATEGORIES,
+    LOCKED_FILTER_CATEGORIES,
     getFilterSettings,
     updateFilterSettings
 } from "../../services/filterSettings.js";
@@ -26,20 +27,19 @@ const CATEGORY_ALIASES = {
 
 function statusText(settings) {
     const lines = Object.entries(FILTER_CATEGORIES).map(([key, label]) => {
-        const enabled = key === "adulto"
-            ? true
-            : settings.enabled && settings.categories[key];
-        return `${enabled ? "🟢" : "🔴"} ${label}: ${enabled ? "ligado" : "desligado"}`;
+        const locked = LOCKED_FILTER_CATEGORIES.includes(key);
+        const enabled = locked || (settings.enabled && settings.categories[key]);
+        return `${enabled ? "🟢" : "🔴"} ${label}: ${enabled ? "ligado" : "desligado"}${locked ? " (permanente)" : ""}`;
     });
 
     return [
         "🔐 *Configuração dos filtros do Chiru-san*",
         `Filtro global: ${settings.enabled ? "🟢 ligado" : "🔴 desligado"}`,
-        "🔒 O filtro de conteúdo +18 permanece sempre ligado por segurança.",
+        "🔒 Filtros permanentes: +18, assédio, machismo/ataques de gênero, nazismo e ataques contra católicos e cristãos ortodoxos.",
         ...lines,
         "",
         "Use *.filtro on/off* para os filtros configuráveis.",
-        "Use *.filtro nazismo on/off*, *.filtro política on/off*, *.filtro religião on/off*, *.filtro machismo on/off*, *.filtro catolicismo on/off*, *.filtro ortodoxia on/off*, *.filtro assedio on/off* ou *.filtro humor-negro on/off*.",
+        "Categorias configuráveis: *.filtro política on/off*, *.filtro religião on/off* e *.filtro humor-negro on/off*.",
         "Use *.filtro tudo on/off* para ligar/desligar todas as categorias configuráveis."
     ].join("\n");
 }
@@ -83,7 +83,7 @@ export default {
             const settings = updateFilterSettings(state => {
                 state.enabled = true;
                 for (const key of Object.keys(state.categories)) {
-                    state.categories[key] = key === "adulto" ? true : enabled;
+                    state.categories[key] = LOCKED_FILTER_CATEGORIES.includes(key) ? true : enabled;
                 }
             });
             const message = enabled
@@ -93,11 +93,11 @@ export default {
         }
 
         const category = CATEGORY_ALIASES[categoryInput];
-        if (category === "adulto" && !enabled) {
-            return reply("🔒 O filtro de conteúdo +18 não pode ser desligado. As outras categorias continuam configuráveis.");
+        if (category && LOCKED_FILTER_CATEGORIES.includes(category) && !enabled) {
+            return reply(`🔒 O filtro de ${FILTER_CATEGORIES[category]} é permanente e não pode ser desligado, nem pelo dono.`);
         }
         if (!category) {
-            return reply("Categoria desconhecida. Opções configuráveis: política, religião, humor-negro, nazismo, machismo, catolicismo, ortodoxia e assedio. O filtro +18 permanece sempre ligado. Use *.filtro status* para ver o estado atual.");
+            return reply("Categoria desconhecida. Opções configuráveis: política, religião e humor-negro. Os filtros de +18, assédio, machismo, nazismo e ataques contra católicos/ortodoxos são permanentes. Use *.filtro status* para ver o estado atual.");
         }
 
         const settings = updateFilterSettings(state => {
