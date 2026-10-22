@@ -10,7 +10,7 @@ const BLOCKED_TERMS = [
 ];
 
 const ADULT_TERMS = [
-    "18+", "18 mais", "mais 18", "r18", "nsfw", "xxx",
+    "18 mais", "mais 18", "18 anos", "conteudo 18", "r18", "nsfw", "xxx",
     "porn", "porno", "pornografia", "pornografico", "pornografica",
     "pornhub", "xvideos", "xnxx", "hentai", "ecchi", "rule34", "rule 34",
     "nude", "nudes", "nudez", "onlyfans", "sexo", "sexual", "erotico",
@@ -116,11 +116,11 @@ function findBlocked(text, list) {
 }
 
 export function isAdultContent(value) {
-    return Boolean(findBlocked(value, ADULT_TERMS));
+    return /(?:\\+18\\b|\\b18\\+|\\br-?18\\b)/i.test(String(value ?? "")) || Boolean(findBlocked(value, ADULT_TERMS));
 }
 
 export function validatePackRequest(query) {
-    const adult = findBlocked(query, ADULT_TERMS);
+    const adult = isAdultContent(query) ? (findBlocked(query, ADULT_TERMS) || "+18") : null;
     if (adult) {
         return { blocked: true, reason: "adult_content", match: adult };
     }
