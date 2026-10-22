@@ -116,7 +116,7 @@ function findBlocked(text, list) {
 }
 
 export function isAdultContent(value) {
-    return /(?:\\+18\\b|\\b18\\+|\\br-?18\\b)/i.test(String(value ?? "")) || Boolean(findBlocked(value, ADULT_TERMS));
+    return /(?:\+18\b|\b18\+|\br-?18\b)/i.test(String(value ?? "")) || Boolean(findBlocked(value, ADULT_TERMS));
 }
 
 export function validatePackRequest(query) {
