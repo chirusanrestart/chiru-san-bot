@@ -6,31 +6,32 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
+const CHUNK_SIZE = 64 * 1024;
 const MAX_MEDIA_BYTES = 150 * 1024 * 1024;
-const EXTRACT_TIMEOUT_MS = 100_000;
-const MEDIA_TIMEOUT_MS = 120_000;
+const REQUEST_TIMEOUT_MS = 220_000;
 
 function getConfig() {
-  const apiUrl = (process.env.MELISSA_DOWNLOADER_API_URL ||
-    "https://melissa-downloader-api.onrender.com/extract").trim();
+  const configuredUrl = (process.env.MELISSA_DOWNLOADER_API_URL ||
+    "https://melissa-downloader-api.onrender.com/download").trim();
   const apiKey = process.env.MELISSA_DOWNLOADER_API_KEY?.trim() || "";
 
-  let parsedApiUrl;
+  let apiUrl;
   try {
-    parsedApiUrl = new URL(apiUrl);
+    apiUrl = new URL(configuredUrl);
   } catch {
     throw new Error("MELISSA_DOWNLOADER_API_URL não é uma URL válida.");
   }
 
-  if (parsedApiUrl.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(parsedApiUrl.hostname)) {
+  if (apiUrl.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(apiUrl.hostname)) {
     throw new Error("A Melissa Downloader API deve usar HTTPS.");
   }
-
   if (!apiKey) {
     throw new Error("Configure MELISSA_DOWNLOADER_API_KEY no .env.");
   }
 
-  return { apiUrl: parsedApiUrl.toString(), apiKey };
+  // Compatibilidade com instalações que ainda apontam para o endpoint antigo.
+  if (apiUrl.pathname.replace(/\/$/, "") === "/extract") apiUrl.pathname = "/download";
+  return { apiUrl: apiUrl.toString(), apiKey };
 }
 
 function extensionFor(ext, contentType) {
@@ -53,114 +54,59 @@ export async function downloadMelissa(url, options = {}) {
   const config = getConfig();
   await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
 
-  const apiResponse = await fetch(config.apiUrl, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "x-api-key": config.apiKey,
-      "user-agent": "Chiru-san-Bot/1.0"
-    },
-    body: JSON.stringify({ url }),
-    signal: AbortSignal.timeout(EXTRACT_TIMEOUT_MS)
-  });
-
-  let payload;
+  let response;
   try {
-    payload = await apiResponse.json();
-  } catch {
-    throw new Error("Melissa Downloader retornou uma resposta inválida (HTTP " + apiResponse.status + ").");
+    response = await fetch(config.apiUrl, {
+      method: "POST",
+      headers: {
+        accept: "video/*,audio/*,application/octet-stream,application/json",
+        "content-type": "application/json",
+        "x-api-key": config.apiKey,
+        "user-agent": "Chiru-san-Bot/1.1"
+      },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
+  } catch (error) {
+    throw new Error("Não foi possível conectar à Melissa Downloader API: " +
+      (error?.cause?.code || error?.name || "erro de rede") + ".");
   }
 
-  if (!apiResponse.ok) {
-    const detail = payload?.message || payload?.error || ("HTTP " + apiResponse.status);
+  if (!response.ok) {
+    let detail = "HTTP " + response.status;
+    try {
+      const payload = await response.json();
+      detail = payload?.message || payload?.error || detail;
+    } catch {}
     throw new Error("Melissa Downloader: " + detail);
   }
 
-  if (typeof payload?.url !== "string") {
-    throw new Error("Melissa Downloader não retornou o link direto da mídia.");
+  if (!response.body) {
+    throw new Error("Melissa Downloader não enviou o arquivo.");
   }
 
-  let mediaUrl;
-  try {
-    mediaUrl = new URL(payload.url);
-  } catch {
-    throw new Error("Melissa Downloader retornou um link de mídia inválido.");
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  if (contentType.includes("text/html") || contentType.includes("application/json")) {
+    let detail = "resposta inválida";
+    try {
+      const payload = await response.json();
+      detail = payload?.message || payload?.error || detail;
+    } catch {}
+    throw new Error("Melissa Downloader não retornou mídia: " + detail);
   }
 
-  if (!["http:", "https:"].includes(mediaUrl.protocol)) {
-    throw new Error("O link de mídia retornado usa um protocolo inválido.");
-  }
-
-  // Prefer the headers used by yt-dlp during extraction. Some media hosts
-  // reject a bare request even when the extracted URL itself is valid.
-  const suppliedHeaders = payload.http_headers && typeof payload.http_headers === "object"
-    ? payload.http_headers
-    : {};
-  const allowedHeaderNames = new Set(["user-agent", "referer", "accept", "accept-language"]);
-  const mediaHeaders = new Headers({
-    accept: "video/*,audio/*,application/octet-stream;q=0.9,*/*;q=0.8",
-    "user-agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36"
-  });
-
-  for (const [name, value] of Object.entries(suppliedHeaders)) {
-    if (allowedHeaderNames.has(name.toLowerCase()) && typeof value === "string" && value.trim()) {
-      mediaHeaders.set(name, value);
-    }
-  }
-
-  // Prefer canonical platform referers for direct CDN requests. Short-link
-  // referers (vm.tiktok.com, l.instagram.com) are often rejected by media hosts.
-  const sourceHost = new URL(url).hostname.toLowerCase();
-  if (sourceHost.endsWith("tiktok.com") || sourceHost.endsWith("tiktokv.com")) {
-    mediaHeaders.set("referer", "https://www.tiktok.com/");
-  } else if (sourceHost.endsWith("instagram.com") || sourceHost.endsWith("instagr.am")) {
-    mediaHeaders.set("referer", "https://www.instagram.com/");
-  } else if (!mediaHeaders.has("referer")) {
-    mediaHeaders.set("referer", new URL(url).href);
-  }
-
-  console.log("[API/Melissa] Baixando mídia do host: " + mediaUrl.hostname);
-  let mediaResponse;
-  try {
-    mediaResponse = await fetch(mediaUrl, {
-      headers: mediaHeaders,
-      redirect: "follow",
-      signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS)
-    });
-  } catch (error) {
-    throw new Error("Falha ao acessar o link direto da mídia (" +
-      mediaUrl.hostname + "): " + (error?.cause?.code || error?.name || "erro de rede") + ".");
-  }
-
-  const finalHost = (() => {
-    try { return new URL(mediaResponse.url || mediaUrl.href).hostname; }
-    catch { return mediaUrl.hostname; }
-  })();
-  const responseType = (mediaResponse.headers.get("content-type") || "").toLowerCase();
-
-  if (!mediaResponse.ok || !mediaResponse.body) {
-    console.warn("[API/Melissa] Download recusado: HTTP " + mediaResponse.status + ", host=" + finalHost +
-      ", content-type=" + (responseType || "desconhecido"));
-    throw new Error("O host da mídia respondeu HTTP " + mediaResponse.status + " (" + finalHost + ").");
-  }
-
-  // Prevent an HTML anti-bot/error page from being saved and sent as a video.
-  if (responseType.includes("text/html") || responseType.includes("application/json")) {
-    console.warn("[API/Melissa] O link direto retornou conteúdo não multimídia: " +
-      responseType + ", host=" + finalHost);
-    throw new Error("O link extraído retornou uma página de erro, não o arquivo de mídia (" + finalHost + ").");
-  }
-
-  const contentType = responseType;
-  const declaredSize = Number(mediaResponse.headers.get("content-length") || 0);
+  const declaredSize = Number(response.headers.get("content-length") || 0);
   if (declaredSize > MAX_MEDIA_BYTES) {
+    await response.body.cancel().catch(() => {});
     throw new Error("A mídia ultrapassa o limite de 150 MB.");
   }
 
-  const extension = extensionFor(payload.ext, contentType);
+  const extension = extensionFor(response.headers.get("x-media-ext"), contentType);
   const file = path.join(DOWNLOAD_DIR, "melissa-" + randomUUID() + "." + extension);
+  const rawTitle = response.headers.get("x-media-title") || "Vídeo baixado pela Melissa Downloader API";
+  const title = rawTitle.replace(/[\r\n\0]/g, " ").trim().slice(0, 500) || "Vídeo baixado pela Melissa Downloader API";
   let received = 0;
+
   const limiter = new Transform({
     transform(chunk, encoding, callback) {
       received += chunk.length;
@@ -173,26 +119,30 @@ export async function downloadMelissa(url, options = {}) {
   });
 
   try {
+    // Recebe o stream e grava continuamente em disco, sem carregar o arquivo inteiro na RAM.
     await pipeline(
-      Readable.fromWeb(mediaResponse.body),
+      Readable.fromWeb(response.body),
       limiter,
       createWriteStream(file, { flags: "wx" })
     );
   } catch (error) {
     await fs.unlink(file).catch(() => {});
-    throw error;
+    throw new Error(error?.message?.includes("150 MB")
+      ? error.message
+      : "A transmissão da Melissa Downloader foi interrompida: " + (error?.message || "erro de stream") + ".");
   }
 
   if (received === 0) {
     await fs.unlink(file).catch(() => {});
-    throw new Error("O link extraído retornou um arquivo vazio.");
+    throw new Error("A Melissa Downloader enviou um arquivo vazio.");
+  }
+  if (declaredSize > 0 && received !== declaredSize) {
+    await fs.unlink(file).catch(() => {});
+    throw new Error("A transmissão foi incompleta: esperados " + declaredSize + " bytes, recebidos " + received + ".");
   }
 
-  const title = typeof payload.title === "string" && payload.title.trim()
-    ? payload.title.trim().slice(0, 500)
-    : "Vídeo baixado pela Melissa Downloader API";
-
-  console.log("[API/Melissa] Download concluído no aparelho (" + received + " bytes).");
+  console.log("[API/Melissa] Arquivo recebido do servidor em stream (" + received +
+    " bytes; blocos do servidor: " + CHUNK_SIZE + " bytes).");
 
   return {
     success: true,
