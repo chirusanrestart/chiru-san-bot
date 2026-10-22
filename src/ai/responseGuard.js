@@ -8,6 +8,12 @@ const BLOCKED_TOPIC_PATTERNS = [
 
     // Conteúdo pornográfico/adulto
     /\b(?:porno|pornografia|pornografico|pornografica|hentai|nudes|onlyfans|sexo explicito|conteudo adulto)\b/u,
+
+    // Humor negro e piadas desse tipo
+    /\b(?:humor negro|piada de humor negro|piadas de humor negro|humor macabro)\b/u,
+
+    // Nazismo e referências diretamente associadas
+    /\b(?:nazismo|nazista|nazistas|nazi|nazis|adolf hitler|hitler|holocausto|suastica|terceiro reich)\b/u,
 ];
 
 function normalizeText(value) {
