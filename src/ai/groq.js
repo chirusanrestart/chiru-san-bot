@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import axios from "axios";
 import { aiProviderManager } from "./providerManager.js";
+import { isBlockedTopic } from "./responseGuard.js";
 
 import personality from "./personality.js";
 
@@ -530,6 +531,11 @@ export async function askAI(
     options = {}
 ) {
     const detailed = options?.detailed === true;
+
+    // Bloqueio determinístico antes de consultar provedores ou carregar memória.
+    if (isBlockedTopic(message)) {
+        return "🔒 Não vou responder sobre esse assunto. Vamos conversar sobre outra coisa? 🌸";
+    }
 
     if (!aiProviderManager.hasAvailableProvider()) {
         return "🌸 A IA está desativada no momento.";
