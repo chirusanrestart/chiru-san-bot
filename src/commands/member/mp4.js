@@ -34,9 +34,18 @@ export default {
         }).catch(() => {});
       }
 
+      const extension = result.file.toLowerCase().split(".").pop();
+      const mimetype = extension === "webm"
+        ? "video/webm"
+        : extension === "mov"
+          ? "video/quicktime"
+          : extension === "mkv"
+            ? "video/x-matroska"
+            : "video/mp4";
+
       await sock.sendMessage(jid, {
         video: { url: result.file },
-        mimetype: "video/mp4",
+        mimetype,
         caption: result.title || "Download concluído."
       });
     } catch (err) {
