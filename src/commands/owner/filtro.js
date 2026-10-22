@@ -19,13 +19,16 @@ const CATEGORY_ALIASES = {
 
 function statusText(settings) {
     const lines = Object.entries(FILTER_CATEGORIES).map(([key, label]) => {
-        const enabled = settings.enabled && settings.categories[key];
+        const enabled = key === "adulto"
+            ? settings.categories.adulto !== false
+            : settings.enabled && settings.categories[key];
         return `${enabled ? "🟢" : "🔴"} ${label}: ${enabled ? "ligado" : "desligado"}`;
     });
 
     return [
         "🔐 *Configuração dos filtros do Chiru-san*",
         `Filtro global: ${settings.enabled ? "🟢 ligado" : "🔴 desligado"}`,
+        "🔒 O filtro de conteúdo +18 permanece sempre ligado por segurança.",
         ...lines,
         "",
         "Use *.filtro on/off* para o filtro global.",
@@ -78,6 +81,9 @@ export default {
         }
 
         const category = CATEGORY_ALIASES[categoryInput];
+        if (category === "adulto" && !enabled) {
+            return reply("🔒 O filtro de conteúdo +18 não pode ser desligado. As outras categorias continuam configuráveis.");
+        }
         if (!category) {
             return reply("Categoria desconhecida. Opções: +18, política, religião, humor-negro e nazismo. Use *.filtro status* para ver o estado atual.");
         }
