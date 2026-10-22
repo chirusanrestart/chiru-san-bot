@@ -71,7 +71,7 @@ export default class CommandHandler {
         if (!jid) return;
 
         // Todo comando passa pelo guarda antes de executar qualquer ação.
-        const guard = validateCommandRequest(text);
+        const guard = validateCommandRequest(text, { skipTopicFilter: command.name === "filtro" });
         if (guard.blocked) {
             await this.sock.sendMessage(jid, {
                 text: guard.reason === "guard_evasion"
