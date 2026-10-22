@@ -6,8 +6,8 @@ const BLOCKED_TOPIC_PATTERNS = [
     // Religião e doutrinas religiosas
     /\b(?:catolicismo|catolico|catolica|igreja catolica|cristianismo|cristao|crista|evangelico|evangelica|islamismo|islamico|islamica|religiao|ateismo|ateu|ateia)\b/u,
 
-    // Conteúdo pornográfico/adulto
-    /\b(?:porno|pornografia|pornografico|pornografica|hentai|nudes|onlyfans|sexo explicito|conteudo adulto)\b/u,
+    // Conteúdo +18, sexual ou pornográfico
+    /\b(?:18\s*mais|mais\s+18|r\s*18|nsfw|xxx|porn|porno|pornografia|pornografico|pornografica|pornhub|xvideos|xnxx|hentai|ecchi|rule\s*34|nude|nudes|nudez|onlyfans|sexo|sexual|sexualmente|erotico|erotica|erotismo|conteudo\s+adulto|conteudo\s+explicito|sexo\s+explicito|masturbacao|masturbar|fetiche|fetiches|bdsm|sexting|putaria|safadeza|prostituicao|prostituta|prostituto|camgirl|cam\s+girl|striptease|orgia|orgias)\b/u,
 
     // Humor negro e piadas desse tipo
     /\b(?:humor negro|piada de humor negro|piadas de humor negro|humor macabro)\b/u,
