@@ -16,7 +16,7 @@ export default class CommandHandler {
         const folders = ["member", "admin", "owner"];
 
         for (const folder of folders) {
-            const dir = path.resolve(\`src/commands/\${folder}\`);
+            const dir = path.resolve(`src/commands/${folder}`);
 
             let files;
             try {
@@ -35,7 +35,7 @@ export default class CommandHandler {
 
                 const cmd = command.default;
                 if (!cmd?.name || typeof cmd.execute !== "function") {
-                    console.warn(\`⚠️ Comando ignorado (formato inválido): \${file}\`);
+                    console.warn(`⚠️ Comando ignorado (formato inválido): ${file}`);
                     continue;
                 }
 
@@ -46,7 +46,7 @@ export default class CommandHandler {
                     this.commands.set(alias, cmd);
                 }
 
-                console.log(\`📌 Comando carregado: \${cmd.name}\`);
+                console.log(`📌 Comando carregado: ${cmd.name}`);
             }
         }
     }
