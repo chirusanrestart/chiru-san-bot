@@ -2,8 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { downloadTikwm } from "./tikwm.js";
-import { downloadCobalt } from "./cobalt.js";
+import { downloadMelissa } from "./melissaDownloader.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -27,33 +26,25 @@ export default class Downloader {
     const hostname = parsedUrl.hostname.toLowerCase();
     const isYouTube = /(^|\.)((youtube\.com)|(youtu\.be)|(youtube-nocookie\.com))$/.test(hostname);
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
-    const isInstagram = /(^|\.)instagram\.com$/.test(hostname);
+    const isInstagram = /(^|\.)(instagram\.com|instagr\.am)$/.test(hostname);
 
-    // Para vídeos do TikTok, tenta primeiro a API TikWM. Se ela falhar, mantém o yt-dlp como fallback.
-    if (type !== "audio" && isTikTok) {
+    // TikTok e Instagram usam a Melissa Downloader API para extrair o link direto.
+    // O arquivo continua sendo baixado neste aparelho; o server nunca recebe o vídeo.
+    // YouTube e áudio ficam no caminho local por enquanto.
+    if (type !== "audio" && (isTikTok || isInstagram)) {
       try {
-        console.log("[API/Nuvem] TikTok: tentando TikWM...");
-        const result = await downloadTikwm(url);
-        console.log("[API/Nuvem] TikTok baixado pelo TikWM.");
+        console.log(`[API/Melissa] Extraindo link de ${hostname}...`);
+        const result = await downloadMelissa(url, {
+          requesterJid: options.requesterJid
+        });
+        console.log(`[API/Melissa] Mídia baixada localmente (${hostname}).`);
         return result;
       } catch (error) {
-        console.warn(`[Downloader] TikWM falhou; tentando o próximo motor: ${error.message}`);
+        console.warn(`[Downloader] Melissa API falhou para ${hostname}; tentando yt-dlp local: ${error.message}`);
       }
     }
 
-    // API comunitária Cobalt: tenta depois do TikWM no TikTok e antes do yt-dlp
-    // nas demais plataformas. A instância pode ser substituída por COBALT_API_URL.
-    // Se estiver fora do ar, exigir chave ou recusar a plataforma, seguimos para yt-dlp.
-    try {
-      console.log(`[API/Nuvem] Tentando Cobalt para ${hostname}...`);
-      const result = await downloadCobalt(url, { type });
-      console.log(`[API/Nuvem] Mídia baixada pela API comunitária Cobalt (${hostname}).`);
-      return result;
-    } catch (error) {
-      console.warn(`[Downloader] Cobalt falhou para ${hostname}; tentando yt-dlp: ${error.message}`);
-    }
-
-    console.log(`[LOCAL] APIs não concluíram o download. Iniciando yt-dlp neste aparelho para ${hostname}...`);
+    console.log(`[LOCAL] Melissa API não foi usada ou não concluiu. Iniciando yt-dlp neste aparelho para ${hostname}...`);
     const output = path.join(DOWNLOAD_DIR, `${randomUUID()}-%(title)s.%(ext)s`);
     const args = [
       "--newline",
