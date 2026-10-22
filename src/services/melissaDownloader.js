@@ -10,18 +10,10 @@ const MAX_MEDIA_BYTES = 150 * 1024 * 1024;
 const EXTRACT_TIMEOUT_MS = 100_000;
 const MEDIA_TIMEOUT_MS = 120_000;
 
-function digits(value) {
-  return String(value || "").replace(/\D/g, "");
-}
-
-function getConfig(requesterJid) {
+function getConfig() {
   const apiUrl = (process.env.MELISSA_DOWNLOADER_API_URL ||
     "https://melissa-downloader-api.onrender.com/extract").trim();
-  const ownerKey = process.env.MELISSA_DOWNLOADER_OWNER_API_KEY?.trim() || "";
-  const friendKey = process.env.MELISSA_DOWNLOADER_FRIEND_API_KEY?.trim() || "";
-  const ownerJid = digits(process.env.MELISSA_DOWNLOADER_OWNER_JID);
-  const senderJid = digits(requesterJid);
-  const isConfiguredOwner = Boolean(ownerJid && senderJid && ownerJid === senderJid);
+  const apiKey = process.env.MELISSA_DOWNLOADER_API_KEY?.trim() || "";
 
   let parsedApiUrl;
   try {
@@ -34,12 +26,8 @@ function getConfig(requesterJid) {
     throw new Error("A Melissa Downloader API deve usar HTTPS.");
   }
 
-  const apiKey = isConfiguredOwner
-    ? (ownerKey || friendKey)
-    : (!ownerJid ? (ownerKey || friendKey) : (friendKey || ownerKey));
-
   if (!apiKey) {
-    throw new Error("Configure MELISSA_DOWNLOADER_OWNER_API_KEY e MELISSA_DOWNLOADER_FRIEND_API_KEY no .env.");
+    throw new Error("Configure MELISSA_DOWNLOADER_API_KEY no .env.");
   }
 
   return { apiUrl: parsedApiUrl.toString(), apiKey };
@@ -62,7 +50,7 @@ function extensionFor(ext, contentType) {
 }
 
 export async function downloadMelissa(url, options = {}) {
-  const config = getConfig(options.requesterJid);
+  const config = getConfig();
   await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
 
   const apiResponse = await fetch(config.apiUrl, {
