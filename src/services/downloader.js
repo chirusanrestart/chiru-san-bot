@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { downloadMelissa } from "./melissaDownloader.js";
+import { downloadTikwm } from "./tikwm.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -28,17 +29,35 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)(instagram\.com|instagr\.am)$/.test(hostname);
 
-    // TikTok e Instagram usam a Melissa Downloader API para extrair o link direto.
-    // O arquivo continua sendo baixado neste aparelho; o server nunca recebe o vídeo.
-    // YouTube e áudio ficam no caminho local por enquanto.
-    if (type !== "audio" && (isTikTok || isInstagram)) {
+    // TikWM público é a primeira opção para TikTok, sem intervalo artificial.
+    // Instagram continua usando a Melissa Downloader API.
+    // O arquivo é baixado neste aparelho; YouTube e áudio seguem no caminho local.
+    if (type !== "audio" && isTikTok) {
+      try {
+        console.log(`[API/TikWM] Extraindo link de ${hostname}...`);
+        const result = await downloadTikwm(url);
+        console.log("[API/TikWM] Vídeo baixado localmente.");
+        return result;
+      } catch (error) {
+        console.warn(`[Downloader] TikWM falhou; tentando Melissa API: ${error.message}`);
+        try {
+          const result = await downloadMelissa(url);
+          console.log("[API/Melissa] TikTok baixado como fallback.");
+          return result;
+        } catch (fallbackError) {
+          console.warn(`[Downloader] Melissa também falhou; tentando yt-dlp local: ${fallbackError.message}`);
+        }
+      }
+    }
+
+    if (type !== "audio" && isInstagram) {
       try {
         console.log(`[API/Melissa] Extraindo link de ${hostname}...`);
         const result = await downloadMelissa(url);
-        console.log(`[API/Melissa] Mídia baixada localmente (${hostname}).`);
+        console.log("[API/Melissa] Instagram baixado localmente.");
         return result;
       } catch (error) {
-        console.warn(`[Downloader] Melissa API falhou para ${hostname}; tentando yt-dlp local: ${error.message}`);
+        console.warn(`[Downloader] Melissa API falhou para Instagram; tentando yt-dlp local: ${error.message}`);
       }
     }
 
