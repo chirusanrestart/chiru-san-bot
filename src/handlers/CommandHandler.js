@@ -3,7 +3,6 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isGroupEnabled } from "../services/groupState.js";
 import { isOwnerMessage } from "../services/ownerAuth.js";
-import { validateCommandRequest } from "../security/commandGuard.js";
 
 const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover", "filtro"]);
 
@@ -69,17 +68,6 @@ export default class CommandHandler {
 
         const jid = msg.key?.remoteJid;
         if (!jid) return;
-
-        // Todo comando passa pelo guarda antes de executar qualquer ação.
-        const guard = validateCommandRequest(text, { skipTopicFilter: command.name === "filtro" });
-        if (guard.blocked) {
-            await this.sock.sendMessage(jid, {
-                text: guard.reason === "guard_evasion"
-                    ? "🔒 Não posso executar pedidos para contornar as proteções do bot. 🌸"
-                    : "🔒 Esse assunto está bloqueado neste bot. Vamos tentar outro tema? 🌸"
-            }, { quoted: msg });
-            return;
-        }
 
         // Os comandos da categoria owner exigem autenticação explícita.
         if (command.ownerOnly && !(await isOwnerMessage(msg))) {
