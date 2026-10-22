@@ -46,6 +46,8 @@ export function getFilterSettings() {
 }
 
 export function isFilterEnabled(category) {
+    // O bloqueio de conteúdo +18 permanece ativo mesmo quando os outros filtros são desligados.
+    if (category === "adulto") return cachedSettings.categories.adulto !== false;
     if (!cachedSettings.enabled) return false;
     if (!category) return true;
     return cachedSettings.categories[category] !== false;
