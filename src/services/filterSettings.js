@@ -2,6 +2,17 @@ import fs from "node:fs";
 import path from "node:path";
 
 const statePath = path.resolve("data/filter-settings.json");
+
+// Categorias críticas ficam ativas mesmo quando o dono desliga os filtros configuráveis.
+export const LOCKED_FILTER_CATEGORIES = Object.freeze([
+    "adulto",
+    "assedio",
+    "machismo",
+    "nazismo",
+    "catolicismo",
+    "ortodoxia"
+]);
+const LOCKED_FILTER_SET = new Set(LOCKED_FILTER_CATEGORIES);
 const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
     categories: {
@@ -28,7 +39,7 @@ function readSettings() {
             categories: Object.fromEntries(
                 Object.keys(DEFAULT_SETTINGS.categories).map(key => [
                     key,
-                    key === "adulto" ? true : categories[key] !== false
+                    LOCKED_FILTER_SET.has(key) ? true : categories[key] !== false
                 ])
             )
         };
@@ -50,8 +61,8 @@ export function getFilterSettings() {
 }
 
 export function isFilterEnabled(category) {
-    // O bloqueio de conteúdo +18 permanece ativo mesmo quando os outros filtros são desligados.
-    if (category === "adulto") return true;
+    // Categorias críticas permanecem ativas mesmo quando o filtro global é desligado.
+    if (LOCKED_FILTER_SET.has(category)) return true;
     if (!cachedSettings.enabled) return false;
     if (!category) return true;
     return cachedSettings.categories[category] !== false;
@@ -64,7 +75,7 @@ export function updateFilterSettings(mutator) {
         categories: { ...current.categories }
     };
     mutator(next);
-    next.categories.adulto = true;
+    for (const category of LOCKED_FILTER_CATEGORIES) next.categories[category] = true;
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
     const temporaryPath = `${statePath}.tmp`;
     fs.writeFileSync(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
