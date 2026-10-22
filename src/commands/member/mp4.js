@@ -19,7 +19,10 @@ export default {
     let downloadedFile = null;
     try {
       await sock.sendMessage(jid, { text: "🎬 Baixando o vídeo e buscando a capinha..." });
-      const result = await Downloader.download(url, { type: "video" });
+      const result = await Downloader.download(url, {
+        type: "video",
+        requesterJid: msg.key.participant || msg.key.remoteJid
+      });
       downloadedFile = result.file;
 
       const description = result.description || result.title || "Vídeo baixado pelo Chiru-san Bot.";
