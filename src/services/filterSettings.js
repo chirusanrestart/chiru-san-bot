@@ -9,7 +9,11 @@ const DEFAULT_SETTINGS = Object.freeze({
         religiao: true,
         adulto: true,
         humorNegro: true,
-        nazismo: true
+        nazismo: true,
+        machismo: true,
+        catolicismo: true,
+        ortodoxia: true,
+        assedio: true
     }
 });
 
@@ -74,5 +78,9 @@ export const FILTER_CATEGORIES = Object.freeze({
     religiao: "Religião",
     adulto: "Conteúdo +18",
     humorNegro: "Humor negro",
-    nazismo: "Nazismo e símbolos associados"
+    nazismo: "Nazismo e símbolos associados",
+    machismo: "Machismo e ataques contra homens/mulheres",
+    catolicismo: "Ataques contra o catolicismo",
+    ortodoxia: "Ataques contra cristãos ortodoxos",
+    assedio: "Assédio e humilhação"
 });
