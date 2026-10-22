@@ -9,6 +9,18 @@ const BLOCKED_TERMS = [
     "supremacia ariana", "aryan supremacy", "nazi propaganda"
 ];
 
+const ADULT_TERMS = [
+    "18+", "18 mais", "mais 18", "r18", "nsfw", "xxx",
+    "porn", "porno", "pornografia", "pornografico", "pornografica",
+    "pornhub", "xvideos", "xnxx", "hentai", "ecchi", "rule34", "rule 34",
+    "nude", "nudes", "nudez", "onlyfans", "sexo", "sexual", "erotico",
+    "erotica", "erotismo", "conteudo adulto", "conteudo explicito",
+    "sexo explicito", "masturbacao", "masturbar", "fetiche", "fetiches",
+    "bdsm", "sexting", "putaria", "safadeza", "prostituicao",
+    "prostituta", "prostituto", "camgirl", "cam girl", "striptease",
+    "orgia", "orgias"
+];
+
 const POLITICAL_ROLES = [
     "politico", "politica", "politicos", "politicas", "politician",
     "politicians", "presidente", "presidencia", "senador", "senadora",
@@ -103,7 +115,16 @@ function findBlocked(text, list) {
     return null;
 }
 
+export function isAdultContent(value) {
+    return Boolean(findBlocked(value, ADULT_TERMS));
+}
+
 export function validatePackRequest(query) {
+    const adult = findBlocked(query, ADULT_TERMS);
+    if (adult) {
+        return { blocked: true, reason: "adult_content", match: adult };
+    }
+
     const extremist = findBlocked(query, BLOCKED_TERMS);
     if (extremist) {
         return { blocked: true, reason: "extremist_or_nazi", match: extremist };
