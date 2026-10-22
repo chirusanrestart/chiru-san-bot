@@ -41,7 +41,7 @@ function normalizeText(value) {
 }
 
 export function isBlockedTopic(message) {
-    if (/(?:\+18\b|\b18\+|\br-?18\b)/i.test(String(message ?? ""))) return true;
+    if (/(?:\+18\b|\b18\+|\br-?18\b|\b18\s*(?:mais|anos|adulto|explicito)\b)/i.test(String(message ?? ""))) return true;
     const normalized = normalizeText(message);
     if (!normalized) return false;
     return BLOCKED_TOPIC_PATTERNS.some(pattern => pattern.test(normalized));
