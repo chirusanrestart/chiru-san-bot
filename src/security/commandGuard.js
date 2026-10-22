@@ -42,6 +42,11 @@ export function validateCommandRequest(message) {
     }
 
     const compact = normalized.replace(/\s+/g, "");
+    const flexibleEvasion = /(?:ignore|ignora|ignorem|desconsidere|esqueca|esquece).{0,55}(?:regras|instrucoes|filtro|trava|bloqueio|prompt|guard|protecao)|(?:burlar|contornar|driblar|desativar|remover|desbloquear|quebrar).{0,40}(?:filtro|trava|bloqueio|guard|protecao|restricoes)|(?:ignore|disregard).{0,55}(?:previous|prior|all).{0,25}(?:instructions|rules|safety)/u;
+    if (flexibleEvasion.test(normalized)) {
+        return { blocked: true, reason: "guard_evasion" };
+    }
+
     if (EVASION_TERMS.some(term => {
         const normalizedTerm = normalizeForGuard(term);
         return normalized.includes(normalizedTerm) ||
