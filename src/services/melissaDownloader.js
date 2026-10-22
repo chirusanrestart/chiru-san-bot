@@ -109,8 +109,14 @@ export async function downloadMelissa(url, options = {}) {
     }
   }
 
-  // Use the source page as Referer only if yt-dlp did not provide one.
-  if (!mediaHeaders.has("referer")) {
+  // Prefer canonical platform referers for direct CDN requests. Short-link
+  // referers (vm.tiktok.com, l.instagram.com) are often rejected by media hosts.
+  const sourceHost = new URL(url).hostname.toLowerCase();
+  if (sourceHost.endsWith("tiktok.com") || sourceHost.endsWith("tiktokv.com")) {
+    mediaHeaders.set("referer", "https://www.tiktok.com/");
+  } else if (sourceHost.endsWith("instagram.com") || sourceHost.endsWith("instagr.am")) {
+    mediaHeaders.set("referer", "https://www.instagram.com/");
+  } else if (!mediaHeaders.has("referer")) {
     mediaHeaders.set("referer", new URL(url).href);
   }
 
