@@ -34,9 +34,7 @@ export default class Downloader {
     if (type !== "audio" && (isTikTok || isInstagram)) {
       try {
         console.log(`[API/Melissa] Extraindo link de ${hostname}...`);
-        const result = await downloadMelissa(url, {
-          requesterJid: options.requesterJid
-        });
+        const result = await downloadMelissa(url);
         console.log(`[API/Melissa] Mídia baixada localmente (${hostname}).`);
         return result;
       } catch (error) {
