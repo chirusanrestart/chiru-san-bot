@@ -5,7 +5,7 @@ import { isGroupEnabled } from "../services/groupState.js";
 import { isOwnerMessage } from "../services/ownerAuth.js";
 import { validateCommandRequest } from "../security/commandGuard.js";
 
-const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"]);
+const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover", "filtro"]);
 
 export default class CommandHandler {
     constructor(sock) {
