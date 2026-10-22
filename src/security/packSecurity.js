@@ -1,3 +1,6 @@
+import { isFilterEnabled } from "../services/filterSettings.js";
+import { isBlockedTopic } from "../ai/responseGuard.js";
+
 const SECURITY_RESPONSE = "Não vou fazer isso.";
 
 const BLOCKED_TERMS = [
@@ -116,6 +119,7 @@ function findBlocked(text, list) {
 }
 
 export function isAdultContent(value) {
+    if (!isFilterEnabled("adulto")) return false;
     return /(?:\+18\b|\b18\+|\br-?18\b)/i.test(String(value ?? "")) || Boolean(findBlocked(value, ADULT_TERMS));
 }
 
@@ -125,19 +129,23 @@ export function validatePackRequest(query) {
         return { blocked: true, reason: "adult_content", match: adult };
     }
 
-    const extremist = findBlocked(query, BLOCKED_TERMS);
+    const extremist = isFilterEnabled("nazismo") ? findBlocked(query, BLOCKED_TERMS) : null;
     if (extremist) {
         return { blocked: true, reason: "extremist_or_nazi", match: extremist };
     }
 
-    const politician = findBlocked(query, POLITICAL_NAMES);
+    const politician = isFilterEnabled("politica") ? findBlocked(query, POLITICAL_NAMES) : null;
     if (politician) {
         return { blocked: true, reason: "political_name", match: politician };
     }
 
-    const politicalRequest = findBlocked(query, POLITICAL_ROLES);
+    const politicalRequest = isFilterEnabled("politica") ? findBlocked(query, POLITICAL_ROLES) : null;
     if (politicalRequest) {
         return { blocked: true, reason: "political_request", match: politicalRequest };
+    }
+
+    if (isBlockedTopic(query)) {
+        return { blocked: true, reason: "blocked_topic", match: null };
     }
 
     return { blocked: false, reason: null, match: null };
