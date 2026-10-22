@@ -111,26 +111,42 @@ export async function downloadMelissa(url, options = {}) {
 
   // Use the source page as Referer only if yt-dlp did not provide one.
   if (!mediaHeaders.has("referer")) {
-    mediaHeaders.set("referer", new URL(url).origin + "/");
+    mediaHeaders.set("referer", new URL(url).href);
   }
 
   console.log("[API/Melissa] Baixando mídia do host: " + mediaUrl.hostname);
-  const mediaResponse = await fetch(mediaUrl, {
-    headers: mediaHeaders,
-    signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS)
-  });
-
-  if (!mediaResponse.ok || !mediaResponse.body) {
-    const finalHost = (() => {
-      try { return new URL(mediaResponse.url || mediaUrl.href).hostname; }
-      catch { return mediaUrl.hostname; }
-    })();
-    console.warn("[API/Melissa] Download da mídia recusado: HTTP " + mediaResponse.status + ", host=" + finalHost +
-      ", content-type=" + (mediaResponse.headers.get("content-type") || "desconhecido"));
-    throw new Error("Não consegui baixar a mídia extraída: HTTP " + mediaResponse.status + " no host " + finalHost + ".");
+  let mediaResponse;
+  try {
+    mediaResponse = await fetch(mediaUrl, {
+      headers: mediaHeaders,
+      redirect: "follow",
+      signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS)
+    });
+  } catch (error) {
+    throw new Error("Falha ao acessar o link direto da mídia (" +
+      mediaUrl.hostname + "): " + (error?.cause?.code || error?.name || "erro de rede") + ".");
   }
 
-  const contentType = (mediaResponse.headers.get("content-type") || "").toLowerCase();
+  const finalHost = (() => {
+    try { return new URL(mediaResponse.url || mediaUrl.href).hostname; }
+    catch { return mediaUrl.hostname; }
+  })();
+  const responseType = (mediaResponse.headers.get("content-type") || "").toLowerCase();
+
+  if (!mediaResponse.ok || !mediaResponse.body) {
+    console.warn("[API/Melissa] Download recusado: HTTP " + mediaResponse.status + ", host=" + finalHost +
+      ", content-type=" + (responseType || "desconhecido"));
+    throw new Error("O host da mídia respondeu HTTP " + mediaResponse.status + " (" + finalHost + ").");
+  }
+
+  // Prevent an HTML anti-bot/error page from being saved and sent as a video.
+  if (responseType.includes("text/html") || responseType.includes("application/json")) {
+    console.warn("[API/Melissa] O link direto retornou conteúdo não multimídia: " +
+      responseType + ", host=" + finalHost);
+    throw new Error("O link extraído retornou uma página de erro, não o arquivo de mídia (" + finalHost + ").");
+  }
+
+  const contentType = responseType;
   const declaredSize = Number(mediaResponse.headers.get("content-length") || 0);
   if (declaredSize > MAX_MEDIA_BYTES) {
     throw new Error("A mídia ultrapassa o limite de 150 MB.");
