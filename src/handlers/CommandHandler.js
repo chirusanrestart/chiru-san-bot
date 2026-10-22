@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { isGroupEnabled } from "../services/groupState.js";
+import { isOwnerMessage } from "../services/ownerAuth.js";
+
+const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"]);
 
 export default class CommandHandler {
     constructor(sock) {
@@ -35,7 +39,6 @@ export default class CommandHandler {
                     continue;
                 }
 
-                // Preserve explicit categories; otherwise use the folder the command came from.
                 cmd.category = cmd.category || folder;
                 this.commands.set(cmd.name, cmd);
 
@@ -59,12 +62,33 @@ export default class CommandHandler {
         if (!normalizedText || !normalizedText.startsWith(".")) return;
 
         const args = normalizedText.slice(1).trim().split(/\s+/);
-        const commandName = args.shift();
+        const commandName = args.shift()?.toLowerCase();
         const command = this.commands.get(commandName);
-
         if (!command) return;
 
-        // Disponibiliza o registro de comandos para comandos como .menu.
+        const jid = msg.key?.remoteJid;
+        if (!jid) return;
+
+        // Os comandos da categoria owner exigem autenticação explícita.
+        if (command.ownerOnly && !(await isOwnerMessage(msg))) {
+            await this.sock.sendMessage(jid, {
+                text: "⛔ Esse comando é exclusivo da dona do bot."
+            }, { quoted: msg });
+            return;
+        }
+
+        // .on e .off sempre funcionam; .ban continua disponível com o grupo desligado.
+        if (
+            jid.endsWith("@g.us") &&
+            !ALWAYS_ALLOWED_WHEN_OFF.has(commandName) &&
+            !(await isGroupEnabled(jid))
+        ) {
+            await this.sock.sendMessage(jid, {
+                text: "🔕 O bot está desligado neste grupo. Só .on, .off e .ban continuam disponíveis."
+            }, { quoted: msg });
+            return;
+        }
+
         msg.commandHandler = this;
         await command.execute(this.sock, msg, args);
     }
