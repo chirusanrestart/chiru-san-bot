@@ -96,7 +96,7 @@ export default class CommandHandler {
             !(await isGroupEnabled(jid))
         ) {
             await this.sock.sendMessage(jid, {
-                text: "🔕 O bot está desligado neste grupo. Só .on, .off e .ban continuam disponíveis."
+                text: "🔕 O bot está desligado neste grupo. Só .on, .off, .ban e .filtro continuam disponíveis."
             }, { quoted: msg });
             return;
         }
