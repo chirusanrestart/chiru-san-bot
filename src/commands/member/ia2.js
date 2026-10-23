@@ -17,7 +17,8 @@ export default {
 
         try {
             const resposta = await askAI(jid, pergunta, {
-                detailed: true
+                detailed: true,
+                researchLevel: 2
             });
 
             // Mantém a resposta em uma única mensagem; evita fragmentar o contexto
