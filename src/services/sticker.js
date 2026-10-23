@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { unlink } from "node:fs/promises";
 import { runFFmpegSticker } from "./ffmpeg.js";
 import webp from "node-webpmux";
+import { trySharpSticker } from "./sharpSticker.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -91,17 +92,26 @@ export async function createSticker(
     let temporaryInput = null;
 
     try {
-        // Keep the existing animated-video path unchanged.
+        // Sharp é uma opção rápida para imagens estáticas quando instalado.
+        // Vídeos/GIFs e ambientes incompatíveis continuam no pipeline antigo.
+        let convertedWithSharp = false;
         if (type !== "video") {
-            temporaryInput = await prepareImageForSticker(input, output);
-            stickerInput = temporaryInput;
+            convertedWithSharp = await trySharpSticker(input, output, 80);
         }
 
-        await runFFmpegSticker(
-            stickerInput,
-            output,
-            type
-        );
+        if (!convertedWithSharp) {
+            // Keep the existing animated-video path unchanged.
+            if (type !== "video") {
+                temporaryInput = await prepareImageForSticker(input, output);
+                stickerInput = temporaryInput;
+            }
+
+            await runFFmpegSticker(
+                stickerInput,
+                output,
+                type
+            );
+        }
 
         const img = new webp.Image();
 
