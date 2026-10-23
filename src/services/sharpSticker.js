@@ -1,8 +1,14 @@
 import { stat, unlink } from "node:fs/promises";
+import { getRuntimeProfileSummary } from "./runtimeProfile.js";
 
 let sharpPromise;
+let profileLogged = false;
 
 async function loadSharp() {
+    if (!profileLogged) {
+        console.log(getRuntimeProfileSummary());
+        profileLogged = true;
+    }
     if (!sharpPromise) {
         sharpPromise = import("sharp")
             .then(module => module.default || module)
