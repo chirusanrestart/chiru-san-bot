@@ -18,7 +18,7 @@ const SEARCH_PROFILES = {
         maxResults: 3,
         maxResultContent: 800,
         maxTotalChars: 2400,
-        maxToolRounds: 2,
+        maxToolRounds: 1,
         searchDepth: "basic",
         maxToolOutputChars: 4500
     },
@@ -26,7 +26,7 @@ const SEARCH_PROFILES = {
         maxResults: 10,
         maxResultContent: 800,
         maxTotalChars: 6000,
-        maxToolRounds: 3,
+        maxToolRounds: 2,
         searchDepth: "basic",
         maxToolOutputChars: 8500
     },
@@ -34,7 +34,7 @@ const SEARCH_PROFILES = {
         maxResults: 20,
         maxResultContent: 800,
         maxTotalChars: 10000,
-        maxToolRounds: 4,
+        maxToolRounds: 3,
         searchDepth: "advanced",
         maxToolOutputChars: 12500
     }
@@ -613,7 +613,7 @@ export async function askAI(
 
         for (
             let round = 0;
-            round < searchProfile.maxToolRounds;
+            round <= searchProfile.maxToolRounds;
             round++
         ) {
 
@@ -636,7 +636,8 @@ export async function askAI(
             };
 
             if (
-                tools.length > 0
+                tools.length > 0 &&
+                round < searchProfile.maxToolRounds
             ) {
 
                 request.tools =
