@@ -2,8 +2,6 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { downloadMelissa } from "./melissaDownloader.js";
-import { downloadTikwm } from "./tikwm.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -29,39 +27,9 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)(instagram\.com|instagr\.am)$/.test(hostname);
 
-    // TikWM público é a primeira opção para TikTok, sem intervalo artificial.
-    // Instagram continua usando a Melissa Downloader API.
-    // O arquivo é baixado neste aparelho; YouTube e áudio seguem no caminho local.
-    if (type !== "audio" && isTikTok) {
-      try {
-        console.log(`[API/TikWM] Extraindo link de ${hostname}...`);
-        const result = await downloadTikwm(url);
-        console.log("[API/TikWM] Vídeo baixado localmente.");
-        return result;
-      } catch (error) {
-        console.warn(`[Downloader] TikWM falhou; tentando Melissa API: ${error.message}`);
-        try {
-          const result = await downloadMelissa(url);
-          console.log("[API/Melissa] TikTok baixado como fallback.");
-          return result;
-        } catch (fallbackError) {
-          console.warn(`[Downloader] Melissa também falhou; tentando yt-dlp local: ${fallbackError.message}`);
-        }
-      }
-    }
+    // Todo download de vídeo/áudio é feito localmente pelo yt-dlp, sem APIs externas.
 
-    if (type !== "audio" && isInstagram) {
-      try {
-        console.log(`[API/Melissa] Extraindo link de ${hostname}...`);
-        const result = await downloadMelissa(url);
-        console.log("[API/Melissa] Instagram baixado localmente.");
-        return result;
-      } catch (error) {
-        console.warn(`[Downloader] Melissa API falhou para Instagram; tentando yt-dlp local: ${error.message}`);
-      }
-    }
-
-    console.log(`[LOCAL] Melissa API não foi usada ou não concluiu. Iniciando yt-dlp neste aparelho para ${hostname}...`);
+    console.log(`[LOCAL] Iniciando yt-dlp neste aparelho para ${hostname}...`);
     const output = path.join(DOWNLOAD_DIR, `${randomUUID()}-%(title)s.%(ext)s`);
     const args = [
       "--newline",
