@@ -77,14 +77,14 @@ export default class CommandHandler {
             return;
         }
 
-        // .on e .off sempre funcionam; .ban continua disponível com o grupo desligado.
+        // .on, .off, .ban, .kick e .remover continuam disponíveis com o grupo desligado.
         if (
             jid.endsWith("@g.us") &&
             !ALWAYS_ALLOWED_WHEN_OFF.has(commandName) &&
             !(await isGroupEnabled(jid))
         ) {
             await this.sock.sendMessage(jid, {
-                text: "🔕 O bot está desligado neste grupo. Só .on, .off e .ban continuam disponíveis."
+                text: "🔕 O bot está desligado neste grupo. Só .on, .off, .ban, .kick e .remover continuam disponíveis."
             }, { quoted: msg });
             return;
         }
