@@ -1,7 +1,6 @@
 import Groq from "groq-sdk";
 import axios from "axios";
 import { aiProviderManager } from "./providerManager.js";
-import { isBlockedTopic } from "./responseGuard.js";
 
 import personality from "./personality.js";
 
@@ -381,8 +380,6 @@ function buildMemoryMessages(
     detailed = false
 ) {
 
-    // O modo detalhado usa um contexto menor para reservar tokens à resposta
-    // e evitar que respostas longas anteriores consumam o orçamento por minuto.
     const recentHistory = detailed
         ? history.slice(-3)
         : history.slice(-MAX_HISTORY_MESSAGES);
@@ -532,11 +529,6 @@ export async function askAI(
 ) {
     const detailed = options?.detailed === true;
 
-    // Mantém o filtro de tópicos existente sem depender do módulo removido.
-    if (isBlockedTopic(message)) {
-        return "🔒 Não vou responder sobre esse assunto. Vamos conversar sobre outra coisa? 🌸";
-    }
-
     if (!aiProviderManager.hasAvailableProvider()) {
         return "🌸 A IA está desativada no momento.";
     }
@@ -646,10 +638,6 @@ export async function askAI(
 
                 }
 
-                if (isBlockedTopic(answer)) {
-                    return "🔒 Não vou fornecer uma resposta sobre esse assunto. Vamos conversar sobre outra coisa? 🌸";
-                }
-
                 await saveUserMessage(
 
                     userId,
@@ -737,9 +725,6 @@ export async function askAI(
 
 }
 
-
-// Interface pequena e estável para outros recursos que precisam de conversas
-// com system prompts próprios. Mantém cliente, modelo e credencial existentes.
 export async function generateChatCompletion(messages) {
     if (!groq) {
         const error = new Error("GROQ_API_KEY não configurada.");
@@ -758,6 +743,5 @@ export async function generateChatCompletion(messages) {
     });
     const answer = response.choices?.[0]?.message?.content?.trim();
     if (!answer) throw new Error("A IA retornou uma resposta vazia.");
-    if (isBlockedTopic(answer)) return "🔒 Não vou fornecer uma resposta sobre esse assunto. Vamos conversar sobre outra coisa? 🌸";
     return answer;
 }
