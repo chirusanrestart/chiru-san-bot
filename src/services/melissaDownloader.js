@@ -7,12 +7,12 @@ import { pipeline } from "node:stream/promises";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 const CHUNK_SIZE = 64 * 1024;
-const MAX_MEDIA_BYTES = 150 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 220_000;
+const MAX_MEDIA_BYTES = 1024 * 1024 * 1024;
+const REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
 
 function getConfig() {
   const configuredUrl = (process.env.MELISSA_DOWNLOADER_API_URL ||
-    "https://melissa-downloader-api.onrender.com/download").trim();
+    "https://melissa-api-server.hostless.app/download").trim();
   const apiKey = process.env.MELISSA_DOWNLOADER_API_KEY?.trim() || "";
 
   let apiUrl;
@@ -76,7 +76,7 @@ export async function downloadMelissa(url, options = {}) {
     let detail = "HTTP " + response.status;
     try {
       const payload = await response.json();
-      detail = payload?.message || payload?.error || detail;
+      detail = [payload?.message || payload?.error || detail, payload?.reason].filter(Boolean).join(": ");
     } catch {}
     throw new Error("Melissa Downloader: " + detail);
   }
@@ -98,7 +98,7 @@ export async function downloadMelissa(url, options = {}) {
   const declaredSize = Number(response.headers.get("content-length") || 0);
   if (declaredSize > MAX_MEDIA_BYTES) {
     await response.body.cancel().catch(() => {});
-    throw new Error("A mídia ultrapassa o limite de 150 MB.");
+    throw new Error("A mídia ultrapassa o limite de 1 GiB.");
   }
 
   const extension = extensionFor(response.headers.get("x-media-ext"), contentType);
@@ -111,7 +111,7 @@ export async function downloadMelissa(url, options = {}) {
     transform(chunk, encoding, callback) {
       received += chunk.length;
       if (received > MAX_MEDIA_BYTES) {
-        callback(new Error("A mídia ultrapassa o limite de 150 MB."));
+        callback(new Error("A mídia ultrapassa o limite de 1 GiB."));
         return;
       }
       callback(null, chunk);
@@ -127,7 +127,7 @@ export async function downloadMelissa(url, options = {}) {
     );
   } catch (error) {
     await fs.unlink(file).catch(() => {});
-    throw new Error(error?.message?.includes("150 MB")
+    throw new Error(error?.message?.includes("1 GiB")
       ? error.message
       : "A transmissão da Melissa Downloader foi interrompida: " + (error?.message || "erro de stream") + ".");
   }
