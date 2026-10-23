@@ -9,7 +9,8 @@
     "build:turbojpeg": "bash scripts/build-turbojpeg.sh",
     "test:ai": "node --test tests/aiProviderManager.test.js tests/openAICompatibleProvider.test.js",
     "test:memory": "node --test tests/characterMemory.test.js tests/characterStore.test.js tests/characterLongTermMemory.test.js",
-    "test:characters": "node --test tests/characters.test.js"
+    "test:characters": "node --test tests/characters.test.js",
+    "test:compat": "node --test tests/runtimeProfile.test.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
@@ -24,5 +25,8 @@
     "pino": "^10.3.1",
     "yt-search": "^2.13.1",
     "cheerio": "^1.2.0"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.35.3"
   }
 }
