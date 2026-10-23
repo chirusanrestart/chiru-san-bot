@@ -11,6 +11,7 @@ import { searchPinterest } from "../../services/pinterestScraper.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
+import { trySharpSticker } from "../../services/sharpSticker.js";
 import { rememberMegapack } from "../../services/megapackHistory.js";
 
 const run = promisify(execFile);
@@ -221,20 +222,26 @@ async function download(url, file, pinUrl) {
 }
 
 async function convert(input, output, animated) {
-    // JPEG estático: tenta TurboJPEG para decodificar/cortar e cwebp para
-    // redimensionar/encodar. Se não estiver compilado ou falhar, usa FFmpeg.
+    // Primeiro tenta Sharp para imagens estáticas. Ele é opcional: se não
+    // estiver instalado/compatível ou falhar, segue para TurboJPEG e FFmpeg.
     if (!animated) {
-        if (await tryTurboJpegSticker(input, output, 80)) {
-            if ((await fs.stat(output)).size <= MAX_STICKER) return;
+        for (const quality of [80, 55]) {
+            if (await trySharpSticker(input, output, quality)) {
+                if ((await fs.stat(output)).size <= MAX_STICKER) return;
+                await fs.unlink(output).catch(() => {});
+            }
+        }
 
-            await fs.unlink(output).catch(() => {});
-            if (await tryTurboJpegSticker(input, output, 55)) {
+        // JPEG estático: TurboJPEG + cwebp continua como segunda alternativa.
+        for (const quality of [80, 55]) {
+            if (await tryTurboJpegSticker(input, output, quality)) {
                 if ((await fs.stat(output)).size <= MAX_STICKER) return;
                 await fs.unlink(output).catch(() => {});
             }
         }
     }
 
+    // FFmpeg permanece como fallback final e como caminho para mídia animada.
     const encode = async (quality, fps) => {
         await runFFmpegSticker(input, output, animated ? "video" : "image", {
             quality,
