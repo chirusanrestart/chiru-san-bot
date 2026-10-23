@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { downloadTikwm } from "./tikwm.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -27,7 +28,15 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)(instagram\.com|instagr\.am)$/.test(hostname);
 
-    // Todo download de vídeo/áudio é feito localmente pelo yt-dlp, sem APIs externas.
+    // TikTok usa TikWM; os demais sites e downloads de áudio usam yt-dlp local.
+    if (type !== "audio" && isTikTok) {
+      try {
+        console.log("[API/TikWM] Extraindo link do TikTok...");
+        return await downloadTikwm(url);
+      } catch (error) {
+        console.warn(`[Downloader] TikWM falhou; tentando yt-dlp local: ${error.message}`);
+      }
+    }
 
     console.log(`[LOCAL] Iniciando yt-dlp neste aparelho para ${hostname}...`);
     const output = path.join(DOWNLOAD_DIR, `${randomUUID()}-%(title)s.%(ext)s`);
