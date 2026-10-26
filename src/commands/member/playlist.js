@@ -111,14 +111,14 @@ export default {
         await sock.sendMessage(jid, {
           text:
             `📀 *${playlist.title}*\n` +
-            `🎞️ Itens na fila: ${tracks.length}${playlist.limited ? " (limite atual: 100 itens)" : ""}\n` +
+            `🎞️ Itens nesta execução: ${tracks.length}${playlist.tracks.length > tracks.length ? " (limite de 40 por execução)" : ""}\n` +
             `🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\n` +
             "Vou processar um por vez, mantendo a ordem da playlist."
         }, { quoted: msg });
       } else {
-        tracks = await getPlaylistTracks(url);
+        tracks = (await getPlaylistTracks(url)).slice(0, 40);
         await sock.sendMessage(jid, {
-          text: `📀 Playlist encontrada: ${tracks.length} itens.\n🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\nProcessando um por vez...`
+          text: `📀 Playlist encontrada: ${tracks.length} itens (máximo de 40 por execução).\n🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\nProcessando um por vez...`
         }, { quoted: msg });
       }
 
