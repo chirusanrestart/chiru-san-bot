@@ -15,6 +15,45 @@ function parseArgs(args) {
   return { mode: null, url: args.join(" ").trim() };
 }
 
+
+function resolveTrackUrl(track) {
+  if (!track || typeof track !== "object") return null;
+
+  const candidates = [
+    track.url,
+    track.webpage_url,
+    track.webpageUrl,
+    track.video_url,
+    track.videoUrl,
+    track.link
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string" || !candidate.trim()) continue;
+    try {
+      const parsed = new URL(candidate.trim());
+      if (!["http:", "https:"].includes(parsed.protocol)) continue;
+      const host = parsed.hostname.toLowerCase();
+      if (["youtube.com", "www.youtube.com", "music.youtube.com", "m.youtube.com"].includes(host)) {
+        const id = parsed.searchParams.get("v");
+        if (id) return `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+        if (parsed.searchParams.has("list")) continue;
+      }
+      if (["youtu.be", "www.youtu.be"].includes(host)) {
+        const id = parsed.pathname.split("/").filter(Boolean)[0];
+        if (id) return `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+      }
+      return parsed.toString();
+    } catch {}
+  }
+
+  const id = track.id || track.videoId || track.video_id;
+  if (typeof id === "string" && /^[A-Za-z0-9_-]{6,20}$/.test(id)) {
+    return `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+  }
+  return null;
+}
+
 function safeName(value) {
   return String(value || "media").replace(/[<>:"/\\|?*\x00-\x1F]/g, "").replace(/\s+/g, " ").trim().slice(0, 150) || "media";
 }
@@ -81,7 +120,11 @@ export default {
           await sock.sendMessage(jid, {
             text: `⏳ [${i + 1}/${tracks.length}] ${track.title}\n🎵 Preparando áudio...`
           });
-          const result = await Downloader.download(track.url, { type: mode });
+          const trackUrl = resolveTrackUrl(track);
+          if (!trackUrl) {
+            throw new Error("A API retornou uma faixa sem link válido (campos url/id/videoId ausentes).");
+          }
+          const result = await Downloader.download(trackUrl, { type: mode });
           file = result.file;
           if (!file) throw new Error("O servidor não retornou um arquivo.");
 
