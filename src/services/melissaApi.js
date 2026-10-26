@@ -135,6 +135,24 @@ export async function getYouTubePlaylist(url) {
   return data;
 }
 
+export async function downloadYouTubePlaylistToFile(url, outputPath, { mode = "video" } = {}) {
+  const normalizedMode = mode === "audio" ? "audio" : "video";
+  const response = await request("/youtube/playlist/download", {
+    body: { url, mode: normalizedMode },
+    timeoutMs: DEFAULT_TIMEOUT_MS
+  });
+  await saveBinaryResponse(response, outputPath, "faixa da playlist recebida");
+  return {
+    success: true,
+    file: outputPath,
+    contentType: response.headers.get("content-type") || null,
+    title: decodeHeader(response, "x-media-title-b64") || responseFilename(response),
+    description: decodeHeader(response, "x-media-description-b64"),
+    thumbnail: response.headers.get("x-media-thumbnail-url") || null,
+    source: "melissa-api-playlist"
+  };
+}
+
 export async function downloadToFile(url, outputPath, { mode = "video" } = {}) {
   const response = await request("/download", {
     body: { url, mode: mode === "audio" ? "audio" : "video", format: mode === "audio" ? "mp3" : "mp4" },
