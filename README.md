@@ -4,7 +4,7 @@ Bot de WhatsApp desenvolvido em **Node.js** com Baileys, comandos personalizados
 
 ## ✨ Funcionalidades
 
-- 💬 Comandos de WhatsApp com prefixo `. `.replace(" ", "")`
+- 💬 Comandos de WhatsApp com prefixo `.``
 - 🤖 Conversas com IA e personagens configuráveis
 - 🧠 Histórico e memória organizados por usuário, conversa e personagem
 - 🎭 Seleção e criação de personagens
