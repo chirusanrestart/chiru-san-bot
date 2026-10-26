@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { unzipSync } from "fflate";
 
 import Downloader from "../../services/downloader.js";
-import { getYouTubePlaylist, isMelissaApiConfigured } from "../../services/melissaApi.js";
+import { downloadYouTubePlaylistToFile, getYouTubePlaylist, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import { getPlaylistTracks } from "../../services/youtubePlaylist.js";
 
 function parseArgs(args) {
@@ -111,6 +112,43 @@ export default {
         await sock.sendMessage(jid, {
           text: `📀 Playlist encontrada: ${tracks.length} itens.\n🎧 Formato: áudio\n\nProcessando um por vez...`
         }, { quoted: msg });
+      }
+
+      if (isMelissaApiConfigured()) {
+        const workDir = path.resolve("downloads", "playlist-" + Date.now());
+        await fs.mkdir(workDir, { recursive: true });
+        const zipPath = path.join(workDir, "playlist.zip");
+        try {
+          await sock.sendMessage(jid, { text: "☁️ O servidor vai baixar e converter a playlist inteira. Depois envio as faixas na ordem original..." }, { quoted: msg });
+          await downloadYouTubePlaylistToFile(url, zipPath);
+          const archive = unzipSync(await fs.readFile(zipPath));
+          const entries = Object.entries(archive)
+            .filter(([name, data]) => name && !name.endsWith("/") && data?.length)
+            .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
+          if (!entries.length) throw new Error("O servidor devolveu um ZIP sem faixas.");
+          for (let i = 0; i < entries.length; i++) {
+            const [name, data] = entries[i];
+            const safeName = path.basename(name);
+            if (!safeName || safeName !== name) continue;
+            const file = path.join(workDir, safeName);
+            try {
+              await fs.writeFile(file, data);
+              const title = safeName.replace(/^\\d+\\s*-\\s*/, "").replace(/\\.m4a$/i, "");
+              await sock.sendMessage(jid, { text: `📤 [${i + 1}/${entries.length}] Enviando: ${title}` });
+              await sock.sendMessage(jid, { audio: { url: file }, mimetype: "audio/mp4", fileName: safeName, ptt: false }, { quoted: msg });
+              success++;
+            } catch (error) {
+              failed++;
+              console.error("[PLAYLIST] Falha enviando faixa:", error.message);
+            } finally {
+              await fs.unlink(file).catch(() => {});
+            }
+          }
+          await sock.sendMessage(jid, { text: "✅ *Playlist finalizada!*\\n\\n" + `☁️ Processada na nuvem\\n📤 Enviados: ${success}\\n❌ Falharam: ${failed}\\n📀 Total: ${entries.length}` }, { quoted: msg });
+          return;
+        } finally {
+          await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+        }
       }
 
       for (let i = 0; i < tracks.length; i++) {
