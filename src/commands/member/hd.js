@@ -1,5 +1,6 @@
 import { downloadMedia } from "../../utils/download.js";
 import { runFFmpegHD } from "../../services/ffmpeg.js";
+import { processMedia, isMelissaApiConfigured } from "../../services/melissaApi.js";
 
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -81,6 +82,20 @@ export default {
                     "image"
                 );
 
+
+
+            if (isMelissaApiConfigured()) {
+                try {
+                    const remote = await processMedia("hd", media, { profile: "balanced" });
+                    await sock.sendMessage(jid, {
+                        image: remote.data,
+                        caption: "🌈✨ HD • cores realçadas"
+                    });
+                    return;
+                } catch (remoteError) {
+                    console.warn("[Melissa API/.hd] Falhou; usando processamento local:", remoteError.message);
+                }
+            }
 
             await fs.writeFile(
                 input,
