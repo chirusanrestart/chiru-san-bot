@@ -116,6 +116,9 @@ export default class CommandHandler {
             }
 
             for (const file of files) {
+                // playlist.js é o núcleo interno usado por .playlist3/.playlist4, não um comando público.
+                if (folder === "member" && file === "playlist.js") continue;
+
                 const command = await import(
                     pathToFileURL(path.join(dir, file)).href
                 );
