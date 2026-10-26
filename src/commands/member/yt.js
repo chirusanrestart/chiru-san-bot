@@ -1,88 +1,55 @@
 import { promises as fs } from "node:fs";
-
-import { searchYoutube } from "../../services/youtubeSearch.js";
-import { downloadAudio } from "../../services/youtubeDownload.js";
+import Downloader from "../../services/downloader.js";
+import { isMelissaApiConfigured, searchYouTube } from "../../services/melissaApi.js";
+import { searchYoutube as searchLocal } from "../../services/youtubeSearch.js";
 
 export default {
   name: "yt",
-  description: "Busca uma música no YouTube e envia o áudio",
+  aliases: ["ytaudio"],
+  description: "Pesquisa uma música pelo nome e envia o áudio pelo servidor",
 
   async execute(sock, msg, args) {
-    const from = msg.key.remoteJid;
-
-    const query = args.join(" ");
-
+    const jid = msg.key.remoteJid;
+    const query = args.join(" ").trim();
     if (!query) {
-      return sock.sendMessage(from, {
-        text: "❌ Digite o nome da música."
-      });
+      await sock.sendMessage(jid, {
+        text: "🎵 Digite o nome da música.\nExemplo: .yt nome da música"
+      }, { quoted: msg });
+      return;
     }
 
-    let audio = null;
-
+    let file = null;
     try {
-      await sock.sendMessage(from, {
-        text:
-          "🔎 Procurando no YouTube..."
-      });
-
-      const video =
-        await searchYoutube(query);
-
-      if (!video) {
-        return sock.sendMessage(from, {
-          text:
-            "❌ Não encontrei nenhum vídeo."
-        });
+      await sock.sendMessage(jid, { text: "🔎 Pesquisando no YouTube pelo servidor..." }, { quoted: msg });
+      const video = isMelissaApiConfigured()
+        ? await searchYouTube(query)
+        : await searchLocal(query);
+      if (!video?.url) {
+        await sock.sendMessage(jid, { text: "❌ Não encontrei nenhum resultado." }, { quoted: msg });
+        return;
       }
 
-      await sock.sendMessage(from, {
-        text:
-`🎵 Encontrado:
-${video.title}
+      await sock.sendMessage(jid, {
+        text: `🎵 Encontrei: ${video.title}\n\n⬇️ Preparando o áudio...`
+      }, { quoted: msg });
 
-⬇️ Baixando áudio...`
-      });
+      const result = await Downloader.download(video.url, { type: "audio" });
+      file = result.file;
+      if (!file) throw new Error("O servidor não retornou um arquivo de áudio.");
 
-      console.log(
-        `[YT] 🎵 ${video.title}`
-      );
-
-      audio =
-        await downloadAudio(video.url);
-
-      await sock.sendMessage(from, {
-        audio: {
-          url: audio
-        },
-        mimetype: "audio/mpeg"
-      });
-
-      console.log(
-        `[YT] ✅ Enviado: ${video.title}`
-      );
-
-    } catch (err) {
-      console.error(
-        "[YT] ❌ Erro:",
-        err
-      );
-
-      await sock.sendMessage(from, {
-        text:
-          "❌ Deu erro ao baixar o áudio."
-      });
-
+      await sock.sendMessage(jid, {
+        audio: { url: file },
+        mimetype: result.contentType?.startsWith("audio/") ? result.contentType : "audio/mpeg",
+        fileName: (result.title || video.title || "audio").replace(/\.(mp3|m4a|webm|opus)$/i, "") + ".mp3",
+        ptt: false
+      }, { quoted: msg });
+    } catch (error) {
+      console.error("[YT AUDIO]", error);
+      await sock.sendMessage(jid, {
+        text: `❌ Não consegui pesquisar ou enviar o áudio: ${String(error.message || "").slice(0, 250)}`
+      }, { quoted: msg });
     } finally {
-      if (audio) {
-        try {
-          await fs.unlink(audio);
-
-          console.log(
-            `[YT] 🧹 Arquivo temporário removido`
-          );
-        } catch {}
-      }
+      if (file) await fs.unlink(file).catch(() => {});
     }
   }
 };
