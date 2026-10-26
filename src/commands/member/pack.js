@@ -189,7 +189,7 @@ async function download(url, file, pinUrl) {
         try {
             const result = await downloadPinterestImage(url, file);
             const stat = await fs.stat(file);
-            if (stat.size > 0 && stat.size <= MAX_IMAGE) return { prepared: Boolean(result.prepared), animated: itemAnimatedFromUrl(url) };
+            if (stat.size > 0 && stat.size <= MAX_IMAGE) return { prepared: Boolean(result.prepared), animated: Boolean(result.animated) };
             await fs.unlink(file).catch(() => {});
             throw new Error(stat.size === 0 ? "API retornou imagem vazia" : "imagem excedeu o limite");
         } catch (error) {
@@ -338,10 +338,11 @@ async function makeStickers(items, dir, packname, author) {
                 // independentemente. Com CONCURRENCY=10, até 10 conversões
                 // podem acontecer ao mesmo tempo.
                 const downloaded = await download(item.url, input, item.pinUrl);
-                if (downloaded?.prepared && !item.animated) {
+                const animated = downloaded?.animated ?? item.animated;
+                if (downloaded?.prepared && !animated) {
                     await fs.rename(input, output);
                 } else {
-                    await convert(input, output, item.animated);
+                    await convert(input, output, animated);
                 }
                 await addStickerMetadata(output, packname, author);
 
