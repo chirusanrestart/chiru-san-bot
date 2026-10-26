@@ -187,9 +187,9 @@ async function download(url, file, pinUrl) {
     // transmite o arquivo ao bot. Se falhar, os caminhos locais abaixo continuam.
     if (isMelissaApiConfigured()) {
         try {
-            await downloadPinterestImage(url, file);
+            const result = await downloadPinterestImage(url, file);
             const stat = await fs.stat(file);
-            if (stat.size > 0 && stat.size <= MAX_IMAGE) return;
+            if (stat.size > 0 && stat.size <= MAX_IMAGE) return { prepared: Boolean(result.prepared), animated: itemAnimatedFromUrl(url) };
             await fs.unlink(file).catch(() => {});
             throw new Error(stat.size === 0 ? "API retornou imagem vazia" : "imagem excedeu o limite");
         } catch (error) {
@@ -209,7 +209,7 @@ async function download(url, file, pinUrl) {
     if (validPublicPinUrl) {
         try {
             await downloadWithYtDlp(pinUrl, file);
-            return;
+            return { prepared: false, animated: isAnimated(url) };
         } catch (e) {
             console.log("⚠️ yt-dlp Pinterest; tentando imagem direta:", e.message);
             await fs.unlink(file).catch(() => {});
@@ -247,6 +247,7 @@ async function download(url, file, pinUrl) {
     try {
         await pipeline(source, createWriteStream(file, { flags: "wx" }));
         if (total === 0) throw new Error("imagem vazia");
+        return { prepared: false, animated: isAnimated(url) };
     } catch (error) {
         await fs.unlink(file).catch(() => {});
         throw error;
@@ -336,8 +337,12 @@ async function makeStickers(items, dir, packname, author) {
                 // TESTE: cada worker baixa, converte e adiciona metadados
                 // independentemente. Com CONCURRENCY=10, até 10 conversões
                 // podem acontecer ao mesmo tempo.
-                await download(item.url, input, item.pinUrl);
-                await convert(input, output, item.animated);
+                const downloaded = await download(item.url, input, item.pinUrl);
+                if (downloaded?.prepared && !item.animated) {
+                    await fs.rename(input, output);
+                } else {
+                    await convert(input, output, item.animated);
+                }
                 await addStickerMetadata(output, packname, author);
 
                 const buf = await fs.readFile(output);
