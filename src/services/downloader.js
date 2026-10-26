@@ -117,6 +117,12 @@ function runDownload(args) {
     const fail = error => {
       if (settled) return;
       settled = true;
+      if (error?.code === "ENOENT") {
+        const unavailable = new Error("yt-dlp não está instalado. O bot continua funcionando; este download local não está disponível e a API Melissa pode ser usada quando configurada.");
+        unavailable.code = "YTDLP_NOT_INSTALLED";
+        reject(unavailable);
+        return;
+      }
       reject(error);
     };
 
