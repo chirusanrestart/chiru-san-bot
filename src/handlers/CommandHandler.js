@@ -8,6 +8,26 @@ const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"])
 
 const MEDIA_COMMANDS = new Set(["mp3", "mp4"]);
 
+async function getJpegThumbnail(url) {
+    if (!url) return undefined;
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "https:") return undefined;
+        const response = await fetch(parsed, {
+            signal: AbortSignal.timeout(5000),
+            redirect: "error"
+        });
+        if (!response.ok || !response.headers.get("content-type")?.toLowerCase().startsWith("image/jpeg")) return undefined;
+        const length = Number(response.headers.get("content-length") || 0);
+        if (length > 256 * 1024) return undefined;
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (!bytes.length || bytes.length > 256 * 1024) return undefined;
+        return bytes;
+    } catch {
+        return undefined;
+    }
+}
+
 async function executeMediaDownload(sock, msg, args, commandName) {
     const jid = msg.key?.remoteJid;
     if (!jid) return;
@@ -33,8 +53,10 @@ async function executeMediaDownload(sock, msg, args, commandName) {
         const { default: Downloader } = await import("../services/downloader.js");
         result = await Downloader.download(url, { type });
         if (!result?.file) throw new Error("O serviço não retornou um arquivo.");
-        const title = String(result.title || (type === "audio" ? "audio" : "video"))
-            .replace(/[\r\n]/g, " ").slice(0, 170);
+        const cleanText = value => String(value || "").replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+        const rawTitle = cleanText(result.title || (type === "audio" ? "audio" : "video"));
+        const title = rawTitle.replace(/\.(mp3|mp4|m4a|webm|mov)$/i, "").slice(0, 170) || (type === "audio" ? "audio" : "video");
+        const description = cleanText(result.description).slice(0, 1200);
         const contentType = String(result.contentType || "").toLowerCase();
 
         if (type === "audio") {
@@ -45,11 +67,13 @@ async function executeMediaDownload(sock, msg, args, commandName) {
                 ptt: false
             }, { quoted: msg });
         } else {
+            const jpegThumbnail = await getJpegThumbnail(result.thumbnail);
             await sock.sendMessage(jid, {
                 video: { url: result.file },
                 mimetype: contentType.startsWith("video/") ? contentType : "video/mp4",
-                fileName: /\.mp4$/i.test(title) ? title : title + ".mp4",
-                caption: title
+                fileName: title + ".mp4",
+                ...(jpegThumbnail ? { jpegThumbnail } : {}),
+                caption: description ? `🎬 ${title}\n\n📝 ${description}` : `🎬 ${title}`
             }, { quoted: msg });
         }
     } catch (error) {
