@@ -151,7 +151,7 @@ export default {
         const playlist = await getYouTubePlaylist(url);
         tracks = playlist.tracks;
         await sock.sendMessage(jid, {
-          text: `📀 *${playlist.title}*\n🎞️ Itens encontrados: ${tracks.length}\n☁️ Limite seguro do servidor: até 25 faixas por execução\n🎧 Formato: áudio\n\nVou processar na ordem original.`
+          text: `📀 *${playlist.title}*\n🎞️ Itens encontrados: ${tracks.length}\n☁️ Limite seguro do servidor: até 27 faixas por execução\n🎧 Formato: áudio\n\nVou processar na ordem original.`
         }, { quoted: msg });
       } else {
         tracks = await getPlaylistTracks(url);
