@@ -809,23 +809,24 @@ export async function sendStickerPack(
                 options
             );
 
-        // Registra cada etapa: relayMessage pode ser a última etapa do envio
-        // e precisamos distinguir upload concluído de mensagem realmente encaminhada.
-        console.log(`📦 [sticker-pack] Encaminhando pack "${options.name || "sem nome"}" (${pack.length} figurinhas) para ${jid}`);
-        const relayResult = await sock.relayMessage(
-            jid,
-            {
-                stickerPackMessage: message
-            },
-            {
-                messageId: generateMessageIDV2(sock.user?.id)
-            }
-        );
-        console.log(`📨 [sticker-pack] relayMessage concluído para ${jid}; resultado: ${relayResult ? "retornado" : "sem retorno"}`);
-
-        // Só libera os buffers depois que o relay termina.
+        // Os bytes já foram compactados, criptografados e enviados ao servidor.
+        // Solta as referências dos buffers antes de aguardar a confirmação do relay.
         pack.length = 0;
         stickers.length = 0;
+
+        await sock.relayMessage(
+            jid,
+            {
+                stickerPackMessage:
+                    message
+            },
+            {
+                messageId:
+                    generateMessageIDV2(
+                        sock.user?.id
+                    )
+            }
+        );
 
         
         if (
