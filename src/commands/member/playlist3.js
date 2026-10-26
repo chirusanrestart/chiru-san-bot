@@ -1,10 +1,8 @@
-import { promises as fs, createWriteStream } from "node:fs";
+import { promises as fs } from "node:fs";
 import path from "node:path";
-import yauzl from "yauzl";
-import { pipeline } from "node:stream/promises";
 
 import Downloader from "../../services/downloader.js";
-import { downloadYouTubePlaylistToFile, getYouTubePlaylist, isMelissaApiConfigured } from "../../services/melissaApi.js";
+import { getYouTubePlaylist, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import { getPlaylistTracks } from "../../services/youtubePlaylist.js";
 
 function parseArgs(args) {
@@ -60,51 +58,6 @@ function safeName(value) {
   return String(value || "media").replace(/[<>:"/\\|?*\x00-\x1F]/g, "").replace(/\s+/g, " ").trim().slice(0, 150) || "media";
 }
 
-async function extractZipEntriesToFiles(zipPath, workDir) {
-  return new Promise((resolve, reject) => {
-    const extracted = [];
-    yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (openError, zipfile) => {
-      if (openError) return reject(openError);
-      let settled = false;
-      const fail = error => {
-        if (settled) return;
-        settled = true;
-        try { zipfile.close(); } catch {}
-        reject(error);
-      };
-      zipfile.on("error", fail);
-      zipfile.on("end", () => {
-        if (settled) return;
-        settled = true;
-        extracted.sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }));
-        resolve(extracted);
-      });
-      zipfile.on("entry", entry => {
-        if (entry.fileName.endsWith("/")) {
-          zipfile.readEntry();
-          return;
-        }
-        const name = path.basename(entry.fileName);
-        if (!name || name !== entry.fileName || !/\.m4a$/i.test(name)) {
-          zipfile.readEntry();
-          return;
-        }
-        zipfile.openReadStream(entry, (streamError, readStream) => {
-          if (streamError) return fail(streamError);
-          const file = path.join(workDir, name);
-          pipeline(readStream, createWriteStream(file, { flags: "wx" }))
-            .then(() => {
-              extracted.push({ name, file });
-              zipfile.readEntry();
-            })
-            .catch(fail);
-        });
-      });
-      zipfile.readEntry();
-    });
-  });
-}
-
 export default {
   name: "playlist3",
   description: "Baixa playlist do YouTube em áudio com capa, na ordem original",
@@ -151,43 +104,13 @@ export default {
         const playlist = await getYouTubePlaylist(url);
         tracks = playlist.tracks;
         await sock.sendMessage(jid, {
-          text: `📀 *${playlist.title}*\n🎞️ Itens encontrados: ${tracks.length}\n☁️ Limite seguro do servidor: até 40 faixas por execução\n🎧 Formato: áudio\n\nVou processar na ordem original.`
+          text: `📀 *${playlist.title}*\n🎞️ Itens encontrados: ${tracks.length}\n☁️ O servidor baixa e envia uma faixa por vez, sem ZIP\n🎧 Formato: áudio\n\nVou processar na ordem original.`
         }, { quoted: msg });
       } else {
         tracks = await getPlaylistTracks(url);
         await sock.sendMessage(jid, {
           text: `📀 Playlist encontrada: ${tracks.length} itens.\n🎧 Formato: áudio\n\nProcessando um por vez...`
         }, { quoted: msg });
-      }
-
-      if (isMelissaApiConfigured()) {
-        const workDir = path.resolve("downloads", "playlist-" + Date.now());
-        await fs.mkdir(workDir, { recursive: true });
-        const zipPath = path.join(workDir, "playlist.zip");
-        try {
-          await sock.sendMessage(jid, { text: "☁️ O servidor vai baixar e converter a playlist inteira. Depois envio as faixas na ordem original..." }, { quoted: msg });
-          await downloadYouTubePlaylistToFile(url, zipPath);
-          const entries = await extractZipEntriesToFiles(zipPath, workDir);
-          if (!entries.length) throw new Error("O servidor devolveu um ZIP sem faixas.");
-          for (let i = 0; i < entries.length; i++) {
-            const { name, file } = entries[i];
-            try {
-              const title = name.replace(/^\\d+\\s*-\\s*/, "").replace(/\\.m4a$/i, "");
-              await sock.sendMessage(jid, { text: `📤 [${i + 1}/${entries.length}] Enviando: ${title}` });
-              await sock.sendMessage(jid, { audio: { url: file }, mimetype: "audio/mp4", fileName: name, ptt: false }, { quoted: msg });
-              success++;
-            } catch (error) {
-              failed++;
-              console.error("[PLAYLIST] Falha enviando faixa:", error.message);
-            } finally {
-              await fs.unlink(file).catch(() => {});
-            }
-          }
-          await sock.sendMessage(jid, { text: "✅ *Playlist finalizada!*\\n\\n" + `☁️ Processada na nuvem\\n📤 Enviados: ${success}\\n❌ Falharam: ${failed}\\n📀 Total: ${entries.length}` }, { quoted: msg });
-          return;
-        } finally {
-          await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
-        }
       }
 
       for (let i = 0; i < tracks.length; i++) {
