@@ -169,7 +169,13 @@ export async function searchPinterest(query, { min = 1, max = 60 } = {}) {
 export async function downloadPinterestImage(src, outputPath) {
   const response = await request("/pinterest/image", { body: { src }, timeoutMs: 30_000 });
   await saveBinaryResponse(response, outputPath, "imagem Pinterest recebida");
-  return { success: true, file: outputPath, contentType: response.headers.get("content-type") || null };
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  return {
+    success: true,
+    file: outputPath,
+    contentType: contentType || null,
+    prepared: contentType.includes("image/webp") && response.headers.get("x-sticker-prepared") === "1"
+  };
 }
 
 export async function checkMelissaApi() {
