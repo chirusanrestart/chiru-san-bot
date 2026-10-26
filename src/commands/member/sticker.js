@@ -116,10 +116,14 @@ export default {
             // Tenta a conversão remota; se a API falhar, mantém o pipeline local.
             if (isMelissaApiConfigured()) {
                 try {
-                    const original = await fs.readFile(input);
-                    const remote = await processMedia("sticker", original, { animated: type === "video" });
-                    await sock.sendMessage(jid, { sticker: remote.data });
-                    return;
+                    const info = await fs.stat(input);
+                    if (info.size > 0 && info.size <= 12 * 1024 * 1024) {
+                        const original = await fs.readFile(input);
+                        const remote = await processMedia("sticker", original, { animated: type === "video" });
+                        await sock.sendMessage(jid, { sticker: remote.data });
+                        return;
+                    }
+                    console.warn("[Melissa API/.s] Mídia acima do limite remoto; usando conversão local.");
                 } catch (remoteError) {
                     console.warn("[Melissa API/.s] Falhou; usando conversão local:", remoteError.message);
                 }
