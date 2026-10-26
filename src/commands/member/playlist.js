@@ -105,22 +105,30 @@ export default {
         text: "🔎 Lendo a playlist e preparando " + (mode === "audio" ? "os áudios 🎵..." : "os vídeos 🎬..."),
       }, { quoted: msg });
 
+      let playlistTitle = "";
       if (isMelissaApiConfigured()) {
-        const playlist = await getYouTubePlaylist(url);
-        tracks = playlist.tracks.slice(0, 40);
-        await sock.sendMessage(jid, {
-          text:
-            `📀 *${playlist.title}*\n` +
-            `🎞️ Itens nesta execução: ${tracks.length}${playlist.tracks.length > tracks.length ? " (limite de 40 por execução)" : ""}\n` +
-            `🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\n` +
-            "Vou processar um por vez, mantendo a ordem da playlist."
-        }, { quoted: msg });
-      } else {
-        tracks = (await getPlaylistTracks(url)).slice(0, 40);
-        await sock.sendMessage(jid, {
-          text: `📀 Playlist encontrada: ${tracks.length} itens (máximo de 40 por execução).\n🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\nProcessando um por vez...`
-        }, { quoted: msg });
+        try {
+          const playlist = await getYouTubePlaylist(url);
+          tracks = playlist.tracks.slice(0, 40);
+          playlistTitle = playlist.title || "";
+          console.log(`[PLAYLIST] Lista obtida pela Melissa API: ${tracks.length} faixas.`);
+        } catch (apiError) {
+          console.warn(`[PLAYLIST] API remota falhou; tentando ler a playlist localmente: ${apiError.message}`);
+        }
       }
+
+      // Fallback local caso a API esteja sem chave, indisponível ou retorne erro.
+      if (tracks.length === 0) {
+        tracks = (await getPlaylistTracks(url)).slice(0, 40);
+      }
+
+      await sock.sendMessage(jid, {
+        text:
+          (playlistTitle ? `📀 *${playlistTitle}*\\n` : `📀 Playlist encontrada: ${tracks.length} itens\\n`) +
+          `🎞️ Itens nesta execução: ${tracks.length} (máximo de 40)\\n` +
+          `🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\\n\\n` +
+          "Vou processar um por vez, mantendo a ordem da playlist."
+      }, { quoted: msg });
 
       for (let i = 0; i < tracks.length; i++) {
         const track = tracks[i];
