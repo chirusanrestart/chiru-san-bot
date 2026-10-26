@@ -6,9 +6,7 @@ import { randomUUID } from "node:crypto";
 const DOWNLOAD_DIR = path.resolve("temp/playlist");
 
 async function ensureDownloadDir() {
-  await fs.mkdir(DOWNLOAD_DIR, {
-    recursive: true
-  });
+  await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
 }
 
 function sanitizeFilename(name) {
@@ -21,32 +19,34 @@ function sanitizeFilename(name) {
 
 function runYtDlp(args) {
   return new Promise((resolve, reject) => {
-    const process = spawn("yt-dlp", args);
-
+    const child = spawn("yt-dlp", args);
     let stdout = "";
     let stderr = "";
+    let settled = false;
 
-    process.stdout.on("data", data => {
-      stdout += data.toString();
-    });
+    const fail = error => {
+      if (settled) return;
+      settled = true;
+      if (error?.code === "ENOENT") {
+        const unavailable = new Error("yt-dlp não está instalado; o bot continua funcionando, mas este recurso local de download não está disponível.");
+        unavailable.code = "YTDLP_NOT_INSTALLED";
+        reject(unavailable);
+        return;
+      }
+      reject(error);
+    };
 
-    process.stderr.on("data", data => {
-      stderr += data.toString();
-    });
+    child.stdout?.on("data", data => { stdout += data.toString(); });
+    child.stderr?.on("data", data => { stderr += data.toString(); });
+    child.once("error", fail);
 
-    process.on("error", reject);
-
-    process.on("close", code => {
+    child.once("close", code => {
+      if (settled) return;
+      settled = true;
       if (code === 0) {
-        resolve({
-          stdout,
-          stderr
-        });
+        resolve({ stdout, stderr });
       } else {
-        const error = new Error(
-          `yt-dlp terminou com código ${code}\n${stderr}`
-        );
-
+        const error = new Error(stderr.trim() || `yt-dlp terminou com código ${code ?? "desconhecido"}`);
         error.code = code;
         reject(error);
       }
@@ -54,68 +54,40 @@ function runYtDlp(args) {
   });
 }
 
-export async function downloadYoutubeAudioFast(
-  url,
-  name = "audio"
-) {
+export async function downloadYoutubeAudioFast(url, name = "audio") {
   await ensureDownloadDir();
-
   const safeName = `${sanitizeFilename(name) || "audio"}-${randomUUID()}`;
-
-  const outputTemplate = path.join(
-    DOWNLOAD_DIR,
-    `${safeName}.%(ext)s`
-  );
+  const outputTemplate = path.join(DOWNLOAD_DIR, `${safeName}.%(ext)s`);
 
   console.log("[YOUTUBE] 🔎 Baixando áudio...");
 
   await runYtDlp([
     "--no-playlist",
-    "-f",
-    "bestaudio/best",
+    "-f", "bestaudio/best",
     "-x",
-    "--audio-format",
-    "mp3",
-    "--audio-quality",
-    "5",
-    "-o",
-    outputTemplate,
+    "--audio-format", "mp3",
+    "--audio-quality", "5",
+    "-o", outputTemplate,
     url
   ]);
 
   const files = await fs.readdir(DOWNLOAD_DIR);
-
   const candidates = files
     .filter(file => file.startsWith(`${safeName}.`))
     .filter(file => !file.endsWith(".part"))
     .filter(file => !file.endsWith(".ytdl"));
 
   if (candidates.length === 0) {
-    throw new Error(
-      "yt-dlp terminou, mas o arquivo não foi encontrado."
-    );
+    throw new Error("yt-dlp terminou, mas o arquivo não foi encontrado.");
   }
 
-  const file = path.join(
-    DOWNLOAD_DIR,
-    candidates[0]
-  );
-
-  console.log(
-    `[YOUTUBE] ✅ Arquivo baixado: ${file}`
-  );
-
+  const file = path.join(DOWNLOAD_DIR, candidates[0]);
+  console.log(`[YOUTUBE] ✅ Arquivo baixado: ${file}`);
   return file;
 }
 
-export async function downloadAudio(
-  url,
-  name = "audio"
-) {
+export async function downloadAudio(url, name = "audio") {
   return downloadYoutubeAudioFast(url, name);
 }
 
-export default {
-  downloadAudio,
-  downloadYoutubeAudioFast
-};
+export default { downloadAudio, downloadYoutubeAudioFast };
