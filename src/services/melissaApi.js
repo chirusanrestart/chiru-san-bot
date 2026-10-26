@@ -179,6 +179,25 @@ export async function downloadPinterestImage(src, outputPath) {
   };
 }
 
+
+export async function processStickerPack(items) {
+  if (!Array.isArray(items) || !items.length) throw new TypeError("Informe as mídias do pack.");
+  const response = await request("/media/process-pack", {
+    body: {
+      items: items.slice(0, 60).map(item => ({
+        src: item.url,
+        animated: Boolean(item.animated)
+      }))
+    },
+    timeoutMs: DEFAULT_TIMEOUT_MS
+  });
+  const data = await response.json();
+  if (!data?.ok || !Array.isArray(data.results)) {
+    throw new Error("A Melissa API retornou um pack inválido.");
+  }
+  return data.results;
+}
+
 export async function checkMelissaApi() {
   const { baseUrl } = config();
   const response = await fetch(new URL("/health", baseUrl), {
