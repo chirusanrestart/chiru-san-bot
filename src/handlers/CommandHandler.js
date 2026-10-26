@@ -6,6 +6,63 @@ import { isOwnerMessage } from "../services/ownerAuth.js";
 
 const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"]);
 
+const MEDIA_COMMANDS = new Set(["mp3", "mp4"]);
+
+async function executeMediaDownload(sock, msg, args, commandName) {
+    const jid = msg.key?.remoteJid;
+    if (!jid) return;
+    const input = args.join(" ").trim();
+    const match = input.match(/https?:\/\/[^\s<>]+/i);
+    if (!match) {
+        await sock.sendMessage(jid, {
+            text: commandName === "mp3"
+                ? "🎵 Envie o link depois do comando.\nExemplo: .mp3 https://..."
+                : "🎬 Envie o link depois do comando.\nExemplo: .mp4 https://..."
+        }, { quoted: msg });
+        return;
+    }
+
+    const url = match[0].replace(/[),.!?]+$/, "");
+    const type = commandName === "mp3" ? "audio" : "video";
+    let result;
+    await sock.sendMessage(jid, {
+        text: type === "audio" ? "🎵 Preparando o MP3..." : "🎬 Preparando o MP4..."
+    }, { quoted: msg });
+
+    try {
+        const { default: Downloader } = await import("../services/downloader.js");
+        result = await Downloader.download(url, { type });
+        if (!result?.file) throw new Error("O serviço não retornou um arquivo.");
+        const title = String(result.title || (type === "audio" ? "audio" : "video"))
+            .replace(/[\r\n]/g, " ").slice(0, 170);
+        const contentType = String(result.contentType || "").toLowerCase();
+
+        if (type === "audio") {
+            await sock.sendMessage(jid, {
+                audio: { url: result.file },
+                mimetype: contentType.startsWith("audio/") ? contentType : "audio/mpeg",
+                fileName: /\.mp3$/i.test(title) ? title : title + ".mp3",
+                ptt: false
+            }, { quoted: msg });
+        } else {
+            await sock.sendMessage(jid, {
+                video: { url: result.file },
+                mimetype: contentType.startsWith("video/") ? contentType : "video/mp4",
+                fileName: /\.mp4$/i.test(title) ? title : title + ".mp4",
+                caption: title
+            }, { quoted: msg });
+        }
+    } catch (error) {
+        console.error("[" + commandName.toUpperCase() + "] Falha:", error);
+        await sock.sendMessage(jid, {
+            text: "❌ Não consegui baixar esse link. Confere se ele é público e tenta novamente."
+        }, { quoted: msg });
+    } finally {
+        if (result?.file) await fs.unlink(result.file).catch(() => {});
+    }
+}
+
+
 export default class CommandHandler {
     constructor(sock) {
         this.sock = sock;
@@ -64,6 +121,10 @@ export default class CommandHandler {
         const args = normalizedText.slice(1).trim().split(/\s+/);
         const commandName = args.shift()?.toLowerCase();
         const command = this.commands.get(commandName);
+        if (!command && MEDIA_COMMANDS.has(commandName)) {
+            await executeMediaDownload(this.sock, msg, args, commandName);
+            return;
+        }
         if (!command) return;
 
         const jid = msg.key?.remoteJid;
