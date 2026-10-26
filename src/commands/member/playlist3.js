@@ -26,7 +26,7 @@ export default {
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
     const parsed = parseArgs(args);
-    const mode = parsed.mode || "audio";
+    const mode = "audio";
     const url = parsed.url;
 
     if (!url) {
