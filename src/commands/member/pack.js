@@ -6,7 +6,6 @@ import { promisify } from "util";
 import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
-import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
 import { searchPinterest } from "../../services/pinterestScraper.js";
 import { searchPinterest as searchPinterestApi, downloadPinterestImage, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import webp from "node-webpmux";
@@ -37,11 +36,6 @@ const shuffle = input => {
 };
 const isAnimated = url => /\.gif(?:[?#]|$)/i.test(String(url || ""));
 
-async function googlePhotos(query) {
-    try { return await searchMasterGooglePhotos(query); }
-    catch (e) { console.log("⚠️ Google Fotos:", e.message); return []; }
-}
-
 async function findImages(query) {
     const all = [];
     const seen = new Set();
@@ -54,8 +48,6 @@ async function findImages(query) {
             all.push({ ...x, animated: x.animated || isAnimated(x.url) });
         }
     };
-
-    add(await googlePhotos(query));
 
     // Melissa API primeiro para Pinterest; o scraper original permanece intacto
     // como fallback e como fonte complementar quando forem necessárias mais imagens.
