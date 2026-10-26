@@ -8,6 +8,7 @@ import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
 import { searchPinterest } from "../../services/pinterestScraper.js";
+import { searchPinterest as searchPinterestApi, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
@@ -55,9 +56,33 @@ async function findImages(query) {
     };
 
     add(await googlePhotos(query));
-    if (all.length < TOTAL * 2) {
-        const pins = await searchPinterest(query, Math.min(MAX_CANDIDATES, Math.max(TOTAL * 2, 80)));
-        add(pins.map(pin => ({ ...pin, source: "pinterest" })));
+
+    // Melissa API primeiro para Pinterest; o scraper original permanece intacto
+    // como fallback e como fonte complementar quando forem necessárias mais imagens.
+    if (isMelissaApiConfigured() && all.length < MAX_CANDIDATES) {
+        try {
+            const apiResult = await searchPinterestApi(query, { min: 1, max: 60 });
+            const apiPins = (apiResult.results || []).map(pin => ({
+                ...pin,
+                url: pin.src || pin.url,
+                pinUrl: pin.pinUrl || null,
+                source: "melissa-api",
+                animated: /\\.gif(?:[?#]|$)/i.test(String(pin.src || pin.url || ""))
+            }));
+            add(apiPins);
+            console.log(`[Melissa API/Pinterest] ${apiPins.length} resultados, ${apiResult.duplicates_removed || 0} duplicatas removidas pela API.`);
+        } catch (error) {
+            console.warn("[Melissa API/Pinterest] Falhou; usando scraper local:", error.message);
+        }
+    }
+
+    if (all.length < Math.min(MAX_CANDIDATES, TOTAL * 2)) {
+        try {
+            const pins = await searchPinterest(query, Math.min(MAX_CANDIDATES, Math.max(TOTAL * 2, 80)));
+            add(pins.map(pin => ({ ...pin, source: "pinterest" })));
+        } catch (error) {
+            console.warn("[Pinterest local] Pesquisa complementar falhou:", error.message);
+        }
     }
 
     const selected = [
