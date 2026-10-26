@@ -21,7 +21,7 @@ function safeName(value) {
 
 export default {
   name: "playlist3",
-  description: "Baixa playlist do YouTube em áudio, na ordem original",
+  description: "Baixa playlist do YouTube em áudio com capa, na ordem original",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
@@ -31,12 +31,7 @@ export default {
 
     if (!url) {
       await sock.sendMessage(jid, {
-        text:
-          "📀 *Playlist do YouTube*\n\n" +
-          "Escolha o formato e envie o link:\n" +
-          "🎵 Áudio: .playlist audio LINK\n" +
-          "🎬 Vídeo: .playlist video LINK\n\n" +
-          "Também aceita .playlist LINK audio ou .playlist LINK video."
+        text: "📀 *Playlist do YouTube*\n\nEnvie o link da playlist:\n🎵 Áudio: .playlist3 LINK"
       }, { quoted: msg });
       return;
     }
@@ -63,23 +58,19 @@ export default {
 
     try {
       await sock.sendMessage(jid, {
-        text: "🔎 Lendo a playlist e preparando " + (mode === "audio" ? "os áudios 🎵..." : "os vídeos 🎬..."),
+        text: "🔎 Lendo a playlist e preparando os áudios 🎵..."
       }, { quoted: msg });
 
       if (isMelissaApiConfigured()) {
         const playlist = await getYouTubePlaylist(url);
         tracks = playlist.tracks;
         await sock.sendMessage(jid, {
-          text:
-            `📀 *${playlist.title}*\n` +
-            `🎞️ Itens na fila: ${tracks.length}${playlist.limited ? " (limite atual: 100 itens)" : ""}\n` +
-            `🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\n` +
-            "Vou processar um por vez, mantendo a ordem da playlist."
+          text: `📀 *${playlist.title}*\n🎞️ Itens na fila: ${tracks.length}${playlist.limited ? " (limite atual: 100 itens)" : ""}\n🎧 Formato: áudio\n\nVou processar um por vez, mantendo a ordem da playlist.`
         }, { quoted: msg });
       } else {
         tracks = await getPlaylistTracks(url);
         await sock.sendMessage(jid, {
-          text: `📀 Playlist encontrada: ${tracks.length} itens.\n🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\nProcessando um por vez...`
+          text: `📀 Playlist encontrada: ${tracks.length} itens.\n🎧 Formato: áudio\n\nProcessando um por vez...`
         }, { quoted: msg });
       }
 
@@ -88,30 +79,32 @@ export default {
         let file = null;
         try {
           await sock.sendMessage(jid, {
-            text: `⏳ [${i + 1}/${tracks.length}] ${track.title}\n${mode === "audio" ? "🎵 Preparando áudio..." : "🎬 Preparando vídeo..."}`
+            text: `⏳ [${i + 1}/${tracks.length}] ${track.title}\n🎵 Preparando áudio...`
           });
           const result = await Downloader.download(track.url, { type: mode });
           file = result.file;
           if (!file) throw new Error("O servidor não retornou um arquivo.");
 
           const title = safeName(result.title || track.title);
-          if (mode === "audio") {
-            const ext = path.extname(file).toLowerCase();
-            const isM4a = String(result.contentType || "").toLowerCase().includes("audio/mp4");
-            const mimetype = isM4a || ext === ".m4a" ? "audio/mp4" : ext === ".webm" ? "audio/webm" : ext === ".opus" ? "audio/ogg; codecs=opus" : "audio/mpeg";
+          const thumbnail = result.thumbnail || track.thumbnail || track.image || null;
+          if (thumbnail) {
             await sock.sendMessage(jid, {
-              audio: { url: file },
-              mimetype,
-              fileName: title + (isM4a ? ".m4a" : (ext || ".mp3")),
-              ptt: false
-            }, { quoted: msg });
-          } else {
-            await sock.sendMessage(jid, {
-              video: { url: file },
-              mimetype: result.contentType?.startsWith("video/") ? result.contentType : "video/mp4",
-              caption: `🎬 [${i + 1}/${tracks.length}] ${title}`
-            }, { quoted: msg });
+              image: { url: thumbnail },
+              caption: `🎵 [${i + 1}/${tracks.length}] *${title}*`
+            }, { quoted: msg }).catch(error => {
+              console.warn("[PLAYLIST] Não consegui enviar a capa:", error.message);
+            });
           }
+
+          const ext = path.extname(file).toLowerCase();
+          const isM4a = String(result.contentType || "").toLowerCase().includes("audio/mp4");
+          const mimetype = isM4a || ext === ".m4a" ? "audio/mp4" : ext === ".webm" ? "audio/webm" : ext === ".opus" ? "audio/ogg; codecs=opus" : "audio/mpeg";
+          await sock.sendMessage(jid, {
+            audio: { url: file },
+            mimetype,
+            fileName: title + (isM4a ? ".m4a" : (ext || ".mp3")),
+            ptt: false
+          }, { quoted: msg });
           success++;
           console.log(`[PLAYLIST] OK ${i + 1}/${tracks.length}: ${title}`);
         } catch (error) {
@@ -126,11 +119,8 @@ export default {
       }
 
       await sock.sendMessage(jid, {
-        text:
-          "✅ *Playlist finalizada!*\n\n" +
-          `📤 Enviados: ${success}\n` +
-          `❌ Falharam: ${failed}\n` +
-          `📀 Total processado: ${tracks.length}`
+        text: "✅ *Playlist finalizada!*\n\n" +
+          `📤 Enviados: ${success}\n❌ Falharam: ${failed}\n📀 Total processado: ${tracks.length}`
       }, { quoted: msg });
     } catch (error) {
       console.error("[PLAYLIST] Erro:", error);
