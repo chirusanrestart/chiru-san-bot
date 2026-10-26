@@ -35,6 +35,7 @@ import { randomUUID } from "node:crypto";
 
 import CommandHandler from "./handlers/CommandHandler.js";
 import { scanHistoricalMessages, resumeHistoricalScan } from "./services/megapackHistory.js";
+import { processMedia, isMelissaApiConfigured } from "./services/melissaApi.js";
 
 import {
     isEnabled
@@ -476,6 +477,25 @@ async function createAutoSticker(
                 image,
                 type
             );
+
+        // Tenta processar no servidor remoto primeiro; se falhar ou exceder o limite,
+        // mantém o conversor local como fallback para não perder o auto-sticker.
+        if (isMelissaApiConfigured()) {
+            try {
+                const remote = await processMedia("sticker", media, { animated: type === "video" });
+                const sticker = remote.data;
+
+                if (!autoStickerBuffers.has(jid)) {
+                    autoStickerBuffers.set(jid, []);
+                }
+                const queue = autoStickerBuffers.get(jid);
+                queue.push(sticker);
+                console.log(`☁️ Auto-sticker processado na nuvem; fila: ${queue.length}`);
+                return true;
+            } catch (remoteError) {
+                console.warn("[Melissa API/auto-sticker] Falhou; usando conversão local:", remoteError.message);
+            }
+        }
 
         await fs.writeFile(
             input,
