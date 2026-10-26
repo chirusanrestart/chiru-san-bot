@@ -36,8 +36,8 @@ const execFileAsync =
 
 const MAX_STICKERS_PER_PACK = 60;
 
-// Lotes pequenos limitam as cópias temporárias de metadados e buffers.
-const PROCESS_BATCH_SIZE = 4;
+// Processa os metadados em lotes de até 30 stickers.
+const PROCESS_BATCH_SIZE = 30;
 
 const MAX_STICKER_SIZE =
     1024 * 1024;
