@@ -8,7 +8,7 @@ import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchMasterGooglePhotos } from "../../services/googlePhotosMaster.js";
 import { searchPinterest } from "../../services/pinterestScraper.js";
-import { searchPinterest as searchPinterestApi, isMelissaApiConfigured } from "../../services/melissaApi.js";
+import { searchPinterest as searchPinterestApi, downloadPinterestImage, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
@@ -191,6 +191,21 @@ async function downloadWithYtDlp(pinUrl, file) {
 }
 
 async function download(url, file, pinUrl) {
+    // Quando autenticada, deixa a Melissa API baixar a imagem no servidor e
+    // transmite o arquivo ao bot. Se falhar, os caminhos locais abaixo continuam.
+    if (isMelissaApiConfigured()) {
+        try {
+            await downloadPinterestImage(url, file);
+            const stat = await fs.stat(file);
+            if (stat.size > 0 && stat.size <= MAX_IMAGE) return;
+            await fs.unlink(file).catch(() => {});
+            throw new Error(stat.size === 0 ? "API retornou imagem vazia" : "imagem excedeu o limite");
+        } catch (error) {
+            await fs.unlink(file).catch(() => {});
+            console.warn("[Melissa API/Pinterest] Download da imagem falhou; usando fallback local:", error.message);
+        }
+    }
+
     // O scraper pode retornar IDs internos opacos, que não são URLs públicas
     // válidas de pins. Só entrega ao yt-dlp links com ID numérico real.
     // Para os demais casos, preserva a URL direta da imagem como caminho principal.
