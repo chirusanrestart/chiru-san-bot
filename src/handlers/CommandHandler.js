@@ -122,6 +122,16 @@ export default class CommandHandler {
         const commandName = args.shift()?.toLowerCase();
         const command = this.commands.get(commandName);
         if (!command && MEDIA_COMMANDS.has(commandName)) {
+            const mediaJid = msg.key?.remoteJid;
+            if (
+                mediaJid?.endsWith("@g.us") &&
+                !(await isGroupEnabled(mediaJid))
+            ) {
+                await this.sock.sendMessage(mediaJid, {
+                    text: "🔕 O bot está desligado neste grupo. Só .on, .off, .ban, .kick e .remover continuam disponíveis."
+                }, { quoted: msg });
+                return;
+            }
             await executeMediaDownload(this.sock, msg, args, commandName);
             return;
         }
