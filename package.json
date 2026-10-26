@@ -22,7 +22,8 @@
     "node-webpmux": "^3.2.1",
     "pino": "^10.3.1",
     "yt-search": "^2.13.1",
-    "cheerio": "^1.2.0"
+    "cheerio": "^1.2.0",
+    "yauzl": "^3.2.0"
   },
   "optionalDependencies": {
     "sharp": "^0.35.3"
