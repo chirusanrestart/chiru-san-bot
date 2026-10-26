@@ -81,10 +81,26 @@ export async function downloadToFile(url, outputPath, { mode = "video" } = {}) {
     timeoutMs: DEFAULT_TIMEOUT_MS
   });
   await pipeline(Readable.fromWeb(response.body), createWriteStream(outputPath, { flags: "wx" }));
+  const decodeHeader = name => {
+    const value = response.headers.get(name);
+    if (!value) return null;
+    try { return Buffer.from(value, "base64url").toString("utf8").trim() || null; }
+    catch { return null; }
+  };
+  let filename = null;
+  const disposition = response.headers.get("content-disposition") || "";
+  const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const plainFilename = disposition.match(/filename="?([^";]+)"?/i);
+  try {
+    filename = encodedFilename ? decodeURIComponent(encodedFilename[1]) : plainFilename?.[1] || null;
+  } catch { filename = plainFilename?.[1] || null; }
   return {
     success: true,
     file: outputPath,
     contentType: response.headers.get("content-type") || null,
+    title: decodeHeader("x-media-title-b64") || filename,
+    description: decodeHeader("x-media-description-b64"),
+    thumbnail: response.headers.get("x-media-thumbnail-url") || null,
     source: "melissa-api"
   };
 }
