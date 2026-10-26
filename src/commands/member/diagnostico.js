@@ -224,7 +224,7 @@ export default {
 
             // Ferramentas usadas por funcionalidades de mídia do projeto.
             items.push(await checkBinary("ffmpeg", ["-version"], "FFmpeg"));
-            items.push(await checkBinary("yt-dlp", ["--version"], "yt-dlp"));
+            items.push(await checkBinary("yt-dlp", ["--version"], "yt-dlp (opcional)"));
 
             // Testa somente conectividade HTTP HEAD, sem autenticação ou chamadas pagas de API.
             items.push(await checkHost("https://api.groq.com", "Conectividade com Groq"));
