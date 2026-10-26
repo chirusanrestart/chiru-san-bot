@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchPinterest } from "../../services/pinterestScraper.js";
-import { searchPinterest as searchPinterestApi, downloadPinterestImage, isMelissaApiConfigured } from "../../services/melissaApi.js";
+import { searchPinterest as searchPinterestApi, downloadPinterestImage, processStickerPack, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
@@ -324,11 +324,46 @@ async function addStickerMetadata(file, packname, author) {
 
 async function makeStickers(items, dir, packname, author) {
     const out = [];
+    let workItems = items.slice(0, TOTAL);
+
+    // Primeiro pede ao servidor para baixar e converter o pack inteiro.
+    // Se a API falhar ou alguma mídia não for compatível, só essas mídias
+    // voltam para o processamento local como fallback.
+    if (isMelissaApiConfigured() && workItems.length) {
+        try {
+            const results = await processStickerPack(workItems);
+            const completed = new Set();
+            for (const result of results) {
+                if (!result?.ok || typeof result.data !== "string") continue;
+                const output = path.join(dir, randomUUID() + ".webp");
+                try {
+                    await fs.writeFile(output, Buffer.from(result.data, "base64"));
+                    await addStickerMetadata(output, packname, author);
+                    const buf = await fs.readFile(output);
+                    if (buf.length <= MAX_STICKER) {
+                        out.push(buf);
+                        completed.add(Number(result.index));
+                        console.log(`☁️ Servidor processou ${out.length}/${TOTAL}`);
+                    }
+                } catch (error) {
+                    console.warn("[Melissa API/Pack] Não foi possível usar figurinha processada:", error.message);
+                } finally {
+                    await fs.unlink(output).catch(() => {});
+                }
+            }
+            workItems = workItems.filter((_, itemIndex) => !completed.has(itemIndex));
+            if (!workItems.length || out.length >= TOTAL) return out.slice(0, TOTAL);
+            console.warn(`[Melissa API/Pack] ${out.length} prontas no servidor; ${workItems.length} vão para o fallback local.`);
+        } catch (error) {
+            console.warn("[Melissa API/Pack] Processamento remoto falhou; usando processamento local:", error.message);
+        }
+    }
+
     let index = 0;
 
     async function worker() {
-        while (index < items.length && out.length < TOTAL) {
-            const item = items[index++];
+        while (index < workItems.length && out.length < TOTAL) {
+            const item = workItems[index++];
             const id = randomUUID();
             const input = path.join(dir, id + ".img");
             const output = path.join(dir, id + ".webp");
