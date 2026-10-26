@@ -4,7 +4,7 @@ Bot de WhatsApp desenvolvido em **Node.js** com Baileys, comandos personalizados
 
 ## ✨ Funcionalidades
 
-- 💬 Comandos de WhatsApp com prefixo `.`
+- 💬 Comandos de WhatsApp com prefixo `. `.replace(" ", "")`
 - 🤖 Conversas com IA e personagens configuráveis
 - 🧠 Histórico e memória organizados por usuário, conversa e personagem
 - 🎭 Seleção e criação de personagens
@@ -21,10 +21,11 @@ Bot de WhatsApp desenvolvido em **Node.js** com Baileys, comandos personalizados
 
 - Node.js compatível com as dependências do projeto
 - npm
-- FFmpeg
-- yt-dlp e os componentes necessários para os recursos de mídia
+- FFmpeg para recursos de mídia/figurinhas que dependem dele
 - Uma conta do WhatsApp
 - Chaves de API para os serviços externos que você decidir utilizar
+
+**O yt-dlp é opcional.** O bot inicia normalmente sem ele. Recursos de download que tenham uma API compatível podem usá-la sem depender do yt-dlp; os recursos que precisem exclusivamente do executável local não estarão disponíveis se ele estiver ausente. O bot não deve tentar instalar essa ferramenta automaticamente.
 
 ## 🚀 Instalação
 
