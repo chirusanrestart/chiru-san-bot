@@ -174,7 +174,8 @@ export async function downloadPinterestImage(src, outputPath) {
     success: true,
     file: outputPath,
     contentType: contentType || null,
-    prepared: contentType.includes("image/webp") && response.headers.get("x-sticker-prepared") === "1"
+    prepared: contentType.includes("image/webp") && response.headers.get("x-sticker-prepared") === "1",
+    animated: contentType.includes("image/gif")
   };
 }
 
