@@ -2,12 +2,12 @@ import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 
-const DEFAULT_BASE_URL = "https://melissa-api-server.hostless.app";
+const API_BASE_URL = "https://melissa-api-server.hostless.app";
 const DEFAULT_TIMEOUT_MS = 180_000;
 
 function config() {
   return {
-    baseUrl: (process.env.MELISSA_API_URL || DEFAULT_BASE_URL).trim().replace(/\/+$/, ""),
+    baseUrl: API_BASE_URL,
     apiKey: (process.env.MELISSA_API_KEY || "").trim()
   };
 }
