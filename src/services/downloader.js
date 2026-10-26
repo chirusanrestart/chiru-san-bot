@@ -41,9 +41,9 @@ export default class Downloader {
           console.log("[Melissa API] Download concluído.");
           return {
             ...result,
-            title: path.basename(apiOutput),
-            description: null,
-            thumbnail: null
+            title: result.title || path.basename(apiOutput),
+            description: result.description || null,
+            thumbnail: result.thumbnail || null
           };
         } catch (error) {
           await fs.unlink(apiOutput).catch(() => {});
