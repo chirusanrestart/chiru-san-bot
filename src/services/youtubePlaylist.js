@@ -7,7 +7,7 @@ export function getPlaylistTracks(url) {
       "--ignore-errors",
       "--no-warnings",
       "--print",
-      "%(id)s\\t%(title)s",
+      "%(id)s\t%(title)s",
       url
     ];
 
@@ -39,7 +39,7 @@ export function getPlaylistTracks(url) {
         .map(line => line.trim())
         .filter(Boolean)
         .map(line => {
-          const separator = line.indexOf("\\t");
+          const separator = line.indexOf("\t");
           if (separator === -1) return null;
           const id = line.slice(0, separator).trim();
           const title = line.slice(separator + 1).trim();
