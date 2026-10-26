@@ -16,8 +16,8 @@ import { rememberMegapack } from "../../services/megapackHistory.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
-// Um único conversor por pack reduz o pico de RAM em aparelhos Android limitados.
-const CONCURRENCY = 1;
+// Até 3 downloads simultâneos; a conversão continua serializada para poupar RAM.
+const CONCURRENCY = 3;
 const MAX_IMAGE = 12 * 1024 * 1024;
 const MAX_STICKER = 1024 * 1024;
 const MAX_CANDIDATES = 120;
@@ -324,6 +324,9 @@ async function addStickerMetadata(file, packname, author) {
 async function makeStickers(items, dir, packname, author) {
     const out = [];
     let index = 0;
+    // Os downloads podem ocorrer em paralelo, mas conversão e metadados usam
+    // um único slot para não multiplicar o pico de RAM em celulares modestos.
+    let conversionChain = Promise.resolve();
 
     async function worker() {
         while (index < items.length && out.length < TOTAL) {
@@ -333,10 +336,18 @@ async function makeStickers(items, dir, packname, author) {
             const output = path.join(dir, id + ".webp");
 
             try {
+                // Até CONCURRENCY imagens são baixadas ao mesmo tempo.
                 await download(item.url, input, item.pinUrl);
-                await convert(input, output, item.animated);
-                await addStickerMetadata(output, packname, author);
-                const buf = await fs.readFile(output);
+
+                const conversion = conversionChain.then(async () => {
+                    await convert(input, output, item.animated);
+                    await addStickerMetadata(output, packname, author);
+                    return fs.readFile(output);
+                });
+                // Mesmo se uma conversão falhar, a fila continua funcionando.
+                conversionChain = conversion.then(() => undefined, () => undefined);
+
+                const buf = await conversion;
                 if (buf.length <= MAX_STICKER) {
                     out.push(buf);
                     console.log(`✅ ${out.length}/${TOTAL}`);
