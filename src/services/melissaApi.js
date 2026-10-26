@@ -114,6 +114,27 @@ async function saveBinaryResponse(response, outputPath, label) {
   console.log(`[Melissa API] ${label}: ${bytes} bytes recebidos (${contentType || "tipo desconhecido"}).`);
 }
 
+export async function searchYouTube(query) {
+  if (typeof query !== "string" || !query.trim()) throw new TypeError("Informe o nome para pesquisar no YouTube.");
+  const response = await request("/youtube/search", {
+    body: { query: query.trim().slice(0, 200) },
+    timeoutMs: 60_000
+  });
+  const data = await response.json();
+  if (!data?.result?.url || !data?.result?.title) throw new Error("A Melissa API não encontrou um resultado válido no YouTube.");
+  return data.result;
+}
+
+export async function getYouTubePlaylist(url) {
+  const response = await request("/youtube/playlist", {
+    body: { url },
+    timeoutMs: 120_000
+  });
+  const data = await response.json();
+  if (!Array.isArray(data?.tracks)) throw new Error("A Melissa API retornou uma playlist inválida.");
+  return data;
+}
+
 export async function downloadToFile(url, outputPath, { mode = "video" } = {}) {
   const response = await request("/download", {
     body: { url, mode: mode === "audio" ? "audio" : "video", format: mode === "audio" ? "mp3" : "mp4" },
