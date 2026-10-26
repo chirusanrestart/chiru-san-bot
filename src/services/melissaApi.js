@@ -77,7 +77,7 @@ async function request(path, { body, timeoutMs = 45_000 } = {}) {
 
 export async function downloadToFile(url, outputPath, { mode = "video" } = {}) {
   const response = await request("/download", {
-    body: { url, mode: mode === "audio" ? "audio" : "video" },
+    body: { url, mode: mode === "audio" ? "audio" : "video", format: mode === "audio" ? "mp3" : "mp4" },
     timeoutMs: DEFAULT_TIMEOUT_MS
   });
   await pipeline(Readable.fromWeb(response.body), createWriteStream(outputPath, { flags: "wx" }));
