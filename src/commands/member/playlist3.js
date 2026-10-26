@@ -102,9 +102,10 @@ export default {
 
       if (isMelissaApiConfigured()) {
         const playlist = await getYouTubePlaylist(url);
-        tracks = playlist.tracks;
+        tracks = playlist.tracks.slice(0, 40);
+        const truncated = playlist.tracks.length > tracks.length;
         await sock.sendMessage(jid, {
-          text: `📀 *${playlist.title}*\n🎞️ Itens encontrados: ${tracks.length}\n☁️ O servidor baixa e envia uma faixa por vez, sem ZIP\n🎧 Formato: áudio\n\nVou processar na ordem original.`
+          text: `📀 *${playlist.title}*\n🎞️ Faixas nesta execução: ${tracks.length}${truncated ? " (limite de 40 por vez)" : ""}\n☁️ O servidor baixa e envia uma faixa por vez, sem ZIP\n🎧 Formato: áudio\n\nVou processar na ordem original.`
         }, { quoted: msg });
       } else {
         tracks = await getPlaylistTracks(url);
