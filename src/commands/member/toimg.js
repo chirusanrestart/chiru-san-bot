@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { downloadContentFromMessage } from "@whiskeysockets/baileys";
 import { webpToImage } from "../../services/ffmpeg.js";
+import { processMedia, isMelissaApiConfigured } from "../../services/melissaApi.js";
 
 
 export default {
@@ -60,10 +61,19 @@ export default {
             }
 
 
-            fs.writeFileSync(
-                input,
-                Buffer.concat(chunks)
-            );
+
+            const media = Buffer.concat(chunks);
+            if (isMelissaApiConfigured()) {
+                try {
+                    const remote = await processMedia("toimg", media);
+                    await sock.sendMessage(msg.key.remoteJid, { image: remote.data });
+                    return;
+                } catch (remoteError) {
+                    console.warn("[Melissa API/.toimg] Falhou; usando conversão local:", remoteError.message);
+                }
+            }
+
+            fs.writeFileSync(input, media);
 
 
             await webpToImage(
