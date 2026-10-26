@@ -6,7 +6,7 @@ import { searchYoutube as searchLocal } from "../../services/youtubeSearch.js";
 export default {
   name: "yt3",
   aliases: [],
-  description: "Pesquisa uma música pelo nome e envia o áudio pelo servidor",
+  description: "Pesquisa uma música pelo nome e envia a capa e o áudio",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
@@ -20,7 +20,7 @@ export default {
 
     let file = null;
     try {
-      await sock.sendMessage(jid, { text: "🔎 Pesquisando no YouTube pelo servidor..." }, { quoted: msg });
+      await sock.sendMessage(jid, { text: "🔎 Pesquisando no YouTube..." }, { quoted: msg });
       const video = isMelissaApiConfigured()
         ? await searchYouTube(query)
         : await searchLocal(query);
@@ -29,18 +29,26 @@ export default {
         return;
       }
 
-      await sock.sendMessage(jid, {
-        text: `🎵 Encontrei: ${video.title}\n\n⬇️ Preparando o áudio...`
-      }, { quoted: msg });
-
       const result = await Downloader.download(video.url, { type: "audio" });
       file = result.file;
       if (!file) throw new Error("O servidor não retornou um arquivo de áudio.");
 
+      const title = String(result.title || video.title || "audio").replace(/\.(mp3|m4a|webm|opus)$/i, "");
+      const thumbnail = result.thumbnail || video.thumbnail || video.image || null;
+
+      if (thumbnail) {
+        await sock.sendMessage(jid, {
+          image: { url: thumbnail },
+          caption: `🎵 *${title}*\n🎧 Aqui está sua música!`
+        }, { quoted: msg }).catch(error => {
+          console.warn("[YT AUDIO] Não consegui enviar a capa:", error.message);
+        });
+      }
+
       await sock.sendMessage(jid, {
         audio: { url: file },
         mimetype: result.contentType?.startsWith("audio/") ? result.contentType : "audio/mpeg",
-        fileName: (result.title || video.title || "audio").replace(/\.(mp3|m4a|webm|opus)$/i, "") + ".mp3",
+        fileName: title + (result.contentType?.includes("audio/mp4") ? ".m4a" : ".mp3"),
         ptt: false
       }, { quoted: msg });
     } catch (error) {
