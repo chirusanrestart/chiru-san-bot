@@ -67,7 +67,7 @@ async function findImages(query) {
                 url: pin.src || pin.url,
                 pinUrl: pin.pinUrl || null,
                 source: "melissa-api",
-                animated: /\\.gif(?:[?#]|$)/i.test(String(pin.src || pin.url || ""))
+                animated: /\.gif(?:[?#]|$)/i.test(String(pin.src || pin.url || ""))
             }));
             add(apiPins);
             console.log(`[Melissa API/Pinterest] ${apiPins.length} resultados, ${apiResult.duplicates_removed || 0} duplicatas removidas pela API.`);
