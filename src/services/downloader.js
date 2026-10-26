@@ -33,7 +33,7 @@ export default class Downloader {
     // Se a chave estiver ausente/inválida ou o serviço falhar, os fallbacks locais continuam ativos.
     if (isYouTube || isTikTok || isInstagram) {
       if (isMelissaApiConfigured()) {
-        const extension = type === "audio" ? "mp3" : "mp4";
+        const extension = type === "audio" ? "m4a" : "mp4";
         const apiOutput = path.join(DOWNLOAD_DIR, `${randomUUID()}-melissa-api.${extension}`);
         try {
           console.log(`[Melissa API] Tentando extração remota de ${hostname}...`);
