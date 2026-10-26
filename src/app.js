@@ -1,4 +1,16 @@
-import "dotenv/config";
+// dotenv é opcional: o bot também funciona com variáveis já definidas no ambiente.
+try {
+    await import("dotenv/config");
+} catch (error) {
+    if (
+        error?.code === "ERR_MODULE_NOT_FOUND" &&
+        /dotenv/.test(error.message || "")
+    ) {
+        console.log("ℹ️ dotenv não instalado; usando as variáveis de ambiente disponíveis.");
+    } else {
+        throw error;
+    }
+}
 
 // Exibe o estado da integração Portkey no terminal sem revelar a chave.
 const portkeyConfigured = Boolean(process.env.PORTKEY_API_KEY?.trim());
