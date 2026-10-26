@@ -56,7 +56,13 @@ async function executeMediaDownload(sock, msg, args, commandName) {
         const cleanText = value => String(value || "").replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
         const rawTitle = cleanText(result.title || (type === "audio" ? "audio" : "video"));
         const title = rawTitle.replace(/\.(mp3|mp4|m4a|webm|mov)$/i, "").slice(0, 170) || (type === "audio" ? "audio" : "video");
-        const description = cleanText(result.description).slice(0, 1200);
+        const description = String(result.description || "")
+            .replace(/\r/g, "")
+            .split("\n")
+            .map(line => line.replace(/[\t ]+/g, " ").trim())
+            .filter(Boolean)
+            .join("\n")
+            .slice(0, 1200);
         const contentType = String(result.contentType || "").toLowerCase();
 
         if (type === "audio") {
