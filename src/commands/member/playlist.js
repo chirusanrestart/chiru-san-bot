@@ -124,9 +124,9 @@ export default {
 
       await sock.sendMessage(jid, {
         text:
-          (playlistTitle ? `📀 *${playlistTitle}*\\n` : `📀 Playlist encontrada: ${tracks.length} itens\\n`) +
-          `🎞️ Itens nesta execução: ${tracks.length} (máximo de 40)\\n` +
-          `🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\\n\\n` +
+          (playlistTitle ? `📀 *${playlistTitle}*\n` : `📀 Playlist encontrada: ${tracks.length} itens\n`) +
+          `🎞️ Itens nesta execução: ${tracks.length} (máximo de 40)\n` +
+          `🎧 Formato: ${mode === "audio" ? "áudio" : "vídeo"}\n\n` +
           "Vou processar um por vez, mantendo a ordem da playlist."
       }, { quoted: msg });
 
