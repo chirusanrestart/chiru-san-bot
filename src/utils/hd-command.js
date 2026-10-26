@@ -1,5 +1,6 @@
 import { downloadMedia } from "./download.js";
 import { runFFmpegHD } from "../services/ffmpeg.js";
+import { processMedia, isMelissaApiConfigured } from "../services/melissaApi.js";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
@@ -26,7 +27,20 @@ export async function executeHDVariant(sock, msg, variant = "balanced") {
     const output = `./temp/${id}_hd.jpg`;
     try {
         await fs.mkdir("./temp", { recursive: true });
+
         const media = await downloadMedia(image, "image");
+        if (isMelissaApiConfigured()) {
+            try {
+                const remote = await processMedia("hd", media, { profile: profile.mode });
+                await sock.sendMessage(jid, {
+                    image: remote.data,
+                    caption: profile.emoji + " " + profile.label + " • imagem realçada"
+                });
+                return;
+            } catch (remoteError) {
+                console.warn("[Melissa API/" + profile.label + "] Falhou; usando processamento local:", remoteError.message);
+            }
+        }
         await fs.writeFile(input, media);
         await runFFmpegHD(input, output, profile.mode);
         const result = await fs.readFile(output);
