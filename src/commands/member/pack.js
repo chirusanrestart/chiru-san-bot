@@ -324,9 +324,6 @@ async function addStickerMetadata(file, packname, author) {
 async function makeStickers(items, dir, packname, author) {
     const out = [];
     let index = 0;
-    // Os downloads podem ocorrer em paralelo, mas conversão e metadados usam
-    // um único slot para não multiplicar o pico de RAM em celulares modestos.
-    let conversionChain = Promise.resolve();
 
     async function worker() {
         while (index < items.length && out.length < TOTAL) {
@@ -336,18 +333,14 @@ async function makeStickers(items, dir, packname, author) {
             const output = path.join(dir, id + ".webp");
 
             try {
-                // Até CONCURRENCY imagens são baixadas ao mesmo tempo.
+                // TESTE: cada worker baixa, converte e adiciona metadados
+                // independentemente. Com CONCURRENCY=10, até 10 conversões
+                // podem acontecer ao mesmo tempo.
                 await download(item.url, input, item.pinUrl);
+                await convert(input, output, item.animated);
+                await addStickerMetadata(output, packname, author);
 
-                const conversion = conversionChain.then(async () => {
-                    await convert(input, output, item.animated);
-                    await addStickerMetadata(output, packname, author);
-                    return fs.readFile(output);
-                });
-                // Mesmo se uma conversão falhar, a fila continua funcionando.
-                conversionChain = conversion.then(() => undefined, () => undefined);
-
-                const buf = await conversion;
+                const buf = await fs.readFile(output);
                 if (buf.length <= MAX_STICKER) {
                     out.push(buf);
                     console.log(`✅ ${out.length}/${TOTAL}`);
