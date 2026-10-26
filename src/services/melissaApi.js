@@ -136,7 +136,7 @@ export async function getYouTubePlaylist(url) {
 }
 
 export async function downloadYouTubePlaylistToFile(url, outputPath) {
-  const response = await request("/youtube/playlist/download", { body: { url }, timeoutMs: 900000 });
+  const response = await request("/youtube/playlist/download", { body: { url }, timeoutMs: 1800000 });
   await saveBinaryResponse(response, outputPath, "playlist inteira recebida");
   return { success: true, file: outputPath, count: Number(response.headers.get("x-playlist-count") || 0), contentType: response.headers.get("content-type") || "application/zip" };
 }
