@@ -1,6 +1,7 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, createWriteStream } from "node:fs";
 import path from "node:path";
-import { unzipSync } from "fflate";
+import yauzl from "yauzl";
+import { pipeline } from "node:stream/promises";
 
 import Downloader from "../../services/downloader.js";
 import { downloadYouTubePlaylistToFile, getYouTubePlaylist, isMelissaApiConfigured } from "../../services/melissaApi.js";
@@ -57,6 +58,51 @@ function resolveTrackUrl(track) {
 
 function safeName(value) {
   return String(value || "media").replace(/[<>:"/\\|?*\x00-\x1F]/g, "").replace(/\s+/g, " ").trim().slice(0, 150) || "media";
+}
+
+async function extractZipEntriesToFiles(zipPath, workDir) {
+  return new Promise((resolve, reject) => {
+    const extracted = [];
+    yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (openError, zipfile) => {
+      if (openError) return reject(openError);
+      let settled = false;
+      const fail = error => {
+        if (settled) return;
+        settled = true;
+        try { zipfile.close(); } catch {}
+        reject(error);
+      };
+      zipfile.on("error", fail);
+      zipfile.on("end", () => {
+        if (settled) return;
+        settled = true;
+        extracted.sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }));
+        resolve(extracted);
+      });
+      zipfile.on("entry", entry => {
+        if (entry.fileName.endsWith("/")) {
+          zipfile.readEntry();
+          return;
+        }
+        const name = path.basename(entry.fileName);
+        if (!name || name !== entry.fileName || !/\.m4a$/i.test(name)) {
+          zipfile.readEntry();
+          return;
+        }
+        zipfile.openReadStream(entry, (streamError, readStream) => {
+          if (streamError) return fail(streamError);
+          const file = path.join(workDir, name);
+          pipeline(readStream, createWriteStream(file, { flags: "wx" }))
+            .then(() => {
+              extracted.push({ name, file });
+              zipfile.readEntry();
+            })
+            .catch(fail);
+        });
+      });
+      zipfile.readEntry();
+    });
+  });
 }
 
 export default {
@@ -121,21 +167,14 @@ export default {
         try {
           await sock.sendMessage(jid, { text: "☁️ O servidor vai baixar e converter a playlist inteira. Depois envio as faixas na ordem original..." }, { quoted: msg });
           await downloadYouTubePlaylistToFile(url, zipPath);
-          const archive = unzipSync(await fs.readFile(zipPath));
-          const entries = Object.entries(archive)
-            .filter(([name, data]) => name && !name.endsWith("/") && data?.length)
-            .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
+          const entries = await extractZipEntriesToFiles(zipPath, workDir);
           if (!entries.length) throw new Error("O servidor devolveu um ZIP sem faixas.");
           for (let i = 0; i < entries.length; i++) {
-            const [name, data] = entries[i];
-            const safeName = path.basename(name);
-            if (!safeName || safeName !== name) continue;
-            const file = path.join(workDir, safeName);
+            const { name, file } = entries[i];
             try {
-              await fs.writeFile(file, data);
-              const title = safeName.replace(/^\\d+\\s*-\\s*/, "").replace(/\\.m4a$/i, "");
+              const title = name.replace(/^\\d+\\s*-\\s*/, "").replace(/\\.m4a$/i, "");
               await sock.sendMessage(jid, { text: `📤 [${i + 1}/${entries.length}] Enviando: ${title}` });
-              await sock.sendMessage(jid, { audio: { url: file }, mimetype: "audio/mp4", fileName: safeName, ptt: false }, { quoted: msg });
+              await sock.sendMessage(jid, { audio: { url: file }, mimetype: "audio/mp4", fileName: name, ptt: false }, { quoted: msg });
               success++;
             } catch (error) {
               failed++;
