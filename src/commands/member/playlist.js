@@ -138,7 +138,11 @@ export default {
           if (!file) throw new Error("O servidor não retornou um arquivo.");
 
           const title = safeName(result.title || track.title);
-          const thumbnail = result.thumbnail || track.thumbnail || track.image || null;\n          if (thumbnail) {\n            await sock.sendMessage(jid, { image: { url: thumbnail }, caption: `${mode === "audio" ? "🎵" : "🎬"} [${i + 1}/${tracks.length}] *${title}*` }, { quoted: msg }).catch(() => {});\n          }\n\n          if (mode === "audio") {
+          const thumbnail = result.thumbnail || track.thumbnail || track.image || null;
+          if (thumbnail) {\n            await sock.sendMessage(jid, { image: { url: thumbnail }, caption: `${mode === "audio" ? "🎵" : "🎬"} [${i + 1}/${tracks.length}] *${title}*` }, { quoted: msg }).catch(() => {});
+          }
+
+          if (mode === "audio") {
             const ext = path.extname(file).toLowerCase();
             const isM4a = String(result.contentType || "").toLowerCase().includes("audio/mp4");
             const mimetype = isM4a || ext === ".m4a" ? "audio/mp4" : ext === ".webm" ? "audio/webm" : ext === ".opus" ? "audio/ogg; codecs=opus" : "audio/mpeg";
