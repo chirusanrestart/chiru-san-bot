@@ -16,8 +16,8 @@ import { rememberMegapack } from "../../services/megapackHistory.js";
 
 const run = promisify(execFile);
 const TOTAL = 60;
-// Até 30 tarefas podem baixar e converter imagens em paralelo.
-const CONCURRENCY = 30;
+// Até 60 tarefas podem baixar e converter imagens em paralelo.
+const CONCURRENCY = 60;
 const MAX_IMAGE = 12 * 1024 * 1024;
 const MAX_STICKER = 1024 * 1024;
 const MAX_CANDIDATES = 120;
