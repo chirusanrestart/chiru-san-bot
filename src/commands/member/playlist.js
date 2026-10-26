@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 import Downloader from "../../services/downloader.js";
-import { getYouTubePlaylist, isMelissaApiConfigured } from "../../services/melissaApi.js";
+import { downloadYouTubePlaylistToFile, getYouTubePlaylist, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import { getPlaylistTracks } from "../../services/youtubePlaylist.js";
 
 function parseArgs(args) {
@@ -141,8 +142,15 @@ export default {
           if (!trackUrl) {
             throw new Error("A API retornou uma faixa sem link válido (campos url/id/videoId ausentes).");
           }
-          const result = await Downloader.download(trackUrl, { type: mode });
-          file = result.file;
+          let result;
+          if (isMelissaApiConfigured()) {
+            const extension = mode === "audio" ? "m4a" : "mp4";
+            file = path.resolve("downloads", `${randomUUID()}-playlist.${extension}`);
+            result = await downloadYouTubePlaylistToFile(trackUrl, file, { mode });
+          } else {
+            result = await Downloader.download(trackUrl, { type: mode });
+            file = result.file;
+          }
           if (!file) throw new Error("O servidor não retornou um arquivo.");
 
           const title = safeName(result.title || track.title);
