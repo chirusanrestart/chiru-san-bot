@@ -139,7 +139,8 @@ export default {
 
           const title = safeName(result.title || track.title);
           const thumbnail = result.thumbnail || track.thumbnail || track.image || null;
-          if (thumbnail) {\n            await sock.sendMessage(jid, { image: { url: thumbnail }, caption: `${mode === "audio" ? "🎵" : "🎬"} [${i + 1}/${tracks.length}] *${title}*` }, { quoted: msg }).catch(() => {});
+          if (thumbnail) {
+            await sock.sendMessage(jid, { image: { url: thumbnail }, caption: `${mode === "audio" ? "🎵" : "🎬"} [${i + 1}/${tracks.length}] *${title}*` }, { quoted: msg }).catch(() => {});
           }
 
           if (mode === "audio") {
