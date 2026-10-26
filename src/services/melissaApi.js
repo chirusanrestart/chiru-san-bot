@@ -57,7 +57,7 @@ async function request(path, { body, timeoutMs = 45_000 } = {}) {
       const type = response.headers.get("content-type") || "";
       if (type.includes("application/json")) {
         const data = await response.json().catch(() => ({}));
-        detail = data.error || data.message || data.details || "";
+        detail = data.details || data.error || data.message || "";
       } else {
         detail = (await response.text().catch(() => "")).slice(0, 350);
       }
