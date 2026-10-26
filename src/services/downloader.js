@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { downloadTikwm } from "./tikwm.js";
+import { downloadToFile, isMelissaApiConfigured } from "./melissaApi.js";
 
 const DOWNLOAD_DIR = path.resolve("downloads");
 
@@ -28,7 +29,30 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)(instagram\.com|instagr\.am)$/.test(hostname);
 
-    // TikTok usa TikWM; os demais sites e downloads de áudio usam yt-dlp local.
+    // Melissa API primeiro para as plataformas que ela suporta. A chave nunca fica no código.
+    // Se a chave estiver ausente/inválida ou o serviço falhar, os fallbacks locais continuam ativos.
+    if (isYouTube || isTikTok || isInstagram) {
+      if (isMelissaApiConfigured()) {
+        const extension = type === "audio" ? "m4a" : "mp4";
+        const apiOutput = path.join(DOWNLOAD_DIR, `${randomUUID()}-melissa-api.${extension}`);
+        try {
+          console.log(`[Melissa API] Tentando extração remota de ${hostname}...`);
+          const result = await downloadToFile(url, apiOutput, { mode: type });
+          console.log("[Melissa API] Download concluído.");
+          return {
+            ...result,
+            title: path.basename(apiOutput),
+            description: null,
+            thumbnail: null
+          };
+        } catch (error) {
+          await fs.unlink(apiOutput).catch(() => {});
+          console.warn(`[Melissa API] Falhou; ativando fallback local: ${error.message}`);
+        }
+      }
+    }
+
+    // TikTok mantém TikWM como fallback; yt-dlp continua como alternativa final.
     if (type !== "audio" && isTikTok) {
       try {
         console.log("[API/TikWM] Extraindo link do TikTok...");
