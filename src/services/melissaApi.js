@@ -198,6 +198,36 @@ export async function processStickerPack(items) {
   return data.results;
 }
 
+
+export async function processMedia(kind, media, options = {}) {
+  const routes = {
+    sticker: "/media/sticker",
+    toimg: "/media/toimg",
+    hd: "/media/hd"
+  };
+  const route = routes[kind];
+  if (!route) throw new TypeError("Tipo de processamento de mídia desconhecido.");
+  const buffer = Buffer.isBuffer(media) ? media : Buffer.from(media);
+  if (!buffer.length) throw new TypeError("A mídia está vazia.");
+  if (buffer.length > 12 * 1024 * 1024) throw new Error("A mídia excede o limite de 12 MiB para processamento na nuvem.");
+  const response = await request(route, {
+    body: {
+      data: buffer.toString("base64"),
+      animated: Boolean(options.animated),
+      profile: String(options.profile || "balanced")
+    },
+    timeoutMs: kind === "sticker" && options.animated ? 120_000 : 60_000
+  });
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  if (contentType.includes("application/json") || contentType.includes("text/html")) {
+    const detail = (await response.text().catch(() => "")).slice(0, 300);
+    throw new Error("Melissa API retornou erro em vez de mídia" + (detail ? ": " + detail : ""));
+  }
+  const result = Buffer.from(await response.arrayBuffer());
+  if (!result.length) throw new Error("Melissa API retornou mídia vazia.");
+  return { data: result, contentType };
+}
+
 export async function checkMelissaApi() {
   const { baseUrl } = config();
   const response = await fetch(new URL("/health", baseUrl), {
