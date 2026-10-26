@@ -59,13 +59,13 @@ function safeName(value) {
 }
 
 export default {
-  name: "playlist4",
-  description: "Baixa playlist do YouTube em vídeo, na ordem original",
+  name: "playlist",
+  description: "Baixa playlist do YouTube em áudio ou vídeo, na ordem original",
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
     const parsed = parseArgs(args);
-    const mode = "video";
+    const mode = parsed.mode || "audio";
     const url = parsed.url;
 
     if (!url) {
@@ -107,7 +107,7 @@ export default {
 
       if (isMelissaApiConfigured()) {
         const playlist = await getYouTubePlaylist(url);
-        tracks = playlist.tracks;
+        tracks = playlist.tracks.slice(0, 40);
         await sock.sendMessage(jid, {
           text:
             `📀 *${playlist.title}*\n` +
@@ -138,7 +138,7 @@ export default {
           if (!file) throw new Error("O servidor não retornou um arquivo.");
 
           const title = safeName(result.title || track.title);
-          if (mode === "audio") {
+          const thumbnail = result.thumbnail || track.thumbnail || track.image || null;\n          if (thumbnail) {\n            await sock.sendMessage(jid, { image: { url: thumbnail }, caption: `${mode === "audio" ? "🎵" : "🎬"} [${i + 1}/${tracks.length}] *${title}*` }, { quoted: msg }).catch(() => {});\n          }\n\n          if (mode === "audio") {
             const ext = path.extname(file).toLowerCase();
             const isM4a = String(result.contentType || "").toLowerCase().includes("audio/mp4");
             const mimetype = isM4a || ext === ".m4a" ? "audio/mp4" : ext === ".webm" ? "audio/webm" : ext === ".opus" ? "audio/ogg; codecs=opus" : "audio/mpeg";
