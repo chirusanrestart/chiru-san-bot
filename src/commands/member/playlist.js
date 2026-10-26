@@ -95,11 +95,12 @@ export default {
           const title = safeName(result.title || track.title);
           if (mode === "audio") {
             const ext = path.extname(file).toLowerCase();
-            const mimetype = ext === ".m4a" ? "audio/mp4" : ext === ".webm" ? "audio/webm" : ext === ".opus" ? "audio/ogg; codecs=opus" : "audio/mpeg";
+            const isM4a = String(result.contentType || "").toLowerCase().includes("audio/mp4");
+            const mimetype = isM4a || ext === ".m4a" ? "audio/mp4" : ext === ".webm" ? "audio/webm" : ext === ".opus" ? "audio/ogg; codecs=opus" : "audio/mpeg";
             await sock.sendMessage(jid, {
               audio: { url: file },
               mimetype,
-              fileName: title + (ext || ".mp3"),
+              fileName: title + (isM4a ? ".m4a" : (ext || ".mp3")),
               ptt: false
             }, { quoted: msg });
           } else {
