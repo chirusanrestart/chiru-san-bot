@@ -2,6 +2,7 @@
 
 import { downloadMediaToFile } from "../../utils/download.js";
 import { createSticker } from "../../services/sticker.js";
+import { processMedia, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
@@ -111,6 +112,18 @@ export default {
                 downloadType,
                 input
             );
+
+            // Tenta a conversão remota; se a API falhar, mantém o pipeline local.
+            if (isMelissaApiConfigured()) {
+                try {
+                    const original = await fs.readFile(input);
+                    const remote = await processMedia("sticker", original, { animated: type === "video" });
+                    await sock.sendMessage(jid, { sticker: remote.data });
+                    return;
+                } catch (remoteError) {
+                    console.warn("[Melissa API/.s] Falhou; usando conversão local:", remoteError.message);
+                }
+            }
 
 
 
