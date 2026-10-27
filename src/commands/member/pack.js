@@ -494,9 +494,11 @@ export default {
 
                 const stickerCount = stickers.length;
                 await sendStickerPack(sock, from, stickers, {
-                    name: query,
+                    // O título do pack é identidade do bot + quem pediu.
+                    // A pesquisa continua sendo usada apenas para encontrar as imagens.
+                    name: `Melissa Bot • ${requester}`,
                     publisher: author,
-                    description: `🌸 ${query}`
+                    description: `🌸 Pack solicitado por ${requester}`
                 });
 
                 packSucceeded = true;
