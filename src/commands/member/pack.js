@@ -331,7 +331,7 @@ async function makeStickers(items, dir, packname, author) {
     // voltam para o processamento local como fallback.
     if (isMelissaApiConfigured() && workItems.length) {
         try {
-            const results = await processStickerPack(workItems);
+            const results = await processStickerPack(workItems, packname, author);
             const completed = new Set();
             for (const result of results) {
                 if (!result?.ok || typeof result.data !== "string") continue;
