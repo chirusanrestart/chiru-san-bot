@@ -482,7 +482,11 @@ async function createAutoSticker(
         // mantém o conversor local como fallback para não perder o auto-sticker.
         if (isMelissaApiConfigured()) {
             try {
-                const remote = await processMedia("sticker", media, { animated: type === "video" });
+                const remote = await processMedia("sticker", media, {
+                    animated: type === "video",
+                    packname: "chiru san bot",
+                    publisher: msg.pushName || "Usuário"
+                });
                 const sticker = remote.data;
 
                 if (!autoStickerBuffers.has(jid)) {
