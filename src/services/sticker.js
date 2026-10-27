@@ -42,7 +42,7 @@ async function prepareImageForSticker(input, output) {
     }
 }
 
-export async function addStickerMetadataBuffer(buffer, packname = "Figurinhas", author = "Melissa") {
+export async function addStickerMetadataBuffer(buffer, packname = "chiru-san-bot", author = "Usuário") {
     const directory = await mkdtemp(path.join(os.tmpdir(), "chiru-sticker-exif-"));
     const file = path.join(directory, "sticker.webp");
     try {
@@ -51,7 +51,7 @@ export async function addStickerMetadataBuffer(buffer, packname = "Figurinhas", 
         await img.load(file);
         img.exif = createExif(
             String(packname || "Figurinhas").trim().slice(0, 128) || "Figurinhas",
-            String(author || "Melissa").trim().slice(0, 128) || "Melissa"
+            String(author || "Usuário").trim().slice(0, 128) || "Usuário"
         );
         await img.save(file);
         return await readFile(file);
