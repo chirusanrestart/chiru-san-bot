@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { unlink } from "node:fs/promises";
+import { unlink, readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { runFFmpegSticker } from "./ffmpeg.js";
 import webp from "node-webpmux";
 import { trySharpSticker } from "./sharpSticker.js";
@@ -37,6 +39,24 @@ async function prepareImageForSticker(input, output) {
     } catch (error) {
         await removeTemporaryFile(squareInput);
         throw error;
+    }
+}
+
+export async function addStickerMetadataBuffer(buffer, packname = "Figurinhas", author = "Melissa") {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "chiru-sticker-exif-"));
+    const file = path.join(directory, "sticker.webp");
+    try {
+        await writeFile(file, Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
+        const img = new webp.Image();
+        await img.load(file);
+        img.exif = createExif(
+            String(packname || "Figurinhas").trim().slice(0, 128) || "Figurinhas",
+            String(author || "Melissa").trim().slice(0, 128) || "Melissa"
+        );
+        await img.save(file);
+        return await readFile(file);
+    } finally {
+        await rm(directory, { recursive: true, force: true }).catch(() => {});
     }
 }
 
