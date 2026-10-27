@@ -198,10 +198,12 @@ export async function downloadPinterestImage(src, outputPath) {
 }
 
 
-export async function processStickerPack(items) {
+export async function processStickerPack(items, packname = "Figurinhas", publisher = "Melissa") {
   if (!Array.isArray(items) || !items.length) throw new TypeError("Informe as mídias do pack.");
   const response = await request("/media/process-pack", {
     body: {
+      packname: String(packname || "Figurinhas").slice(0, 128),
+      publisher: String(publisher || "Melissa").slice(0, 128),
       items: items.slice(0, 60).map(item => ({
         src: item.url,
         animated: Boolean(item.animated)
