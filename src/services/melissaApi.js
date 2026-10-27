@@ -155,7 +155,7 @@ export async function downloadYouTubePlaylistToFile(url, outputPath, { mode = "v
 
 export async function downloadToFile(url, outputPath, { mode = "video" } = {}) {
   const response = await request("/download", {
-    body: { url, mode: mode === "audio" ? "audio" : "video", format: mode === "audio" ? "mp3" : "mp4" },
+    body: { url, mode: mode === "audio" ? "audio" : "video" },
     timeoutMs: DEFAULT_TIMEOUT_MS
   });
   await saveBinaryResponse(response, outputPath, "download concluído");
