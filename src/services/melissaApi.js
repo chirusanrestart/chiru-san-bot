@@ -234,6 +234,8 @@ export async function processMedia(kind, media, options = {}) {
     body: {
       data: buffer.toString("base64"),
       animated: Boolean(options.animated),
+      packname: String(options.packname || "Figurinhas").slice(0, 128),
+      publisher: String(options.publisher || options.author || "Melissa").slice(0, 128),
       profile: String(options.profile || "balanced")
     },
     timeoutMs: kind === "sticker" && options.animated ? 120_000 : 60_000
