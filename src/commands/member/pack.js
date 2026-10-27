@@ -496,7 +496,7 @@ export default {
                 await sendStickerPack(sock, from, stickers, {
                     // O título do pack é identidade do bot + quem pediu.
                     // A pesquisa continua sendo usada apenas para encontrar as imagens.
-                    name: `Melissa Bot • ${requester}`,
+                    name: `Chiru-san-bot • ${requester}`,
                     publisher: author,
                     description: `🌸 Pack solicitado por ${requester}`
                 });
