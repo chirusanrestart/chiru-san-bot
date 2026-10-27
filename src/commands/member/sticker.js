@@ -1,7 +1,7 @@
 
 
 import { downloadMediaToFile } from "../../utils/download.js";
-import { createSticker } from "../../services/sticker.js";
+import { createSticker, addStickerMetadataBuffer } from "../../services/sticker.js";
 import { processMedia, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -67,6 +67,9 @@ export default {
 
 
 
+        const requester = String(msg.pushName || msg.verifiedBizName || "Usuário").trim();
+        const stickerName = `Chiru-san-bot • ${requester}`;
+
         const id =
             randomUUID();
 
@@ -120,7 +123,8 @@ export default {
                     if (info.size > 0 && info.size <= 12 * 1024 * 1024) {
                         const original = await fs.readFile(input);
                         const remote = await processMedia("sticker", original, { animated: type === "video" });
-                        await sock.sendMessage(jid, { sticker: remote.data });
+                        const stickerWithMetadata = await addStickerMetadataBuffer(remote.data, stickerName, stickerName);
+                        await sock.sendMessage(jid, { sticker: stickerWithMetadata });
                         return;
                     }
                     console.warn("[Melissa API/.s] Mídia acima do limite remoto; usando conversão local.");
@@ -135,12 +139,8 @@ export default {
                 input,
                 output,
                 {
-                    packname:
-                    "chiru san bot",
-
-                    author:
-                    msg.pushName ||
-                    "Usuário"
+                    packname: stickerName,
+                    author: stickerName
                 },
                 type
             );
