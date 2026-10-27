@@ -46,7 +46,8 @@ import {
 } from "./utils/download.js";
 
 import {
-    createSticker
+    createSticker,
+    addStickerMetadataBuffer
 } from "./services/sticker.js";
 
 import {
@@ -487,7 +488,11 @@ async function createAutoSticker(
                     packname: "chiru san bot",
                     publisher: msg.pushName || "Usuário"
                 });
-                const sticker = remote.data;
+                const sticker = await addStickerMetadataBuffer(
+                    remote.data,
+                    "chiru san bot",
+                    msg.pushName || "Usuário"
+                );
 
                 if (!autoStickerBuffers.has(jid)) {
                     autoStickerBuffers.set(jid, []);
