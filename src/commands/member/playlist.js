@@ -146,7 +146,16 @@ export default {
           if (isMelissaApiConfigured()) {
             const extension = mode === "audio" ? "m4a" : "mp4";
             file = path.resolve("downloads", `${randomUUID()}-playlist.${extension}`);
-            result = await downloadYouTubePlaylistToFile(trackUrl, file, { mode });
+            try {
+              result = await downloadYouTubePlaylistToFile(trackUrl, file, { mode });
+            } catch (apiError) {
+              // Falha da API, incluindo HTTP 502: tenta baixar esta faixa localmente.
+              await fs.unlink(file).catch(() => {});
+              file = null;
+              console.warn(`[PLAYLIST] Melissa API falhou na faixa ${i + 1}; tentando fallback local: ${apiError.message}`);
+              result = await Downloader.download(trackUrl, { type: mode });
+              file = result.file;
+            }
           } else {
             result = await Downloader.download(trackUrl, { type: mode });
             file = result.file;
