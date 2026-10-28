@@ -34,7 +34,7 @@ import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
 import CommandHandler from "./handlers/CommandHandler.js";
-import { scanHistoricalMessages, resumeHistoricalScan } from "./services/megapackHistory.js";
+import { getMegapackHistory, scanHistoricalMessages, resumeHistoricalScan } from "./services/megapackHistory.js";
 import { processMedia, isMelissaApiConfigured } from "./services/melissaApi.js";
 
 import {
@@ -594,6 +594,15 @@ async function createAutoSticker(
 }
 
 async function startBotInternal() {
+
+    // Valida o catálogo versionado no repositório logo ao iniciar.
+    // Assim uma instalação nova já confirma que recebeu a lista-base do megapack.
+    try {
+        const initialPacks = await getMegapackHistory();
+        console.log(`📚 Catálogo do megapack carregado: ${initialPacks.length} nomes.`);
+    } catch (error) {
+        console.error("❌ Não consegui carregar o catálogo inicial do megapack:", error);
+    }
 
     const {
         state,
