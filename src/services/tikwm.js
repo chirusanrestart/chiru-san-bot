@@ -8,6 +8,20 @@ import { pipeline } from "node:stream/promises";
 const DOWNLOAD_DIR = path.resolve("downloads");
 const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
 const API_URL = "https://www.tikwm.com/api/";
+const TIKWM_REQUEST_INTERVAL_MS = 2000;
+let nextTikwmRequestAt = 0;
+
+// Serializa o início das chamadas para evitar rajadas quando vários downloads
+// chegam juntos. Cada chamada à API começa com pelo menos 2 s de intervalo.
+async function waitForTikwmSlot() {
+  const now = Date.now();
+  const startAt = Math.max(now, nextTikwmRequestAt);
+  nextTikwmRequestAt = startAt + TIKWM_REQUEST_INTERVAL_MS;
+  const delay = startAt - now;
+  if (delay > 0) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+}
 
 export async function downloadTikwm(url) {
   await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
@@ -16,7 +30,7 @@ export async function downloadTikwm(url) {
   apiUrl.searchParams.set("url", url);
   apiUrl.searchParams.set("hd", "1");
 
-  const apiResponse = await fetch(apiUrl, {
+  await waitForTikwmSlot();\n\n  const apiResponse = await fetch(apiUrl, {
     headers: {
       "accept": "application/json",
       "user-agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
