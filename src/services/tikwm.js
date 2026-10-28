@@ -30,7 +30,9 @@ export async function downloadTikwm(url) {
   apiUrl.searchParams.set("url", url);
   apiUrl.searchParams.set("hd", "1");
 
-  await waitForTikwmSlot();\n\n  const apiResponse = await fetch(apiUrl, {
+  await waitForTikwmSlot();
+
+  const apiResponse = await fetch(apiUrl, {
     headers: {
       "accept": "application/json",
       "user-agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
