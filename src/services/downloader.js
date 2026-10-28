@@ -29,9 +29,9 @@ export default class Downloader {
     const isTikTok = /(^|\.)((tiktok\.com)|(tiktokv\.com)|(tiktokcdn\.com))$/.test(hostname);
     const isInstagram = /(^|\.)(instagram\.com|instagr\.am)$/.test(hostname);
 
-    // Melissa API primeiro para as plataformas que ela suporta. A chave nunca fica no código.
-    // Se a chave estiver ausente/inválida ou o serviço falhar, os fallbacks locais continuam ativos.
-    if (isYouTube || isTikTok || isInstagram) {
+    // Para TikTok em vídeo, prioriza o TikWM e usa a Melissa API como fallback.
+    // YouTube, Instagram e TikTok em áudio continuam podendo usar a API primeiro.
+    if (isYouTube || isInstagram || (isTikTok && type === "audio")) {
       if (isMelissaApiConfigured()) {
         const extension = type === "audio" ? "m4a" : "mp4";
         const apiOutput = path.join(DOWNLOAD_DIR, `${randomUUID()}-melissa-api.${extension}`);
@@ -58,7 +58,28 @@ export default class Downloader {
         console.log("[API/TikWM] Extraindo link do TikTok...");
         return await downloadTikwm(url);
       } catch (error) {
-        console.warn(`[Downloader] TikWM falhou; tentando yt-dlp local: ${error.message}`);
+        console.warn(`[Downloader] TikWM falhou; verificando fallback no servidor: ${error.message}`);
+      }
+
+      // Fallback remoto: usa o servidor próprio só quando o TikWM falhar.
+      if (isMelissaApiConfigured()) {
+        const apiOutput = path.join(DOWNLOAD_DIR, `${randomUUID()}-melissa-api.mp4`);
+        try {
+          console.log("[Melissa API] TikWM falhou; tentando download remoto...");
+          const result = await downloadToFile(url, apiOutput, { mode: "video" });
+          console.log("[Melissa API] Fallback remoto concluído.");
+          return {
+            ...result,
+            title: result.title || path.basename(apiOutput),
+            description: result.description || null,
+            thumbnail: result.thumbnail || null
+          };
+        } catch (apiError) {
+          await fs.unlink(apiOutput).catch(() => {});
+          console.warn(`[Melissa API] Fallback remoto falhou; tentando yt-dlp local: ${apiError.message}`);
+        }
+      } else {
+        console.warn("[Melissa API] Fallback ignorado: MELISSA_API_KEY não está configurada.");
       }
     }
 
