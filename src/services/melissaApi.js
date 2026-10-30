@@ -184,6 +184,26 @@ export async function searchPinterest(query, { min = 1, max = 60 } = {}) {
   return data;
 }
 
+
+export async function processPinterestStickerPack(query, packname = query, publisher = "Chiru-san-bot") {
+  if (typeof query !== "string" || !query.trim()) {
+    throw new TypeError("Informe o nome para pesquisar o pack no Pinterest.");
+  }
+  const response = await request("/pinterest/pack", {
+    body: {
+      query: query.trim().slice(0, 200),
+      packname: String(packname || query).slice(0, 128),
+      publisher: String(publisher || "Chiru-san-bot").slice(0, 128)
+    },
+    timeoutMs: DEFAULT_TIMEOUT_MS
+  });
+  const data = await response.json();
+  if (!data?.ok || !Array.isArray(data.results)) {
+    throw new Error(data?.details || data?.error || "A Melissa API não conseguiu gerar o pack.");
+  }
+  return data.results;
+}
+
 export async function downloadPinterestImage(src, outputPath) {
   const response = await request("/pinterest/image", { body: { src }, timeoutMs: 30_000 });
   await saveBinaryResponse(response, outputPath, "imagem Pinterest recebida");
