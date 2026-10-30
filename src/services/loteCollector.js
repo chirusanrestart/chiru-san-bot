@@ -1,6 +1,7 @@
 import { downloadMedia } from "../utils/download.js";
 import { processMedia, isMelissaApiConfigured } from "./melissaApi.js";
 import { sendStickerPack } from "./stickerPack.js";
+import { enqueuePack } from "./packQueue.js";
 
 const MAX_IMAGES = 100;
 const MAX_STICKERS_PER_PACK = 60;
@@ -61,18 +62,21 @@ async function drainSession(session) {
                     continue;
                 }
 
-                const result = await processMedia("sticker", media, {
-                    animated: false,
-                    packname: "Chiru-san-bot",
-                    publisher: session.requester
-                });
+                let cloudResult = null;
+                const queued = await enqueuePack(async () => {
+                    cloudResult = await processMedia("sticker", media, {
+                        animated: false,
+                        packname: "Chiru-san-bot",
+                        publisher: session.requester
+                    });
+                }, { awaitCompletion: true });
 
-                if (!result?.data?.length || result.data.length > 1024 * 1024) {
+                if (!queued?.success || !cloudResult?.data?.length || cloudResult.data.length > 1024 * 1024) {
                     session.failed++;
                     continue;
                 }
 
-                session.stickers.push(result.data);
+                session.stickers.push(cloudResult.data);
                 session.processed++;
 
                 if (session.stickers.length >= MAX_STICKERS_PER_PACK) {
