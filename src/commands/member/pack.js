@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { sendStickerPack } from "../../services/stickerPack.js";
 import { enqueuePack } from "../../services/packQueue.js";
 import { searchPinterest } from "../../services/pinterestScraper.js";
-import { searchPinterest as searchPinterestApi, downloadPinterestImage, processStickerPack, isMelissaApiConfigured } from "../../services/melissaApi.js";
+import { searchPinterest as searchPinterestApi, downloadPinterestImage, processStickerPack, processPinterestStickerPack, isMelissaApiConfigured } from "../../services/melissaApi.js";
 import webp from "node-webpmux";
 import { runFFmpegSticker } from "../../services/ffmpeg.js";
 import { tryTurboJpegSticker } from "../../services/turbojpeg.js";
@@ -399,6 +399,24 @@ async function makeStickers(items, dir, packname, author) {
     return out.slice(0, TOTAL);
 }
 
+
+async function makeStickersFromCloud(query, packname, author) {
+    const results = await processPinterestStickerPack(query, packname, author);
+    const stickers = [];
+
+    // A API já baixa, converte, redimensiona e grava os metadados.
+    // O bot só decodifica os WebP finais para entregar ao WhatsApp.
+    for (const result of results) {
+        if (!result?.ok || typeof result.data !== "string") continue;
+        const sticker = Buffer.from(result.data, "base64");
+        if (!sticker.length || sticker.length > MAX_STICKER) continue;
+        stickers.push(sticker);
+    }
+
+    console.log(`☁️ [Melissa API] "${query}": ${stickers.length}/60 figurinhas prontas na nuvem.`);
+    return stickers;
+}
+
 export default {
     name: "pack",
     aliases: ["stickerpack", "figpack"],
@@ -468,20 +486,33 @@ export default {
 
                  console.log(`📦 [pack ${id}] Iniciando "${query}" solicitado por ${requester}`);
 
-                candidates = await findImages(query);
-                if (!candidates.length) {
-                    if (msg.packBatch) msg.packBatch.failed = true;
-                    else {
-                        await updateSingleStatus(`❌ Não encontrei imagens suficientes para *${query}*.`);
-                        await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                const author = `Chiru san bot • ${requester}`;
+
+                if (isMelissaApiConfigured()) {
+                    try {
+                        // Caminho principal: a nuvem pesquisa, baixa e converte o pack inteiro.
+                        stickers = await makeStickersFromCloud(query, query, author);
+                    } catch (cloudError) {
+                        console.warn(`☁️ [pack ${id}] Falha no processamento autônomo da nuvem; usando fallback local:`, cloudError.message);
                     }
-                    return;
                 }
 
-                const author = `Chiru san bot • ${requester}`;
-                stickers = await makeStickers(candidates, dir, query, author);
-                candidates.length = 0;
-                candidates = [];
+                // Fallback local preservado para quando a API estiver indisponível
+                // ou não conseguir entregar figurinhas suficientes.
+                if (stickers.length < 5) {
+                    candidates = await findImages(query);
+                    if (!candidates.length) {
+                        if (msg.packBatch) msg.packBatch.failed = true;
+                        else {
+                            await updateSingleStatus(`❌ Não encontrei imagens suficientes para *${query}*.`);
+                            await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                        }
+                        return;
+                    }
+                    stickers = await makeStickers(candidates, dir, query, author);
+                    candidates.length = 0;
+                    candidates = [];
+                }
 
                 if (stickers.length < 5) {
                     if (msg.packBatch) msg.packBatch.failed = true;
