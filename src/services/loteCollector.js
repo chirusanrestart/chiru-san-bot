@@ -1,5 +1,5 @@
 import { downloadMedia } from "../utils/download.js";
-import { processMedia } from "./melissaApi.js";
+import { processMedia, isMelissaApiConfigured } from "./melissaApi.js";
 import { sendStickerPack } from "./stickerPack.js";
 
 const MAX_IMAGES = 100;
@@ -112,6 +112,10 @@ async function drainSession(session) {
 export async function startLote(sock, msg) {
     const key = sessionKey(msg);
     if (!key) return;
+    if (!isMelissaApiConfigured()) {
+        await sock.sendMessage(msg.key.remoteJid, { text: "☁️ O processamento em nuvem não está configurado neste bot." }, { quoted: msg });
+        return;
+    }
 
     const existing = sessions.get(key);
     if (existing) {
@@ -141,7 +145,6 @@ export async function startLote(sock, msg) {
     sessions.set(key, session);
     await updateStatus(session,
         "📦 *Modo lote ativado!*\n\nEnvie até 100 fotos, inclusive em álbum. Vou processar uma por vez na nuvem.\n\nEnvie *fim* ou aguarde 12 segundos sem novas fotos para concluir.");
-    resetIdleTimer(session);
 }
 
 export async function handleLoteMessage(sock, msg) {
