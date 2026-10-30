@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isGroupEnabled } from "../services/groupState.js";
 import { isOwnerMessage } from "../services/ownerAuth.js";
+import { handleLoteMessage } from "../services/loteCollector.js";
 
 const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"]);
 
@@ -142,6 +143,8 @@ export default class CommandHandler {
     }
 
     async handle(msg) {
+        if (await handleLoteMessage(this.sock, msg)) return;
+
         const text =
             msg.message?.conversation ||
             msg.message?.extendedTextMessage?.text ||
