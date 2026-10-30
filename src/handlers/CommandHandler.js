@@ -206,7 +206,7 @@ export default class CommandHandler {
 
         msg.commandHandler = this;
 
-        if (msg.packCount > 1 && command.name === "pack") {
+        if (msg.packCount > 1 && command.name === "pack" && args.length > 0) {
             const count = Math.min(10, Math.max(2, msg.packCount));
             let statusMessageKey = null;
             const batchState = {
