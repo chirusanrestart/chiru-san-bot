@@ -123,9 +123,10 @@ export async function startLote(sock, msg) {
 
     const existing = sessions.get(key);
     if (existing) {
-        if (existing.timer) clearTimeout(existing.timer);
-        existing.closing = true;
-        await drainSession(existing);
+        await sock.sendMessage(msg.key.remoteJid, {
+            text: "📦 Você já tem um lote em andamento. Envie *fim* para concluir o atual."
+        }, { quoted: msg });
+        return;
     }
 
     const session = {
