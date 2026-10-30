@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isGroupEnabled } from "../services/groupState.js";
 import { isOwnerMessage } from "../services/ownerAuth.js";
+import { handleLoteMessage } from "../services/loteCollector.js";
 
 const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"]);
 
@@ -142,6 +143,8 @@ export default class CommandHandler {
     }
 
     async handle(msg) {
+        if (await handleLoteMessage(this.sock, msg)) return;
+
         const text =
             msg.message?.conversation ||
             msg.message?.extendedTextMessage?.text ||
@@ -153,7 +156,15 @@ export default class CommandHandler {
 
         const args = normalizedText.slice(1).trim().split(/\s+/);
         const commandName = args.shift()?.toLowerCase();
-        const command = this.commands.get(commandName);
+        let command = this.commands.get(commandName);
+
+        // .pack2 até .pack10 reutilizam o comando .pack e sua fila FIFO.
+        const packBatchMatch = commandName?.match(/^pack(2|3|4|5|6|7|8|9|10)$/);
+        if (!command && packBatchMatch) {
+            command = this.commands.get("pack");
+            if (command) msg.packCount = Number(packBatchMatch[1]);
+        }
+
         if (!command && MEDIA_COMMANDS.has(commandName)) {
             const mediaJid = msg.key?.remoteJid;
             if (
@@ -194,6 +205,42 @@ export default class CommandHandler {
         }
 
         msg.commandHandler = this;
+
+        if (msg.packCount > 1 && command.name === "pack" && args.length > 0) {
+            const count = Math.min(10, Math.max(2, msg.packCount));
+            let statusMessageKey = null;
+            const batchState = {
+                sequential: true,
+                remaining: count,
+                failed: false,
+                finalized: false,
+                updateStatus: async () => {
+                    const completed = count - batchState.remaining;
+                    const text = batchState.remaining === 0
+                        ? (batchState.failed
+                            ? `⚠️ Lote finalizado: ${completed}/${count} packs concluídos.`
+                            : `✅ Lote concluído! ${count} packs processados.`)
+                        : `☁️ Processando lote de packs\n\n📦 Pack: *${completed + 1}/${count}*\n✅ Concluídos: *${completed}*\n⏳ Restantes: *${batchState.remaining}*\n\nA nuvem está trabalhando em um pack por vez.`;
+
+                    if (!statusMessageKey) {
+                        const sent = await this.sock.sendMessage(jid, { text }, { quoted: msg });
+                        statusMessageKey = sent?.key || null;
+                    } else {
+                        await this.sock.sendMessage(jid, { text, edit: statusMessageKey });
+                    }
+                }
+            };
+
+            msg.packBatch = batchState;
+            await batchState.updateStatus();
+
+            // Cada execução espera a conclusão do pack atual antes de enfileirar o próximo.
+            for (let index = 0; index < count; index++) {
+                await command.execute(this.sock, msg, args);
+            }
+            return;
+        }
+
         await command.execute(this.sock, msg, args);
     }
 }
