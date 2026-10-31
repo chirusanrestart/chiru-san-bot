@@ -727,7 +727,7 @@ export async function askAI(
 
                 const answer = assistantMessage.content?.trim() ||
                     (snippets.length
-                        ? `Encontrei estes resultados, mas a pesquisa atingiu o limite de rodadas:\\n\\n${snippets.join("\\n\\n")}`
+                        ? `Encontrei estes resultados, mas a pesquisa atingiu o limite de rodadas:\n\n${snippets.join("\n\n")}`
                         : "A pesquisa atingiu o limite de rodadas e não retornou resultados suficientes.");
 
                 await saveUserMessage(userId, message, answer);
