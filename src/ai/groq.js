@@ -635,10 +635,10 @@ export async function askAI(
 
             };
 
-            if (
-                tools.length > 0 &&
-                round < searchProfile.maxToolRounds
-            ) {
+            // Keep the tool schema available on every round. If it is removed
+            // on the final round, Groq may still generate a tool call and reject
+            // it with: "Tool choice is none, but model called a tool".
+            if (tools.length > 0) {
 
                 request.tools =
                     tools;
@@ -697,6 +697,41 @@ export async function askAI(
 
                 return answer;
 
+            }
+
+            // The final response still has tools enabled to avoid Groq's
+            // implicit tool_choice=none error. If the model asks for yet another
+            // search after the configured budget, stop locally and use the
+            // results already collected instead of sending an invalid request.
+            if (round >= searchProfile.maxToolRounds) {
+                const collectedResults = messages
+                    .filter(item => item.role === "tool")
+                    .map(item => {
+                        try {
+                            return JSON.parse(item.content);
+                        } catch {
+                            return null;
+                        }
+                    })
+                    .filter(result => result?.success);
+
+                const snippets = collectedResults
+                    .flatMap(result => result.results || [])
+                    .slice(0, 5)
+                    .map(result => {
+                        const title = result.title || "Resultado";
+                        const excerpt = result.content || "";
+                        const url = result.url || "";
+                        return `• ${title}: ${excerpt}${url ? ` ( ${url} )` : ""}`;
+                    });
+
+                const answer = assistantMessage.content?.trim() ||
+                    (snippets.length
+                        ? `Encontrei estes resultados, mas a pesquisa atingiu o limite de rodadas:\\n\\n${snippets.join("\\n\\n")}`
+                        : "A pesquisa atingiu o limite de rodadas e não retornou resultados suficientes.");
+
+                await saveUserMessage(userId, message, answer);
+                return answer;
             }
 
             messages.push(
