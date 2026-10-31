@@ -4,7 +4,7 @@
   "type": "module",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/bootstrap.js",
+    "start": "node --env-file-if-exists=.env src/app.js",
     "check:syntax": "node scripts/check-syntax.mjs",
     "build:turbojpeg": "bash scripts/build-turbojpeg.sh",
     "test:ai": "node --test tests/aiProviderManager.test.js tests/openAICompatibleProvider.test.js",
