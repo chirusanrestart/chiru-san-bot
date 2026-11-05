@@ -1,7 +1,5 @@
 {
   "version": 1,
-  "source": "backups/megapack/megapacklista.txt",
-  "backupCreatedAt": "2026-11-05T23:54:08.011Z",
   "packs": [
     {
       "name": "@108370715533314",
