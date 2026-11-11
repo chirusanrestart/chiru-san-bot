@@ -250,6 +250,22 @@ function drainIncomingMessages() {
 
                 try {
                     await hidePresence(sock);
+
+                    const messageText =
+                        msg.message?.conversation ||
+                        msg.message?.extendedTextMessage?.text ||
+                        msg.message?.imageMessage?.caption ||
+                        msg.message?.videoMessage?.caption ||
+                        "";
+
+                    // Aplica um intervalo aleatório somente a comandos,
+                    // antes de qualquer resposta do CommandHandler.
+                    if (messageText.trimStart().startsWith(".")) {
+                        const delay = randomDelay();
+                        await sleep(delay);
+                        console.log(`⏱️ Delay do comando: ${delay} ms`);
+                    }
+
                     await commandHandler.handle(msg);
                     await hidePresence(sock);
                 } catch (error) {
