@@ -15,3 +15,6 @@ src/data/character-chat.json.lock
 src/data/character-chat.json.*.tmp
 src/data/memory.json.lock
 src/data/memory.json.tmp
+
+data/command-limits.json
+data/command-limits.json.*.tmp

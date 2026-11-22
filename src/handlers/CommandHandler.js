@@ -2,10 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isGroupEnabled } from "../services/groupState.js";
+import { isCommandEnabled } from "../services/commandLimiter.js";
 import { isOwnerMessage } from "../services/ownerAuth.js";
 import { handleLoteMessage } from "../services/loteCollector.js";
 
-const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover"]);
+const ALWAYS_ALLOWED_WHEN_OFF = new Set(["on", "off", "ban", "kick", "remover", "identificador"]);
 
 const MEDIA_COMMANDS = new Set(["mp3", "mp4"]);
 
@@ -172,10 +173,21 @@ export default class CommandHandler {
                 !(await isGroupEnabled(mediaJid))
             ) {
                 await this.sock.sendMessage(mediaJid, {
-                    text: "🔕 O bot está desligado neste grupo. Só .on, .off, .ban, .kick e .remover continuam disponíveis."
+                    text: "🔕 O bot está desligado neste grupo. Só .identificador e os comandos de controle (.on, .off, .ban, .kick e .remover) continuam disponíveis."
                 }, { quoted: msg });
                 return;
             }
+
+            if (
+                mediaJid?.endsWith("@g.us") &&
+                !(await isCommandEnabled(mediaJid, commandName))
+            ) {
+                await this.sock.sendMessage(mediaJid, {
+                    text: `🔕 O comando .${commandName} está desativado neste grupo.`
+                }, { quoted: msg });
+                return;
+            }
+
             await executeMediaDownload(this.sock, msg, args, commandName);
             return;
         }
@@ -192,14 +204,26 @@ export default class CommandHandler {
             return;
         }
 
-        // .on, .off, .ban, .kick e .remover continuam disponíveis com o grupo desligado.
+        // O identificador permanece disponível para recuperar o JID mesmo com o bot desligado.
+        if (
+            jid.endsWith("@g.us") &&
+            command.name !== "identificador" &&
+            !(await isCommandEnabled(jid, command.name))
+        ) {
+            await this.sock.sendMessage(jid, {
+                text: `🔕 O comando .${command.name} está desativado neste grupo.`
+            }, { quoted: msg });
+            return;
+        }
+
+        // .identificador e os comandos de controle continuam disponíveis com o grupo desligado.
         if (
             jid.endsWith("@g.us") &&
             !ALWAYS_ALLOWED_WHEN_OFF.has(commandName) &&
             !(await isGroupEnabled(jid))
         ) {
             await this.sock.sendMessage(jid, {
-                text: "🔕 O bot está desligado neste grupo. Só .on, .off, .ban, .kick e .remover continuam disponíveis."
+                text: "🔕 O bot está desligado neste grupo. Só .identificador e os comandos de controle (.on, .off, .ban, .kick e .remover) continuam disponíveis."
             }, { quoted: msg });
             return;
         }

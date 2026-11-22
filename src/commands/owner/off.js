@@ -17,7 +17,7 @@ export default {
 
         try {
             await setGroupEnabled(jid, false);
-            await reply("🔴 Bot desligado neste grupo. Só .on, .off e .ban continuam disponíveis.");
+            await reply("🔴 Bot desligado neste grupo. Só .identificador e os comandos de controle (.on, .off, .ban, .kick e .remover) continuam disponíveis.");
         } catch (error) {
             console.error("Falha no comando .off:", error?.message || error);
             await reply("⚠️ Não consegui salvar o estado deste grupo.");
