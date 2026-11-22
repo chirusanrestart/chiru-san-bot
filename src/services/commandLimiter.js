@@ -5,7 +5,6 @@ const statePath = path.resolve(
     process.env.COMMAND_LIMITS_FILE?.trim() || "data/command-limits.json"
 );
 
-let cachedLimits;
 let loadPromise = null;
 let writeQueue = Promise.resolve();
 
@@ -33,7 +32,6 @@ async function loadLimits() {
     if (!loadPromise) {
         loadPromise = readLimits()
             .then(limits => {
-                cachedLimits = limits;
                 return limits;
             })
             .catch(error => {
@@ -53,7 +51,7 @@ async function saveLimits(limits) {
     try {
         await fs.writeFile(
             temporaryPath,
-            `${JSON.stringify(limits, null, 2)}\\n`,
+            `${JSON.stringify(limits, null, 2)}\n`,
             "utf8"
         );
 
@@ -69,7 +67,7 @@ function normalizeCommandName(commandName) {
 
     return commandName
         .trim()
-        .replace(/^\\./, "")
+        .replace(/^\./, "")
         .toLowerCase();
 }
 
@@ -105,7 +103,7 @@ export async function setCommandEnabled(
 ) {
     if (
         typeof groupJid !== "string" ||
-        !/^\\d+(?:-\\d+)?@g\\.us$/.test(groupJid)
+        !/^\d+(?:-\d+)?@g\.us$/.test(groupJid)
     ) {
         throw new Error("O identificador informado não é um JID de grupo.");
     }
@@ -137,7 +135,6 @@ export async function setCommandEnabled(
 
         await saveLimits(next);
 
-        cachedLimits = next;
         loadPromise = Promise.resolve(next);
     });
 

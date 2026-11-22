@@ -19,8 +19,13 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Run command limiter tests
         run: npm run test:limiter
 
       - name: Check JavaScript syntax
-        run: npm run check:syntax
+        run: |
+          npm run check:syntax
+          node --check limitador.js

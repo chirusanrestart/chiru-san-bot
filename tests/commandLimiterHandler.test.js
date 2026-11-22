@@ -23,6 +23,14 @@ const [
 
 const groupJid = "120363000000000010@g.us";
 const privateJid = "559999999999@s.whatsapp.net";
+const groupStatePath = path.resolve("data/group-states.json");
+let originalGroupStateContents = null;
+
+try {
+    originalGroupStateContents = await fs.readFile(groupStatePath);
+} catch (error) {
+    if (error.code !== "ENOENT") throw error;
+}
 
 function createHarness() {
     const sent = [];
@@ -116,7 +124,31 @@ test("keeps private-chat commands unaffected by group settings", async () => {
     assert.equal(executions, 1);
 });
 
+test("keeps .identificador available when the bot and its limiter entry are OFF", async () => {
+    const { setGroupEnabled } = await import("../src/services/groupState.js");
+    const { default: identifierCommand } = await import("../src/commands/member/identificador.js");
+
+    await setGroupEnabled(groupJid, false);
+    await setCommandEnabled(groupJid, "identificador", false);
+
+    const { handler, sent } = createHarness();
+    handler.commands.set("identificador", identifierCommand);
+
+    await handler.handle(createMessage(".identificador"));
+
+    assert.equal(sent.length, 1);
+    assert.match(sent[0]?.content?.text || "", /120363000000000010@g\.us/);
+});
+
 test.after(async () => {
+    if (originalGroupStateContents === null) {
+        await fs.unlink(groupStatePath).catch(error => {
+            if (error.code !== "ENOENT") throw error;
+        });
+    } else {
+        await fs.writeFile(groupStatePath, originalGroupStateContents);
+    }
+
     await fs.rm(temporaryDirectory, {
         recursive: true,
         force: true
