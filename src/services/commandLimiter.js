@@ -53,7 +53,7 @@ async function saveLimits(limits) {
     try {
         await fs.writeFile(
             temporaryPath,
-            `${JSON.stringify(limits, null, 2)}\\n`,
+            `${JSON.stringify(limits, null, 2)}\n`,
             "utf8"
         );
 
@@ -69,7 +69,7 @@ function normalizeCommandName(commandName) {
 
     return commandName
         .trim()
-        .replace(/^\\./, "")
+        .replace(/^\./, "")
         .toLowerCase();
 }
 
@@ -105,7 +105,7 @@ export async function setCommandEnabled(
 ) {
     if (
         typeof groupJid !== "string" ||
-        !/^\\d+(?:-\\d+)?@g\\.us$/.test(groupJid)
+        !/^\d+(?:-\d+)?@g\.us$/.test(groupJid)
     ) {
         throw new Error("O identificador informado não é um JID de grupo.");
     }
