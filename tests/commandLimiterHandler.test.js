@@ -107,6 +107,29 @@ test("blocks special media commands before starting a download", async () => {
     assert.doesNotMatch(sent[0]?.content?.text || "", /Envie o link/i);
 });
 
+test("applies the limiter to registered .mp3 and .mp4 commands", async () => {
+    for (const commandName of ["mp3", "mp4"]) {
+        const { handler, sent } = createHarness();
+        let executions = 0;
+
+        handler.commands.set(commandName, {
+            name: commandName,
+            async execute() {
+                executions++;
+            }
+        });
+
+        await setCommandEnabled(groupJid, commandName, false);
+        await handler.handle(createMessage("." + commandName + " exemplo"));
+
+        assert.equal(executions, 0, "." + commandName + " não deve executar");
+        assert.match(
+            sent.at(-1)?.content?.text || "",
+            new RegExp(commandName + ".*desativado", "i")
+        );
+    }
+});
+
 test("keeps private-chat commands unaffected by group settings", async () => {
     const { handler } = createHarness();
     let executions = 0;
