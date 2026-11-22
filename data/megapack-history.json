@@ -1829,6 +1829,13 @@
       "discoveredFrom": "cloud-backup-import"
     },
     {
+      "name": "Itachi Uchiha",
+      "firstRequestedAt": "2026-11-22T16:14:00.000Z",
+      "lastRequestedAt": "2026-11-22T16:14:00.000Z",
+      "requestCount": 1,
+      "discoveredFrom": "manual-catalog-addition"
+    },
+    {
       "name": "Itoshi rin",
       "firstRequestedAt": "2026-10-28T12:00:00.000Z",
       "lastRequestedAt": "2026-11-05T00:00:00.000Z",
@@ -2954,6 +2961,13 @@
       "lastRequestedAt": "2026-11-05T00:00:00.000Z",
       "requestCount": 1,
       "discoveredFrom": "cloud-backup-import"
+    },
+    {
+      "name": "Obito Uchiha",
+      "firstRequestedAt": "2026-11-22T16:14:00.000Z",
+      "lastRequestedAt": "2026-11-22T16:14:00.000Z",
+      "requestCount": 1,
+      "discoveredFrom": "manual-catalog-addition"
     },
     {
       "name": "Obkatkatie",
