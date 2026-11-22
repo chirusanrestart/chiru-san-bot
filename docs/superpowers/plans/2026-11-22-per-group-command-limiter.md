@@ -41,11 +41,11 @@
 - `setCommandEnabled(groupJid, commandName, enabled): Promise<void>`
 - `getGroupCommandLimits(groupJid): Promise<object>`
 
-- [ ] Write tests proving default-ON behavior, per-group isolation, persistence, concurrent updates, and rejection of invalid group identifiers.
-- [ ] Run `npm run test:limiter`; expected RED because the service module does not exist yet.
-- [ ] Implement the service with a process-local cache and atomic JSON writes.
-- [ ] Run `npm run test:limiter`; expected PASS.
-- [ ] Commit the task.
+- [x] Write tests proving default-ON behavior, per-group isolation, persistence, concurrent updates, and rejection of invalid group identifiers.
+- [x] Run `npm run test:limiter`; expected RED because the service module does not exist yet.
+- [x] Implement the service with a process-local cache and atomic JSON writes.
+- [x] Run `npm run test:limiter`; expected PASS.
+- [x] Commit the task.
 
 ### Task 2: Bot integration, identifier command, and Termux CLI
 
@@ -59,13 +59,20 @@
 - Modify: `.github/workflows/command-limiter.yml`
 
 **Interfaces:**
-- `limitador.js` uses `CommandHandler.loadCommands()` to obtain canonical registered names, and adds the special media commands `mp3` and `mp4`.
-- Registered command checks use `command.name` so aliases inherit the primary command's setting.
-- The media branch checks the parsed media command name directly.
+- `limitador.js` uses `CommandHandler.loadCommands()` to obtain canonical registered names; it also includes `mp3` and `mp4` as fallback names, deduplicated when their command modules are present.
+- Registered command checks use `command.name` so aliases inherit the primary command's setting, including the registered `mp3` and `mp4` modules.
+- If the special media fallback route is reached because a module is unavailable, it checks the parsed media command name directly.
 
-- [ ] Add handler tests first for disabled registered commands, aliases, media commands, and the always-available identifier command.
-- [ ] Run the focused tests and observe the expected RED results before changing production integration.
-- [ ] Add `.identificador` and the local interactive CLI.
-- [ ] Add enforcement to both the registered-command path and special media path without changing existing owner/admin checks.
-- [ ] Run `npm run test:limiter` and `npm run check:syntax`; expected PASS.
-- [ ] Commit the task and inspect the resulting branch diff.
+- [x] Add handler tests first for disabled registered commands, aliases, media commands, and the always-available identifier command.
+- [x] Run the focused tests and observe the expected RED results before changing production integration.
+- [x] Add `.identificador` and the local interactive CLI.
+- [x] Add enforcement to both the registered-command path and special media path without changing existing owner/admin checks.
+- [x] Run `npm run test:limiter` and `npm run check:syntax`; expected PASS.
+- [x] Commit the task and inspect the resulting branch diff.
+
+
+## Verification result
+
+- Dedicated GitHub Actions workflow on the feature branch: 10/10 command-limiter tests passed.
+- JavaScript syntax validation passed for 107 files, including `node --check limitador.js`.
+- The existing full-project AI-provider workflow still reports its `Test AI providers` failure on the unchanged `main` baseline as well as this branch; it is separate from the limiter tests.

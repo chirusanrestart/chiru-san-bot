@@ -10,7 +10,7 @@ Allow the owner to turn individual bot commands on or off for one WhatsApp group
 - Unconfigured commands remain enabled. Each group has independent settings.
 - The bot loads the file in its own process and applies the setting before running a command. Restarting the bot after CLI changes refreshes its in-memory configuration.
 - `.identificador` remains available even when the whole bot or that individual command is disabled, so the group JID can always be retrieved.
-- Commands implemented outside the command registry, currently `.mp3` and `.mp4`, are also listed and limited.
+- `.mp3` and `.mp4` are currently registered commands and receive the same canonical-name check; the handler's special fallback route for those names is also protected.
 
 ## Approaches
 1. Read the JSON file on every command: simple but adds repeated disk I/O to message handling.
