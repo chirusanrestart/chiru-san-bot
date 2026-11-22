@@ -25,11 +25,41 @@ function runLimitador(commands) {
 
         let stdout = "";
         let stderr = "";
+        let groupJidSent = false;
+        let responseIndex = 0;
+        const responses = [...commands, "sair"];
 
         child.stdout.setEncoding("utf8");
         child.stderr.setEncoding("utf8");
-        child.stdout.on("data", chunk => { stdout += chunk; });
-        child.stderr.on("data", chunk => { stderr += chunk; });
+        child.stdout.on("data", chunk => {
+            stdout += chunk;
+            sendNextResponse();
+        });
+        child.stderr.on("data", chunk => {
+            stderr += chunk;
+        });
+
+        function sendNextResponse() {
+            if (
+                !groupJidSent &&
+                stdout.includes("🆔 Identificador do grupo: ")
+            ) {
+                groupJidSent = true;
+                child.stdin.write(groupJid + "\n");
+            }
+
+            if (!groupJidSent) return;
+
+            const promptCount = (stdout.match(/limitador> /g) || []).length;
+
+            while (
+                responseIndex < responses.length &&
+                promptCount > responseIndex
+            ) {
+                child.stdin.write(responses[responseIndex] + "\n");
+                responseIndex++;
+            }
+        }
 
         const timeout = setTimeout(() => {
             child.kill("SIGKILL");
@@ -55,17 +85,11 @@ function runLimitador(commands) {
 
             resolve(stdout);
         });
-
-        child.stdin.end([
-            groupJid,
-            ...commands,
-            ""
-        ].join("\n"));
     });
 }
 
 test("CLI lists registered commands and persists OFF/ON changes", async () => {
-    const offOutput = await runLimitador(["ping off", "sair"]);
+    const offOutput = await runLimitador(["ping off"]);
 
     assert.match(offOutput, /\.ping/);
     assert.match(offOutput, /\.ping\s+→ OFF/i);
@@ -77,7 +101,7 @@ test("CLI lists registered commands and persists OFF/ON changes", async () => {
         }
     });
 
-    const onOutput = await runLimitador(["ping on", "sair"]);
+    const onOutput = await runLimitador(["ping on"]);
     assert.match(onOutput, /\.ping\s+→ ON/i);
 
     const afterOn = JSON.parse(await fs.readFile(limitsFile, "utf8"));
