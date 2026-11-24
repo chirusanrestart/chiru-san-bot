@@ -1,3 +1,5 @@
+import { extraCharacters } from "./characters-extra.js";
+
 // Catálogo editável de personagens para conversas com contexto separado por personagem.
 const characters = [
   {
@@ -615,6 +617,8 @@ const characters = [
   }
 
 ];
+
+characters.push(...extraCharacters);
 
 export function listCharacters() {
   return characters.map(({ id, name, description, aliases, imageUrl }) => ({ id, name, description, aliases, imageUrl }));
