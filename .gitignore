@@ -18,3 +18,6 @@ src/data/memory.json.tmp
 
 data/command-limits.json
 data/command-limits.json.*.tmp
+
+data/group-rankings.json
+data/group-rankings.json.*.tmp
