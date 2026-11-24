@@ -40,5 +40,8 @@ jobs:
       - name: Test group rankings
         run: npm run test:rank
 
+      - name: Test GIF conversion
+        run: npm run test:gif
+
       - name: Test AI providers
         run: npm run test:ai
