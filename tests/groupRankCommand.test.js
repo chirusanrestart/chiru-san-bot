@@ -60,11 +60,13 @@ test("shows the ten most active users and includes WhatsApp mentions by default"
 
 test("shows the bot as its own ranking entry without creating a WhatsApp mention", async () => {
     assert.equal(typeof rankCommand?.execute, "function");
-    await ranking.recordGroupMessage({
-        key: { remoteJid: groupJid, fromMe: true },
-        pushName: "Conta compartilhada",
-        message: { conversation: "resposta automática" }
-    });
+    for (let index = 0; index < 12; index++) {
+        await ranking.recordGroupMessage({
+            key: { remoteJid: groupJid, fromMe: true },
+            pushName: "Conta compartilhada",
+            message: { conversation: "resposta automática" }
+        });
+    }
 
     const sock = createSocket();
     await rankCommand.execute(sock, createMessage(), []);
