@@ -73,6 +73,8 @@ Os comandos usam o prefixo `.`. Alguns exemplos:
 
 Use `.menu` no próprio bot para consultar os comandos disponíveis na versão instalada.
 
+Em grupos, `.casar @pessoa` celebra um casamento virtual imediatamente e cria uma arte com as fotos de perfil, quando disponíveis.
+
 O `.rank` mostra os dez membros mais ativos do grupo; `.rank 30` amplia a lista para até trinta. A contagem automática começa com as mensagens novas após a atualização, sem reprocessar o histórico. Os totais são salvos localmente em `data/group-rankings.json`, sem armazenar o conteúdo das mensagens.
 
 O `.togif` responde a um vídeo ou pode ser enviado na legenda do próprio vídeo. Ele converte os primeiros seis segundos por padrão; use `.togif 4` para escolher de um a seis segundos. O resultado é enviado no modo GIF do WhatsApp, sem áudio. O limite de entrada é 64 MiB.
@@ -97,6 +99,7 @@ npm run test:memory
 npm run test:characters
 npm run test:rank
 npm run test:gif
+npm run test:marriage
 ```
 
 ## 🔐 Privacidade e segurança

@@ -13,7 +13,8 @@
     "test:characters": "node --test tests/characters.test.js",
     "test:compat": "node --test tests/runtimeProfile.test.js",
     "test:rank": "node --test tests/groupRanking.test.js tests/groupRankCommand.test.js",
-    "test:gif": "node --test tests/gifConversion.test.js"
+    "test:gif": "node --test tests/gifConversion.test.js",
+    "test:marriage": "node --test tests/marriageCommand.test.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
