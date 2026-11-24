@@ -30,6 +30,9 @@ test("busca encontra personagens por ID, nome e alias", () => {
     assert.ok(furina);
     assert.equal(findCharacter("furina")?.id, furina.id);
     assert.equal(findCharacter(furina.name)?.id, furina.id);
+    assert.equal(findCharacter("Anby Demara")?.id, "anby-demara");
+    assert.equal(findCharacter("Nicole Demara")?.id, "nicole-demara");
+    assert.equal(findCharacter("Perlica")?.id, "perlica");
 
     if (furina.aliases.length > 0) {
         assert.equal(findCharacter(furina.aliases[0])?.id, furina.id);
@@ -55,6 +58,27 @@ test("imagens selecionadas apontam para os seis personagens prioritários", () =
     for (const [id, expectedUrl] of expectedImages) {
         assert.equal(getCharacter(id)?.imageUrl, expectedUrl, `imagem incorreta para ${id}`);
         assert.match(getCharacter(id).imageUrl, /^https:\/\//, `URL não HTTPS para ${id}`);
+    }
+});
+
+
+test("aliases e nomes não apontam para personagens diferentes", () => {
+    const ownerByAlias = new Map();
+
+    for (const character of listCharacters()) {
+        const terms = [character.id, character.name, ...character.aliases];
+        for (const term of terms) {
+            const normalized = term.normalize("NFD")
+                .replace(/[\\u0300-\\u036f]/g, "")
+                .toLocaleLowerCase("pt-BR")
+                .trim();
+            const previousOwner = ownerByAlias.get(normalized);
+            assert.ok(
+                previousOwner === undefined || previousOwner === character.id,
+                `alias duplicado "${term}" entre ${previousOwner} e ${character.id}`
+            );
+            ownerByAlias.set(normalized, character.id);
+        }
     }
 });
 
