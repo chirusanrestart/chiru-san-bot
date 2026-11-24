@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { transcribeAudioFile } from "../src/ai/audioTranscription.js";
@@ -19,8 +19,9 @@ function createTranscriptionClient(response, onRequest = () => {}) {
             transcriptions: {
                 async create(request) {
                     onRequest(request);
-                    const received = await readFile(request.file.path);
-                    assert.equal(received.toString(), "audio fixture bytes");
+                    const chunks = [];
+                    for await (const chunk of request.file) chunks.push(Buffer.from(chunk));
+                    assert.equal(Buffer.concat(chunks).toString(), "audio fixture bytes");
                     return response;
                 }
             }
