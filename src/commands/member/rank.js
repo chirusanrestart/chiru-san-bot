@@ -88,10 +88,7 @@ export default {
 
             const lines = ranking.members.map((member, index) => {
                 const position = rankPosition(index);
-                const name = member.isBot ? "🤖 Chiru-san Bot" : cleanName(member.name);
-                const identity = member.isBot
-                    ? "🤖 Chiru-san Bot"
-                    : `@${member.id.split("@")[0]}`;
+                const name = cleanName(member.name);
                 const types = formatMessageTypes(member.messageTypes);
                 const details = [
                     `${member.messages} ${member.messages === 1 ? "mensagem" : "mensagens"}`,
@@ -99,7 +96,11 @@ export default {
                 ];
                 if (types) details.push(types);
 
-                return `${position} ${identity}\n   ${name} • ${details.join(" • ")}`;
+                if (member.isBot) {
+                    return `${position} 🤖 Chiru-san Bot\n   ${details.join(" • ")}`;
+                }
+
+                return `${position} @${member.id.split("@")[0]}\n   ${name} • ${details.join(" • ")}`;
             });
 
             const groupTypes = formatMessageTypes(ranking.messageTypes);
@@ -107,7 +108,7 @@ export default {
                 `🏆 *RANKING DO GRUPO • TOP ${limit}*`,
                 "",
                 `💬 Total contabilizado: *${ranking.totalMessages}* mensagens`,
-                `👥 Participantes: *${ranking.membersTracked}*`,
+                `👥 Entradas no ranking: *${ranking.membersTracked}*`,
                 "",
                 ...lines,
                 ...(groupTypes ? ["", `📊 Tipos no grupo: ${groupTypes}`] : [])
