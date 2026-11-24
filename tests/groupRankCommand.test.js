@@ -58,6 +58,21 @@ test("shows the ten most active users and includes WhatsApp mentions by default"
     assert.equal(sock.sent[0].content.mentions.length, 10);
 });
 
+test("shows the bot as its own ranking entry without creating a WhatsApp mention", async () => {
+    assert.equal(typeof rankCommand?.execute, "function");
+    await ranking.recordGroupMessage({
+        key: { remoteJid: groupJid, fromMe: true },
+        pushName: "Conta compartilhada",
+        message: { conversation: "resposta automática" }
+    });
+
+    const sock = createSocket();
+    await rankCommand.execute(sock, createMessage(), []);
+
+    assert.match(sock.sent[0].content.text, /Chiru-san Bot/);
+    assert.ok(sock.sent[0].content.mentions.every(id => id !== "chiru-san-bot@bot"));
+});
+
 test("accepts a requested top 30 and clamps larger values", async () => {
     assert.equal(typeof rankCommand?.execute, "function");
     const sock = createSocket();
