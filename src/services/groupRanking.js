@@ -6,6 +6,8 @@ const statePath = path.resolve(
 );
 const FLUSH_DELAY_MS = 750;
 const MAX_RANK_LIMIT = 30;
+const BOT_PARTICIPANT_ID = "chiru-san-bot@bot";
+const BOT_DISPLAY_NAME = "Chiru-san Bot";
 
 let statePromise = null;
 let flushTimer = null;
@@ -171,12 +173,12 @@ function scheduleFlush() {
 
 export async function recordGroupMessage(msg) {
     const groupJid = msg?.key?.remoteJid;
-    const participantJid = msg?.key?.participant
-        || msg?.participant
-        || msg?.key?.participantAlt;
+    const isBotMessage = msg?.key?.fromMe === true;
+    const participantJid = isBotMessage
+        ? BOT_PARTICIPANT_ID
+        : msg?.key?.participant || msg?.participant || msg?.key?.participantAlt;
 
     if (
-        msg?.key?.fromMe ||
         typeof groupJid !== "string" ||
         !groupJid.endsWith("@g.us") ||
         typeof participantJid !== "string" ||
@@ -216,14 +218,20 @@ export async function recordGroupMessage(msg) {
         commands: 0,
         firstMessageAt: now,
         lastMessageAt: now,
-        messageTypes: {}
+        messageTypes: {},
+        isBot: isBotMessage
     });
+
+    if (isBotMessage) {
+        member.name = BOT_DISPLAY_NAME;
+        member.isBot = true;
+    }
 
     if (!member.messageTypes || typeof member.messageTypes !== "object" || Array.isArray(member.messageTypes)) {
         member.messageTypes = {};
     }
 
-    const name = cleanDisplayName(msg.pushName);
+    const name = isBotMessage ? BOT_DISPLAY_NAME : cleanDisplayName(msg.pushName);
     if (name) member.name = name;
 
     group.totalMessages = (Number(group.totalMessages) || 0) + 1;
@@ -272,7 +280,8 @@ export async function getGroupRanking(groupJid, limit = 10) {
         .filter(([, member]) => member && typeof member === "object")
         .map(([memberJid, member]) => ({
             id: member.id || memberJid,
-            name: member.name || "",
+            name: member.isBot ? BOT_DISPLAY_NAME : (member.name || ""),
+            isBot: member.isBot === true || memberJid === BOT_PARTICIPANT_ID,
             messages: Number(member.messages) || 0,
             commands: Number(member.commands) || 0,
             firstMessageAt: member.firstMessageAt || null,
