@@ -54,7 +54,7 @@ test("shows the ten most active users and includes WhatsApp mentions by default"
 
     assert.equal(sock.sent.length, 1);
     assert.match(sock.sent[0].content.text, /TOP 10/i);
-    assert.match(sock.sent[0].content.text, /12\\* mensagens/i);
+    assert.ok(sock.sent[0].content.text.includes("Total contabilizado: *12* mensagens"));
     assert.equal(sock.sent[0].content.mentions.length, 10);
 });
 
