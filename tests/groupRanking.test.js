@@ -107,6 +107,19 @@ test("persists aggregates as JSON without message content", async () => {
     assert.equal(JSON.stringify(saved).includes("segredo que não deve ser salvo"), false);
 });
 
+test("keeps message totals isolated between groups", async () => {
+    const groupOne = "120363000000000066@g.us";
+    const groupTwo = "120363000000000067@g.us";
+
+    await ranking.recordGroupMessage(message({ remoteJid: groupOne }));
+    await ranking.recordGroupMessage(message({ remoteJid: groupOne }));
+    await ranking.recordGroupMessage(message({ remoteJid: groupTwo }));
+
+    assert.equal((await ranking.getGroupRanking(groupOne)).totalMessages, 2);
+    assert.equal((await ranking.getGroupRanking(groupTwo)).totalMessages, 1);
+    assert.equal((await ranking.getGroupRanking(groupTwo)).members[0].messages, 1);
+});
+
 test("returns ten members by default and never more than thirty", async () => {
     assert.equal(typeof ranking.recordGroupMessage, "function");
     const isolatedGroup = "120363000000000077@g.us";
