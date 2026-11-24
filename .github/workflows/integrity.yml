@@ -43,5 +43,8 @@ jobs:
       - name: Test GIF conversion
         run: npm run test:gif
 
+      - name: Test virtual marriage command
+        run: npm run test:marriage
+
       - name: Test AI providers
         run: npm run test:ai
