@@ -68,8 +68,12 @@ test("aliases e nomes não apontam para personagens diferentes", () => {
     for (const character of listCharacters()) {
         const terms = [character.id, character.name, ...character.aliases];
         for (const term of terms) {
-            const normalized = term.normalize("NFD")
-                .replace(/[\\u0300-\\u036f]/g, "")
+            const normalized = Array.from(term.normalize("NFD"))
+                .filter(characterPart => {
+                    const codePoint = characterPart.codePointAt(0);
+                    return codePoint < 0x0300 || codePoint > 0x036f;
+                })
+                .join("")
                 .toLocaleLowerCase("pt-BR")
                 .trim();
             const previousOwner = ownerByAlias.get(normalized);
