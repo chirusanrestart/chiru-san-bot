@@ -14,6 +14,7 @@ Bot de WhatsApp desenvolvido em **Node.js** com Baileys, comandos personalizados
 - 🔎 Recursos de pesquisa e obtenção de mídia
 - 🔌 Integração com provedores de IA compatíveis, incluindo Groq e Portkey
 - 🌐 Pesquisa na web por meio do Tavily
+- 🏆 Ranking automático de participação independente por grupo
 
 > Os recursos disponíveis podem variar conforme a configuração local, as dependências e as chaves de API configuradas.
 
@@ -63,9 +64,13 @@ Os comandos usam o prefixo `.`. Alguns exemplos:
 .falar Oi!
 .novaconversa
 .pack Furina
+.rank
+.rank 30
 ```
 
 Use `.menu` no próprio bot para consultar os comandos disponíveis na versão instalada.
+
+O `.rank` mostra os dez membros mais ativos do grupo; `.rank 30` amplia a lista para até trinta. A contagem automática começa com as mensagens novas após a atualização, sem reprocessar o histórico. Os totais são salvos localmente em `data/group-rankings.json`, sem armazenar o conteúdo das mensagens.
 
 ## 🎭 Conversas com personagens
 
@@ -85,6 +90,7 @@ npm run check:syntax
 npm run test:ai
 npm run test:memory
 npm run test:characters
+npm run test:rank
 ```
 
 ## 🔐 Privacidade e segurança

@@ -34,6 +34,7 @@ import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
 import CommandHandler from "./handlers/CommandHandler.js";
+import { recordGroupMessage } from "./services/groupRanking.js";
 import { getMegapackHistory, scanHistoricalMessages, resumeHistoricalScan } from "./services/megapackHistory.js";
 import { processMedia, isMelissaApiConfigured } from "./services/melissaApi.js";
 
@@ -685,9 +686,17 @@ async function startBotInternal() {
 
     sock.ev.on(
         "messages.upsert",
-        ({ messages }) => {
+        ({ messages, type }) => {
             for (const msg of messages) {
                 if (!msg.message) continue;
+
+                // Conta apenas mensagens novas; histórico sincronizado não entra no ranking.
+                if (type === "notify") {
+                    recordGroupMessage(msg).catch(error => {
+                        console.error("❌ Falha registrando estatísticas do grupo:", error?.message || error);
+                    });
+                }
+
                 scheduleMessage(sock, commandHandler, msg);
             }
         }

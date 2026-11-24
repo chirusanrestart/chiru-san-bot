@@ -37,5 +37,8 @@ jobs:
       - name: Test character memory
         run: npm run test:memory
 
+      - name: Test group rankings
+        run: npm run test:rank
+
       - name: Test AI providers
         run: npm run test:ai
