@@ -68,7 +68,7 @@ test("counts each group participant and classifies wrapped messages", async () =
     assert.equal(typeof mel.lastMessageAt, "string");
 });
 
-test("ignores private messages, own messages and group messages without a participant", async () => {
+test("counts the bot's own group messages separately and ignores private or unidentified member messages", async () => {
     assert.equal(typeof ranking.recordGroupMessage, "function");
     const isolatedGroup = "120363000000000099@g.us";
 
@@ -77,16 +77,23 @@ test("ignores private messages, own messages and group messages without a partic
     })), false);
     assert.equal(await ranking.recordGroupMessage(message({
         remoteJid: isolatedGroup,
-        fromMe: true
-    })), false);
+        participant: null,
+        fromMe: true,
+        pushName: "Conta compartilhada",
+        message: { conversation: "resposta do bot" }
+    })), true);
     assert.equal(await ranking.recordGroupMessage(message({
         remoteJid: isolatedGroup,
         participant: null
     })), false);
 
     const result = await ranking.getGroupRanking(isolatedGroup);
-    assert.equal(result.totalMessages, 0);
-    assert.equal(result.membersTracked, 0);
+    assert.equal(result.totalMessages, 1);
+    assert.equal(result.membersTracked, 1);
+    assert.equal(result.members[0].id, "chiru-san-bot@bot");
+    assert.equal(result.members[0].name, "Chiru-san Bot");
+    assert.equal(result.members[0].isBot, true);
+    assert.equal(result.members[0].messages, 1);
 });
 
 test("persists aggregates as JSON without message content", async () => {
