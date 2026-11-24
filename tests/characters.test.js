@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { listCharacters, findCharacter, getCharacter } from "../src/ai/characters.js";
 
-test("catálogo mantém os 118 personagens cadastrados", () => {
+test("catálogo mantém os 209 personagens cadastrados após a expansão", () => {
     const characters = listCharacters();
-    assert.equal(characters.length, 118);
+    assert.equal(characters.length, 209);
 });
 
 test("todos os personagens têm identificadores únicos e dados essenciais", () => {
