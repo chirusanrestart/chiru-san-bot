@@ -5,7 +5,8 @@ Adicionar ao Chiru-san Bot um ranking de participação independente por grupo. 
 
 ## Objetivos
 - Manter estatísticas isoladas pelo JID de cada grupo.
-- Contabilizar mensagens recebidas de participantes, incluindo texto, mídias, reações, enquetes e outros tipos reconhecidos pelo Baileys.
+- Contabilizar mensagens recebidas de participantes e mensagens enviadas pelo próprio bot, incluindo texto, mídias, reações, enquetes e outros tipos reconhecidos pelo Baileys.
+- Identificar as mensagens próprias em uma entrada sintética `Chiru-san Bot`, separada dos membros e sem menção do WhatsApp.
 - Guardar por participante: identificador, nome exibido mais recente, total de mensagens, total de comandos, contagem por tipo e datas da primeira e da última mensagem.
 - Guardar por grupo: total de mensagens, participantes contabilizados, contagem por tipo e datas da primeira e da última mensagem.
 - Persistir os agregados em `data/group-rankings.json`, com escrita atômica e agrupada.
@@ -17,8 +18,9 @@ Adicionar ao Chiru-san Bot um ranking de participação independente por grupo. 
 - Criar rankings globais entre grupos, pontuação por qualidade ou períodos semanais/mensais.
 
 ## Comportamento
-- Apenas mensagens novas do evento Baileys `messages.upsert` do tipo `notify` entram no ranking.
-- Mensagens do próprio bot, conversas privadas e mensagens sem identificador de participante são ignoradas.
+- Mensagens novas recebidas do evento `notify` entram no ranking.
+- Mensagens próprias enviadas pelo bot também entram: `notify` ou `append` com `key.fromMe === true`; mensagens `append` que não sejam próprias são ignoradas para evitar recontar histórico.
+- Conversas privadas e mensagens de membros sem identificador de participante são ignoradas.
 - `.rank` mostra 10 posições por padrão; `.rank 30` mostra até 30. O limite máximo é 30.
 - Cada grupo possui seus próprios totais e participantes.
 - O ranking é acumulado a partir da instalação desta versão, sem preenchimento retroativo.
