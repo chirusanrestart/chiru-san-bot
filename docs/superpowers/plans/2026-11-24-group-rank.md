@@ -4,7 +4,7 @@
 
 **Goal:** Contabilizar mensagens novas separadamente por grupo e expor `.rank` com top 10 padrão e limite de 30.
 
-**Architecture:** Um serviço com estado em memória e persistência JSON atômica agrupada registra agregados sem salvar conteúdo. O listener `messages.upsert` conta mensagens `notify` diretamente, sem colocar mensagens comuns na fila de comandos; um comando dedicado consulta os dados.
+**Architecture:** Um serviço com estado em memória e persistência JSON atômica agrupada registra agregados sem salvar conteúdo. O listener `messages.upsert` conta mensagens `notify` e mensagens próprias em `append`, sem colocar mensagens comuns na fila de comandos; mensagens próprias usam uma identidade sintética `Chiru-san Bot`.
 
 **Tech Stack:** Node.js ESM, Baileys v7, `node:fs/promises`, testes nativos `node:test`.
 
@@ -14,13 +14,13 @@
 - Não adicionar dependências.
 - Não salvar textos, legendas, anexos ou conteúdo privado das mensagens.
 - Não reprocessar o histórico antigo.
-- Não contar mensagens do próprio bot nem conversas privadas.
+- Contar mensagens próprias do bot em uma entrada sintética separada; ignorar conversas privadas.
 - Não alterar o fluxo de processamento atual de comandos e mídias.
 
 ## Review Focus
 - Mensagem sem `participant`: ignorar, sem criar um usuário fantasma.
 - Evento com mensagem privada: ignorar.
-- Mensagem própria do bot: ignorar.
+- Mensagem própria do bot: contar como `Chiru-san Bot`, sem menção WhatsApp.
 - Mensagem encapsulada em ephemeral/view-once: reconhecer seu tipo.
 - Argumento `.rank` inválido ou acima de 30: manter o limite seguro e não falhar.
 
@@ -51,7 +51,7 @@
 
 **Interfaces:**
 - O comando usa `getGroupRanking` e `flushGroupRankings`.
-- O listener `messages.upsert` chama `recordGroupMessage` apenas quando o tipo de evento é `notify`.
+- O listener `messages.upsert` chama `recordGroupMessage` para `notify` e para `append` somente quando `key.fromMe === true`.
 
 - [ ] Escrever testes do comando para top 10 padrão, limite 30 e uso fora de grupos.
 - [ ] Executar `node --test tests/groupRankCommand.test.js` e observar falha antes de criar o comando.
