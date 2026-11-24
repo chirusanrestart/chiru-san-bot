@@ -690,8 +690,9 @@ async function startBotInternal() {
             for (const msg of messages) {
                 if (!msg.message) continue;
 
-                // Conta apenas mensagens novas; histórico sincronizado não entra no ranking.
-                if (type === "notify") {
+                // Conta mensagens novas recebidas e mensagens próprias enviadas pelo bot.
+                // "append" também pode conter histórico; por isso só aceitamos nele fromMe.
+                if (type === "notify" || (type === "append" && msg.key?.fromMe === true)) {
                     recordGroupMessage(msg).catch(error => {
                         console.error("❌ Falha registrando estatísticas do grupo:", error?.message || error);
                     });
