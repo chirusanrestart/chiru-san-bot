@@ -4,11 +4,12 @@ Bot de WhatsApp desenvolvido em **Node.js** com Baileys, comandos personalizados
 
 ## ✨ Funcionalidades
 
-- 💬 Comandos de WhatsApp com prefixo `.``
+- 💬 Comandos de WhatsApp com prefixo `.`
 - 🤖 Conversas com IA e personagens configuráveis
 - 🧠 Histórico e memória organizados por usuário, conversa e personagem
 - 🎭 Seleção e criação de personagens
 - 🎨 Criação, conversão e envio de figurinhas
+- 🎞️ Conversão de vídeos em GIF no WhatsApp
 - 📦 Criação e envio de pacotes de figurinhas
 - 🎬 Processamento de mídia com FFmpeg
 - 🔎 Recursos de pesquisa e obtenção de mídia
@@ -66,11 +67,15 @@ Os comandos usam o prefixo `.`. Alguns exemplos:
 .pack Furina
 .rank
 .rank 30
+.togif
+.togif 4
 ```
 
 Use `.menu` no próprio bot para consultar os comandos disponíveis na versão instalada.
 
 O `.rank` mostra os dez membros mais ativos do grupo; `.rank 30` amplia a lista para até trinta. A contagem automática começa com as mensagens novas após a atualização, sem reprocessar o histórico. Os totais são salvos localmente em `data/group-rankings.json`, sem armazenar o conteúdo das mensagens.
+
+O `.togif` responde a um vídeo ou pode ser enviado na legenda do próprio vídeo. Ele converte os primeiros seis segundos por padrão; use `.togif 4` para escolher de um a seis segundos. O resultado é enviado no modo GIF do WhatsApp, sem áudio. O limite de entrada é 64 MiB.
 
 ## 🎭 Conversas com personagens
 
@@ -91,6 +96,7 @@ npm run test:ai
 npm run test:memory
 npm run test:characters
 npm run test:rank
+npm run test:gif
 ```
 
 ## 🔐 Privacidade e segurança
