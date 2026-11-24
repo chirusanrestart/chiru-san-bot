@@ -41,3 +41,20 @@ test("busca ignora espaços externos e diferenças entre maiúsculas e minúscul
     assert.equal(findCharacter("") , null);
     assert.equal(findCharacter("   "), null);
 });
+
+test("imagens selecionadas apontam para os seis personagens prioritários", () => {
+    const expectedImages = [
+        ["anby-demara", "https://img.gachabase.net/conv/zzz/assets/b4ab0294ac888e092e88dad1b15eb993.png?q=50&sig=05c47ba96bcc4e0b12618a3bbfd293d8137412510ada0b5395f07536638ddf18"],
+        ["nicole-demara", "https://act-upload.hoyoverse.com/event-ugc-hoyowiki/2026/04/14/98205622/0d56606a746c3365983e8b641469ba10_1830848742467791339.png"],
+        ["grace-howard", "https://cdn.oneesports.gg/cdn-data/2024/07/ZenlessZoneZero_Agent_GraceHoward.jpg"],
+        ["alexandrina-sebastiane", "https://zenless-zone-zero.gamemeta.ru/upload/resize_cache/iblock/5c6/kk2ow7uay8qtbuwl5bl8gn885gvc9uzd/1000_1000_1619711fa078991f0a23d032687646b21/5861537250d67fe4adcdc86009150c67_8472512953737197419.png"],
+        ["zhu-yuan", "https://api.hakush.in/zzz/UI/IconRoleCrop23.webp"],
+        ["laevatain", "https://endfield.gg/wp-content/uploads/sites/38/2025/08/laevatain-arknight-endfield-icon.webp"]
+    ];
+
+    for (const [id, expectedUrl] of expectedImages) {
+        assert.equal(getCharacter(id)?.imageUrl, expectedUrl, `imagem incorreta para ${id}`);
+        assert.match(getCharacter(id).imageUrl, /^https:\/\//, `URL não HTTPS para ${id}`);
+    }
+});
+
