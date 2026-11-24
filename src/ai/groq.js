@@ -1,5 +1,5 @@
 import Groq from "groq-sdk";
-import { createReadStream } from "node:fs";
+import { transcribeAudioFile } from "./audioTranscription.js";
 import axios from "axios";
 import { aiProviderManager } from "./providerManager.js";
 
@@ -832,24 +832,5 @@ export async function generateChatCompletion(messages) {
 
 
 export async function transcribeAudio(filePath) {
-    if (!groq) {
-        const error = new Error("GROQ_API_KEY não configurada.");
-        error.code = "GROQ_TRANSCRIPTION_NOT_CONFIGURED";
-        throw error;
-    }
-    if (typeof filePath !== "string" || !filePath.trim()) {
-        throw new TypeError("O caminho do áudio para transcrição é inválido.");
-    }
-
-    const transcription = await groq.audio.transcriptions.create({
-        file: createReadStream(filePath),
-        model: "whisper-large-v3-turbo",
-        response_format: "json"
-    });
-
-    const text = transcription?.text?.trim();
-    if (!text) {
-        throw new Error("O Whisper não retornou texto para este áudio.");
-    }
-    return text;
+    return transcribeAudioFile(groq, filePath);
 }
