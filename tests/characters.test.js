@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { listCharacters, findCharacter, getCharacter } from "../src/ai/characters.js";
+import { resolveCharacterImage } from "../src/ai/characterImage.js";
 
 test("catálogo mantém os 209 personagens cadastrados após a expansão", () => {
     const characters = listCharacters();
@@ -61,6 +62,12 @@ test("imagens selecionadas apontam para os seis personagens prioritários", () =
     }
 });
 
+
+
+test("Najimi Osana resolve para a arte oficial de Komi Can't Communicate", async () => {
+    const imageUrl = await resolveCharacterImage(getCharacter("najimi"));
+    assert.equal(imageUrl, "https://www.tv-tokyo.co.jp/anime/komisan/images/chara/chara03.png");
+});
 
 test("aliases e nomes não apontam para personagens diferentes", () => {
     const ownerByAlias = new Map();
