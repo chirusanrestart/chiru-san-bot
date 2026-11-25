@@ -131,7 +131,7 @@ function buildGpuStickerCommand(
         `-preset picture ` +
         `-an ` +
         `${shellPath(output)}`
-    ).replace(/\\s+/g, " ");
+    ).replace(/\s+/g, " ");
 }
 
 export async function runFFmpegGpuExperimental(
