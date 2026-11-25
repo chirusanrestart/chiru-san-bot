@@ -35,6 +35,7 @@ import { randomUUID } from "node:crypto";
 
 import CommandHandler from "./handlers/CommandHandler.js";
 import { recordGroupMessage } from "./services/groupRanking.js";
+import { isWelcomeEnabled } from "./services/groupWelcome.js";
 import { getMegapackHistory, scanHistoricalMessages, resumeHistoricalScan } from "./services/megapackHistory.js";
 import { processMedia, isMelissaApiConfigured } from "./services/melissaApi.js";
 
@@ -676,6 +677,50 @@ async function startBotInternal() {
     });
 
     await commandHandler.loadCommands();
+
+    // Recebe novas pessoas nos grupos com boas-vindas ativadas.
+    sock.ev.on("group-participants.update", async update => {
+        if (sock !== activeSocket) return;
+        if (update?.action !== "add" || !update.id) return;
+
+        try {
+            if (!(await isWelcomeEnabled(update.id))) return;
+
+            const participants = (update.participants || []).filter(
+                participant => typeof participant === "string" && participant.length > 0
+            );
+            if (participants.length === 0) return;
+
+            let groupName = "nosso grupo";
+            try {
+                const metadata = await sock.groupMetadata(update.id);
+                if (metadata?.subject) groupName = metadata.subject;
+            } catch (error) {
+                console.warn("[bemvindo] Não consegui obter o nome do grupo:", error?.message || error);
+            }
+
+            const mentions = participants.map(participant => "@" + participant.split("@")[0]);
+            const greeting = participants.length === 1
+                ? "Tem pessoa nova chegando! 💗"
+                : "Tem gente nova chegando! 💗";
+            const text = [
+                "╭━━━〔 🌸 CHIRU-SAN BOT 〕━━━╮",
+                "",
+                "│ ✨ " + greeting,
+                "│",
+                ...mentions.map(mention => "│ 🎀 " + mention),
+                "│",
+                "│ Seja muito bem-vindo(a) ao *" + groupName + "*!",
+                "│ Esperamos que você se divirta por aqui. 💕",
+                "",
+                "╰━━━━━━━━━━━━━━━━━━━━━━╯"
+            ].join("\n");
+
+            await sock.sendMessage(update.id, { text, mentions: participants });
+        } catch (error) {
+            console.error("[bemvindo] Falha enviando boas-vindas:", error?.message || error);
+        }
+    });
 
     sock.ev.on(
         "creds.update",
