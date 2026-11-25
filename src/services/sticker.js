@@ -21,13 +21,12 @@ async function prepareImageForSticker(input, output) {
     await removeTemporaryFile(squareInput);
 
     try {
-        // Normalize rectangular still images to an exact square before the
-        // legacy backend runs its 512x512 crop. This prevents image content
-        // from being cropped by that later filter.
+        // Fit the complete image inside a 512x512 canvas without stretching
+        // or cropping; transparent padding fills the unused area.
         await execFileAsync("ffmpeg", [
             "-y",
             "-i", input,
-            "-vf", "scale=512:512",
+            "-vf", "format=rgba,scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba",
             "-frames:v", "1",
             "-an",
             squareInput

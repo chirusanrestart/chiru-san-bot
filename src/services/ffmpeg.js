@@ -537,8 +537,6 @@ function buildFFmpegCommand(
         filter = "";
     }
 
-    // Preenche todo o quadro 512x512 sem barras.
-    // Mantém a proporção e recorta apenas o excesso.
     if (type === "video" && method !== "vulkan" && method !== "mediacodec") {
         filter = [
             filter,
@@ -546,10 +544,13 @@ function buildFFmpegCommand(
         ].filter(Boolean).join(",");
     }
 
+    // Quadro final 512x512 sem deformar ou cortar: completa com transparência.
     filter = [
         filter,
-        "scale=512:512:force_original_aspect_ratio=increase",
-        "crop=512:512"
+        "format=yuva420p",
+        "scale=512:512:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos",
+        "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0",
+        "format=yuva420p"
     ].filter(Boolean).join(",");
 
     return (
