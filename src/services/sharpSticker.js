@@ -30,8 +30,9 @@ export async function trySharpSticker(input, output, quality = 80) {
         await sharp(input, { limitInputPixels: 40_000_000 })
             .rotate()
             .resize(512, 512, {
-                fit: "cover",
-                position: "attention"
+                fit: "contain",
+                background: { r: 0, g: 0, b: 0, alpha: 0 },
+                position: "centre"
             })
             .webp({
                 quality: Math.max(1, Math.min(100, Math.round(quality))),
