@@ -1,23 +1,35 @@
 # Chiru-san Bot 🌸
 
-Bot de WhatsApp desenvolvido em **Node.js** com Baileys, comandos personalizados, inteligência artificial, conversas com personagens e ferramentas para mídia e figurinhas.
+**Chiru-san Bot é um bot de WhatsApp desenvolvido em Node.js com Baileys, com criação de figurinhas com som (áudio), figurinhas animadas, inteligência artificial e personagens interativos.** O projeto também reúne comandos para mídia, automação e gerenciamento de grupos.
+
+Se você procura um **bot de WhatsApp para criar figurinha com som**, converter vídeos em figurinhas animadas ou conversar com personagens por IA, conheça os recursos do Chiru-san Bot.
 
 ## ✨ Funcionalidades
 
-- 💬 Comandos de WhatsApp com prefixo `.`
-- 🤖 Conversas com IA e personagens configuráveis
-- 🧠 Histórico e memória organizados por usuário, conversa e personagem
-- 🎭 Seleção e criação de personagens
-- 🎨 Criação, conversão e envio de figurinhas
-- 🎞️ Conversão de vídeos em GIF no WhatsApp
-- 📦 Criação e envio de pacotes de figurinhas
-- 🎬 Processamento de mídia com FFmpeg
-- 🔎 Recursos de pesquisa e obtenção de mídia
-- 🔌 Integração com provedores de IA compatíveis, incluindo Groq e Portkey
-- 🌐 Pesquisa na web por meio do Tavily
-- 🏆 Ranking automático de participação independente por grupo
+- 🔊 **Figurinhas com som:** cria uma figurinha animada a partir de um vídeo e envia o áudio associado pelo comando `.figsom`.
+- 🎨 Criação, conversão e envio de figurinhas estáticas.
+- 🎞️ Conversão de vídeos em GIF no WhatsApp.
+- 🤖 Conversas com IA e personagens configuráveis.
+- 🧠 Histórico e memória organizados por usuário, conversa e personagem.
+- 🎭 Seleção e criação de personagens.
+- 📦 Criação e envio de pacotes de figurinhas.
+- 🎬 Processamento de mídia com FFmpeg.
+- 🔎 Recursos de pesquisa e obtenção de mídia.
+- 🔌 Integração com provedores de IA compatíveis, incluindo Groq e Portkey.
+- 🌐 Pesquisa na web por meio do Tavily.
+- 🏆 Ranking automático de participação independente por grupo.
 
 > Os recursos disponíveis podem variar conforme a configuração local, as dependências e as chaves de API configuradas.
+
+## 🔊 Como criar uma figurinha com som
+
+O comando `.figsom` cria uma figurinha animada com o áudio de um vídeo:
+
+1. Envie um vídeo no WhatsApp ou responda a uma mensagem que contenha um vídeo.
+2. Use o comando `.figsom`.
+3. O bot processa o vídeo e envia a figurinha com o áudio associado.
+
+O áudio é extraído do vídeo com duração limitada a cinco segundos. A disponibilidade do recurso depende das versões e dos recursos de mídia suportados pelo WhatsApp e pelas dependências instaladas.
 
 ## 📋 Requisitos
 
@@ -69,6 +81,7 @@ Os comandos usam o prefixo `.`. Alguns exemplos:
 .rank 30
 .togif
 .togif 4
+.figsom
 ```
 
 Use `.menu` no próprio bot para consultar os comandos disponíveis na versão instalada.
@@ -122,4 +135,5 @@ O projeto pode ser executado em ambientes Android com Termux, desde que a versã
 Projeto pessoal desenvolvido por **Chiru-san**. Consulte os arquivos do repositório e as licenças das dependências utilizadas antes de redistribuir componentes.
 
 ---
+
 Se encontrar um problema, confira os logs do terminal e abra uma issue com os detalhes relevantes. **Não inclua tokens, chaves, números privados ou arquivos de sessão.**
