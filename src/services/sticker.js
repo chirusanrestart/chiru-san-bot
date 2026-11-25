@@ -21,8 +21,9 @@ async function prepareImageForSticker(input, output) {
     await removeTemporaryFile(squareInput);
 
     try {
-        // Cria um quadro 512x512 sem deformar nem cortar a imagem original.
-        // O espaço restante fica transparente.
+        // Normalize rectangular still images to an exact square before the
+        // legacy backend runs its 512x512 crop. This prevents image content
+        // from being cropped by that later filter.
         await execFileAsync("ffmpeg", [
             "-y",
             "-i", input,
@@ -111,12 +112,15 @@ export async function createSticker(
     let temporaryInput = null;
 
     try {
+        // Sharp é uma opção rápida para imagens estáticas quando instalado.
+        // Vídeos/GIFs e ambientes incompatíveis continuam no pipeline antigo.
         let convertedWithSharp = false;
         if (type !== "video") {
             convertedWithSharp = await trySharpSticker(input, output, 80);
         }
 
         if (!convertedWithSharp) {
+            // Keep the existing animated-video path unchanged.
             if (type !== "video") {
                 temporaryInput = await prepareImageForSticker(input, output);
                 stickerInput = temporaryInput;

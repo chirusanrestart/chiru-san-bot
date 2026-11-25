@@ -59,12 +59,15 @@ async function testVulkan() {
         );
 
         console.log("🟣 Vulkan funcionando");
+
         vulkanAvailable = true;
     } catch (error) {
         console.log("⚠️ Vulkan indisponível");
+
         if (process.env.FFMPEG_DEBUG === "1") {
             console.log(error?.stderr || "");
         }
+
         vulkanAvailable = false;
     }
 
@@ -86,13 +89,18 @@ async function testOpenCL() {
                 `-f null -`
             );
 
-            console.log(`🟢 OpenCL funcionando: ${name}`);
+            console.log(
+                `🟢 OpenCL funcionando: ${name}`
+            );
+
             openclDevice = name;
+
             return name;
         } catch {}
     }
 
     console.log("⚠️ OpenCL indisponível");
+
     return null;
 }
 
@@ -102,11 +110,16 @@ async function testMediaCodec() {
     }
 
     try {
-        await execAsync(`${FFMPEG} -hide_banner -encoders | grep mediacodec`);
+        await execAsync(
+            `${FFMPEG} -hide_banner -encoders | grep mediacodec`
+        );
+
         console.log("📱 MediaCodec disponível");
+
         mediacodecAvailable = true;
     } catch {
         console.log("⚠️ MediaCodec indisponível");
+
         mediacodecAvailable = false;
     }
 
@@ -115,37 +128,69 @@ async function testMediaCodec() {
 
 async function getStickerMethods(type) {
     const methods = [];
-    if (await testVulkan()) methods.push("vulkan");
-    if (await testOpenCL()) methods.push("opencl");
-    if (type === "video" && await testMediaCodec()) methods.push("mediacodec");
+
+    if (await testVulkan()) {
+        methods.push("vulkan");
+    }
+
+    if (await testOpenCL()) {
+        methods.push("opencl");
+    }
+
+    if (type === "video" && await testMediaCodec()) {
+        methods.push("mediacodec");
+    }
+
     methods.push("cpu");
+
     return methods;
 }
 
 async function getHDMethods() {
     const methods = [];
-    if (await testVulkan()) methods.push("vulkan");
-    if (await testOpenCL()) methods.push("opencl");
+
+    if (await testVulkan()) {
+        methods.push("vulkan");
+    }
+
+    if (await testOpenCL()) {
+        methods.push("opencl");
+    }
+
     methods.push("cpu");
+
     return methods;
 }
 
-export async function runFFmpegSticker(input, output, type = "image", options = {}) {
+export async function runFFmpegSticker(
+    input,
+    output,
+    type = "image",
+    options = {}
+) {
     type = normalizeType(type);
+
     const methods = await getStickerMethods(type);
+
     const orderedMethods = [];
 
     if (stickerBackend && methods.includes(stickerBackend)) {
         orderedMethods.push(stickerBackend);
     }
+
     for (const method of methods) {
-        if (!orderedMethods.includes(method)) orderedMethods.push(method);
+        if (!orderedMethods.includes(method)) {
+            orderedMethods.push(method);
+        }
     }
 
     for (const method of orderedMethods) {
         try {
             await removeOutput(output);
-            console.log(`🧪 FFmpeg Sticker: ${method}`);
+
+            console.log(
+                `🧪 FFmpeg Sticker: ${method}`
+            );
 
             const defaultVideoProfiles = [
                 { duration: 10, fps: 10, quality: 70 },
@@ -164,11 +209,14 @@ export async function runFFmpegSticker(input, output, type = "image", options = 
 
             const requestedProfile = type === "video"
                 ? {
+                    // WhatsApp animated stickers are kept at or below 10 seconds.
                     duration: clamp(options.duration, 10, 1, 10),
                     fps: clamp(options.fps, 10, 1, 30),
                     quality: clamp(options.quality, 70, 1, 100)
                 }
-                : { quality: clamp(options.quality, 80, 1, 100) };
+                : {
+                    quality: clamp(options.quality, 80, 1, 100)
+                };
 
             const profiles = type === "video"
                 ? hasOptions
@@ -184,89 +232,184 @@ export async function runFFmpegSticker(input, output, type = "image", options = 
                         )
                     ]
                     : defaultVideoProfiles
-                : hasOptions ? [requestedProfile] : [null];
+                : hasOptions
+                    ? [requestedProfile]
+                    : [null];
 
             let lastError = null;
 
             for (const profile of profiles) {
                 try {
                     await removeOutput(output);
-                    const command = buildFFmpegCommand(input, output, type, method, profile);
 
-                    if (process.env.FFMPEG_DEBUG === "1") console.log(`🔧 ${command}`);
+                    const command = buildFFmpegCommand(
+                        input,
+                        output,
+                        type,
+                        method,
+                        profile
+                    );
+
+                    if (process.env.FFMPEG_DEBUG === "1") {
+                        console.log(`🔧 ${command}`);
+                    }
+
                     await execAsync(command);
 
                     if (type === "video") {
                         const info = await stat(output);
+
+                        // WhatsApp costuma limitar figurinhas animadas a cerca de 500 KB.
                         if (info.size > 500 * 1024) {
-                            console.warn(`⚠️ Figurinha animada grande demais: ${Math.round(info.size / 1024)} KB; tentando comprimir mais`);
+                            console.warn(
+                                `⚠️ Figurinha animada grande demais: ${Math.round(info.size / 1024)} KB; tentando comprimir mais`
+                            );
                             continue;
                         }
                     }
 
                     stickerBackend = method;
-                    console.log(`✅ Sticker criado usando: ${method}`);
+
+                    console.log(
+                        `✅ Sticker criado usando: ${method}`
+                    );
+
                     return output;
                 } catch (error) {
                     lastError = error;
                     if (process.env.FFMPEG_DEBUG === "1") {
-                        console.log(error?.stderr || error?.stdout || error?.message || "");
+                        console.log(
+                            error?.stderr ||
+                            error?.stdout ||
+                            error?.message ||
+                            ""
+                        );
                     }
                 }
             }
 
-            throw lastError || new Error("Não foi possível gerar uma figurinha dentro do limite de tamanho");
+            throw lastError || new Error(
+                "Não foi possível gerar uma figurinha dentro do limite de tamanho"
+            );
         } catch (error) {
-            console.warn(`⚠️ ${method} falhou`);
+            console.warn(
+                `⚠️ ${method} falhou`
+            );
+
             if (process.env.FFMPEG_DEBUG === "1") {
-                console.log(error?.stderr || error?.stdout || error?.message || "");
+                console.log(
+                    error?.stderr ||
+                    error?.stdout ||
+                    error?.message ||
+                    ""
+                );
             }
+
             await removeOutput(output);
-            if (stickerBackend === method) stickerBackend = null;
+
+            if (stickerBackend === method) {
+                stickerBackend = null;
+            }
         }
     }
 
-    throw new Error("❌ Todos os métodos FFmpeg falharam");
+    throw new Error(
+        "❌ Todos os métodos FFmpeg falharam"
+    );
 }
 
-export async function runFFmpegHD(input, output, profile = "balanced") {
+export async function runFFmpegHD(
+    input,
+    output,
+    profile = "balanced"
+) {
     const methods = await getHDMethods();
+
     const orderedMethods = [];
 
-    if (hdBackend && methods.includes(hdBackend)) orderedMethods.push(hdBackend);
+    if (hdBackend && methods.includes(hdBackend)) {
+        orderedMethods.push(hdBackend);
+    }
+
     for (const method of methods) {
-        if (!orderedMethods.includes(method)) orderedMethods.push(method);
+        if (!orderedMethods.includes(method)) {
+            orderedMethods.push(method);
+        }
     }
 
     for (const method of orderedMethods) {
         try {
             await removeOutput(output);
-            console.log(`🧪 FFmpeg HD: ${method}`);
-            const command = buildHDCommand(input, output, method, profile);
-            if (process.env.FFMPEG_DEBUG === "1") console.log(`🔧 ${command}`);
+
+            console.log(
+                `🧪 FFmpeg HD: ${method}`
+            );
+
+            const command = buildHDCommand(
+                input,
+                output,
+                method,
+                profile
+            );
+
+            if (process.env.FFMPEG_DEBUG === "1") {
+                console.log(`🔧 ${command}`);
+            }
+
             await execAsync(command);
+
             hdBackend = method;
-            console.log(`✅ HD processado usando: ${method}`);
+
+            console.log(
+                `✅ HD processado usando: ${method}`
+            );
+
             return output;
         } catch (error) {
-            console.warn(`⚠️ HD ${method} falhou`);
+            console.warn(
+                `⚠️ HD ${method} falhou`
+            );
+
             if (process.env.FFMPEG_DEBUG === "1") {
-                console.log(error?.stderr || error?.stdout || error?.message || "");
+                console.log(
+                    error?.stderr ||
+                    error?.stdout ||
+                    error?.message ||
+                    ""
+                );
             }
+
             await removeOutput(output);
-            if (hdBackend === method) hdBackend = null;
+
+            if (hdBackend === method) {
+                hdBackend = null;
+            }
         }
     }
 
-    throw new Error("❌ Todos os métodos HD falharam");
+    throw new Error(
+        "❌ Todos os métodos HD falharam"
+    );
 }
 
-export async function webpToImage(input, output) {
-    await execAsync(`${FFMPEG} -y -i ${shellPath(input)} ${shellPath(output)}`);
+export async function webpToImage(
+    input,
+    output
+) {
+    await execAsync(
+        `${FFMPEG} -y -i ${shellPath(input)} ${shellPath(output)}`
+    );
+
     return output;
 }
 
-function buildHDCommand(input, output, method, profile = "balanced") {
+function buildHDCommand(
+    input,
+    output,
+    method,
+    profile = "balanced"
+) {
+    // Perfis são opcionais: o perfil balanced mantém o comportamento atual do .hd.
     const profiles = {
         balanced: { contrast: 1.12, brightness: 0.01, saturation: 1.12, sharp: 0.45 },
         anime: { contrast: 1.10, brightness: 0.005, saturation: 1.16, sharp: 0.35 },
@@ -286,46 +429,122 @@ function buildHDCommand(input, output, method, profile = "balanced") {
     let filter = "";
 
     if (method === "vulkan") {
-        hwInit = "-init_hw_device vulkan=vk -filter_hw_device vk";
-        filter = "format=rgba,hwupload,hwdownload,format=rgba," +
-            enhancement + ",unsharp=5:5:" + selected.sharp + ":5:5:0.0";
-    } else if (method === "opencl") {
-        if (!openclDevice) throw new Error("OpenCL não disponível");
-        hwInit = `-init_hw_device opencl=${openclDevice} -filter_hw_device ${openclDevice}`;
-        filter = "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba," + enhancement;
-    } else {
-        filter = enhancement + ",unsharp=5:5:" + selected.sharp + ":5:5:0.0";
+        hwInit =
+            "-init_hw_device vulkan=vk " +
+            "-filter_hw_device vk";
+
+        filter =
+            "format=rgba," +
+            "hwupload," +
+            "hwdownload," +
+            "format=rgba," +
+            enhancement +
+            ",unsharp=5:5:" + selected.sharp + ":5:5:0.0";
+    }
+
+    else if (method === "opencl") {
+        if (!openclDevice) {
+            throw new Error(
+                "OpenCL não disponível"
+            );
+        }
+
+        hwInit =
+            `-init_hw_device opencl=${openclDevice} ` +
+            `-filter_hw_device ${openclDevice}`;
+
+        filter =
+            "format=rgba," +
+            "hwupload," +
+            "unsharp_opencl," +
+            "hwdownload," +
+            "format=rgba," +
+            enhancement;
+    }
+
+    else {
+        filter =
+            enhancement +
+            ",unsharp=5:5:" + selected.sharp + ":5:5:0.0";
     }
 
     return (
         `${FFMPEG} -y ${hwInit} ` +
         `-i ${shellPath(input)} ` +
-        `-vf "${filter}" -q:v 2 -frames:v 1 -an ${shellPath(output)}`
+        `-vf "${filter}" ` +
+        `-q:v 2 ` +
+        `-frames:v 1 ` +
+        `-an ` +
+        `${shellPath(output)}`
     ).replace(/\s+/g, " ");
 }
 
-function buildFFmpegCommand(input, output, type, method, profile = null) {
+function buildFFmpegCommand(
+    input,
+    output,
+    type,
+    method,
+    profile = null
+) {
     let hwInit = "";
     let filter = "";
 
     if (method === "vulkan") {
-        hwInit = "-init_hw_device vulkan=vk -filter_hw_device vk";
-        filter = type === "video"
-            ? "format=rgba,hwupload," + `fps=${profile?.fps || 10},` + "hwdownload,format=rgba"
-            : "format=rgba,hwupload,hwdownload,format=rgba";
-    } else if (method === "opencl") {
-        if (!openclDevice) throw new Error("OpenCL não disponível");
-        hwInit = `-init_hw_device opencl=${openclDevice} -filter_hw_device ${openclDevice}`;
-        filter = "format=rgba,hwupload,unsharp_opencl,hwdownload,format=rgba";
-    } else if (method === "mediacodec") {
+        hwInit =
+            "-init_hw_device vulkan=vk " +
+            "-filter_hw_device vk";
+
+        if (type === "video") {
+            filter =
+                "format=rgba," +
+                "hwupload," +
+                `fps=${profile?.fps || 10},` +
+                "hwdownload," +
+                "format=rgba";
+        } else {
+            filter =
+                "format=rgba," +
+                "hwupload," +
+                "hwdownload," +
+                "format=rgba";
+        }
+    }
+
+    else if (method === "opencl") {
+        if (!openclDevice) {
+            throw new Error(
+                "OpenCL não disponível"
+            );
+        }
+
+        hwInit =
+            `-init_hw_device opencl=${openclDevice} ` +
+            `-filter_hw_device ${openclDevice}`;
+
+        filter =
+            "format=rgba," +
+            "hwupload," +
+            "unsharp_opencl," +
+            "hwdownload," +
+            "format=rgba";
+    }
+
+    else if (method === "mediacodec") {
         filter = `fps=${profile?.fps || 10}`;
     }
 
-    if (type === "video" && method !== "vulkan" && method !== "mediacodec") {
-        filter = [filter, `fps=${profile?.fps || 10}`].filter(Boolean).join(",");
+    else if (method === "cpu") {
+        filter = "";
     }
 
-    // Quadro final 512x512 com proporção preservada e margens transparentes.
+    if (type === "video" && method !== "vulkan" && method !== "mediacodec") {
+        filter = [
+            filter,
+            `fps=${profile?.fps || 10}`
+        ].filter(Boolean).join(",");
+    }
+
+    // Quadro final 512x512 sem deformar ou cortar: completa com transparência.
     filter = [
         filter,
         "format=yuva420p",
@@ -339,20 +558,35 @@ function buildFFmpegCommand(input, output, type, method, profile = null) {
         `-i ${shellPath(input)} ` +
         `${type === "video" ? `-t ${profile?.duration || 10} ` : ""}` +
         `-vf "${filter}" ` +
-        `-c:v libwebp -loop 0 -quality ${profile?.quality || 80} ` +
-        `-compression_level 6 -preset picture -an ${shellPath(output)}`
+        `-c:v libwebp ` +
+        `-loop 0 ` +
+        `-quality ${profile?.quality || 80} ` +
+        `-compression_level 6 ` +
+        `-preset picture ` +
+        `-an ` +
+        `${shellPath(output)}`
     ).replace(/\s+/g, " ");
 }
 
 export function getFFmpegAccelerationState() {
-    return { vulkanAvailable, openclDevice, mediacodecAvailable, stickerBackend, hdBackend };
+    return {
+        vulkanAvailable,
+        openclDevice,
+        mediacodecAvailable,
+        stickerBackend,
+        hdBackend
+    };
 }
 
 export function resetFFmpegAccelerationCache() {
     vulkanAvailable = null;
     openclDevice = null;
     mediacodecAvailable = null;
+
     stickerBackend = null;
     hdBackend = null;
-    console.log("♻️ Cache de aceleração FFmpeg resetado");
+
+    console.log(
+        "♻️ Cache de aceleração FFmpeg resetado"
+    );
 }
