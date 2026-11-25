@@ -69,6 +69,11 @@ test("Najimi Osana resolve para a arte oficial de Komi Can't Communicate", async
     assert.equal(imageUrl, "https://www.tv-tokyo.co.jp/anime/komisan/images/chara/chara03.png");
 });
 
+test("Shoko Komi resolve para a arte oficial de Komi Can't Communicate", async () => {
+    const imageUrl = await resolveCharacterImage(getCharacter("shoko-komi"));
+    assert.equal(imageUrl, "https://www.tv-tokyo.co.jp/anime/komisan/images/chara/chara01.png");
+});
+
 test("aliases e nomes não apontam para personagens diferentes", () => {
     const ownerByAlias = new Map();
 
