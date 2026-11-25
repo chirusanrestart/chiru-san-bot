@@ -548,7 +548,7 @@ function buildFFmpegCommand(
     filter = [
         filter,
         "format=yuva420p",
-        "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos",
+        "scale=512:512:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos",
         "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0",
         "format=yuva420p"
     ].filter(Boolean).join(",");
